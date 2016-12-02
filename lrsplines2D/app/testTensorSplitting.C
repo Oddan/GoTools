@@ -57,7 +57,7 @@ int main(int argc, char* argv[])
   plot_mesh(m);
 
   // TESTING
-  vector<int> n = missing_tensorgrid_segments(m, XFIXED, {0, 6}, {0, 5});
+  vector<int> n = missing_tensorgrid_segments(m, XFIXED, {0, 6}, {0, 4}); // (0,6), (0,5)
 
   copy(n.begin(), n.end(), ostream_iterator<int, wchar_t>(wcout, L" "));
   wcout<< endl;
@@ -96,17 +96,17 @@ namespace {
   }
 
   // --------------------------------------------------------------------------
-  vector<int> make_segmap(const vector<IntPair>& segs, int start_ix, int end_ix)
+  vector<int> make_segmult_map(const vector<GPos>& segs, int start_ix, int end_ix)
   // --------------------------------------------------------------------------
   {
-    vector<int> result(end_ix - start_ix - 1, 0);
+    // determine the knot multiplicities of minisegments starting with a given knot
+    vector<int> result(end_ix - start_ix, segs[0].mult);
 
     for (int i = 1; i != segs.size(); ++i) {
 
-      int ix1 = max(segs[i].first - start_ix, 0);
-      int ix2 = min(segs[i].second - start_ix, (int)result.size());
-
-      fill(&result[ix1], &result[ix2], i);
+      const int ix = segs[i].ix - start_ix;
+      if (ix > 0 && ix < result.size())
+	fill(result.begin()+ix, result.end(), segs[i].mult);
     }
     return result;
   }
@@ -121,24 +121,19 @@ namespace {
   {
     assert(knots.size() >= 2);
 
-    const auto all_segs = m.segments(d, seg_ix, 0); // all segments
+    const auto all_segs = m.mrects(d, seg_ix); // all segments
 
     // segments intersecting with the intervals within the given knots
-    const vector<IntPair> segs(find_if(all_segs.begin(), all_segs.end(), [&] (IntPair p) {return p.second > knots.front();}),
-			       find_if(all_segs.begin(), all_segs.end(), [&] (IntPair p) {return p.first < knots.back();}));
 
-
-    // making map from knot to segment
-    const vector<int> segmap = make_segmap(segs, knots.front(), knots.back());
+    // making map of multiplicities
+    const vector<int> segmult = make_segmult_map(all_segs, knots.front(), knots.back());
 
     // computing the multiplicities of each segment between two consecutive knots
     vector<int> result;
     result.reserve(knots.size()-1);
     transform(knots.begin(), knots.end()-1, back_inserter(result),
-	      [&] (int k) {return m.nu(d, seg_ix,
-				       segmap[k-knots.front()],
-				       segmap[k-knots.front()]+1);});
-
+	      [&] (int k) {return segmult[k - knots.front()];});
+		  
     return result;
   }
 
@@ -168,8 +163,8 @@ namespace {
       const int max_mult = *max_element(ms_mult.begin(), ms_mult.end());
 
       // compute number of missing minisegments, and add it to result vector
-      result.push_back(accumulate(ms_mult.begin(), ms_mult.end(), 0) -
-		       max_mult * ms_mult.size());
+      result.push_back(max_mult * ms_mult.size() -
+		       accumulate(ms_mult.begin(), ms_mult.end(), 0) );
     }
       
     return result;
