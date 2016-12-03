@@ -12,6 +12,7 @@ using namespace std;
 
 using IntPair = pair<int, int>;
 using IntVec  = vector<int>;
+using Int3Vec = vector<array<int, 3>>;
 
 namespace {
   int insert_segment(Mesh2D& m,
@@ -22,16 +23,20 @@ namespace {
 		     int mult);
 
   // determine the number of segments/multiplicities that are missing in order
-  // to convert the specified subdomain to a full grid.   Does not consider the
-  // boundary segments (first and last knot of each range)
-  IntVec missing_tensorgrid_segments(const Mesh2D& m,
-				     const Direction2D d,
-				     const IntPair range_x,  // x-range
-				     const IntPair range_y); // y-range
+  // to convert the specified subdomain to a full grid.  Does not consider the
+  // boundary segments (first and last knot of each range) Vector contains one
+  // entry per line considered.  First value is the number of missing
+  // segments/multiplicities.  Second is the maximum muliplicity in the range
+  // under consideration.  Third value is the number of individual segments in
+  // the range under consideration.
+  Int3Vec missing_tensorgrid_segments(const Mesh2D& m,
+				      const Direction2D d,
+				      const IntPair range_x,  // x-range
+				      const IntPair range_y); // y-range
 
   // count total number of missing segments/multiplicities to make the specified
   // subdomain into a full grid (not counting boundaries).
-  struct MissingSegInfo {int num; IntVec missing_x; IntVec missing_y;};
+  struct MissingSegInfo {int num; Int3Vec missing_x; Int3Vec missing_y;};
   MissingSegInfo total_missing_tensorgrid_segments(const Mesh2D&m,
 						   const IntPair range_x,
 						   const IntPair range_y);
@@ -84,16 +89,23 @@ int main(int argc, char* argv[])
   plot_mesh(m);
 
   // TESTING
-  IntVec n = missing_tensorgrid_segments(m, YFIXED, {0, 2}, {0, 5}); // (0,6), (0,5)
+  //IntVec n = missing_tensorgrid_segments(m, YFIXED, {0, 2}, {0, 5}); // (0,6), (0,5)
 
-  copy(n.begin(), n.end(), ostream_iterator<int, wchar_t>(wcout, L" "));
-  wcout<< endl;
+  // copy(n.begin(), n.end(), ostream_iterator<int, wchar_t>(wcout, L" "));
+  // wcout<< endl;
 
   int total = total_missing_tensorgrid_segments(m, {0, 6}, {0, 5}).num;
 
   wcout << total << endl;
-  
-  
+
+  const auto info = suggest_domain_split(m, {0, 6}, {0,5}, 1);
+  wcout << L"Direction:  " << info.d << endl;
+  wcout << L"Split ix:   " << info.ix << endl;
+  wcout << L"Init cost:  " << info.init_cost << endl;
+  wcout << L"Split cost: " << info.split_cost << endl;
+  wcout << L"New cost 1: " << info.new_cost1 << endl;
+  wcout << L"New cost 2: " << info.new_cost2<< endl;
+
   //const auto knots = active_knots(m, XFIXED, {0, 6}, {3, 5});
   //const auto knots = active_knots(m, XFIXED, {4, 6}, {3, 5});
   //copy(knots.begin(), knots.end(), ostream_iterator<int, wchar_t>(wcout, L" \n"));
@@ -134,9 +146,9 @@ namespace {
     // determine the knot multiplicities of minisegments starting with a given knot
     IntVec result(end_ix - start_ix, segs[0].mult);
 
-    for (int i = 1; i != segs.size(); ++i) {
+    for (size_t i = 1; i != segs.size(); ++i) {
 
-      const int ix = segs[i].ix - start_ix;
+      const size_t ix = segs[i].ix - start_ix;
       if (ix > 0 && ix < result.size())
 	fill(result.begin()+ix, result.end(), segs[i].mult);
     }
@@ -171,10 +183,10 @@ namespace {
 
 
   // ==========================================================================
-  IntVec missing_tensorgrid_segments(const Mesh2D& m,
-				     const Direction2D d,
-				     const IntPair range_x, 
-					  const IntPair range_y) 
+  Int3Vec missing_tensorgrid_segments(const Mesh2D& m,
+				      const Direction2D d,
+				      const IntPair range_x, 
+				      const IntPair range_y) 
   // ==========================================================================
   {
     // determine active knots in the opposite direction (not all zero in the segment)
@@ -183,7 +195,7 @@ namespace {
     const IntPair r1  = (d == XFIXED) ? range_x : range_y; // d-direction
     const IntPair r2 = (d == XFIXED) ? range_y : range_x;  // other direction
 
-    IntVec result;
+    Int3Vec result;
     result.reserve(max(r1.second - r1.first - 1, 1));
     
     // we only consider interior.  Ignore first and last value of range
@@ -195,15 +207,16 @@ namespace {
       const int max_mult = *max_element(ms_mult.begin(), ms_mult.end());
 
       // compute number of missing minisegments, and add it to result vector
-      result.push_back(max_mult * ms_mult.size() -
-		       accumulate(ms_mult.begin(), ms_mult.end(), 0) );
+      const int missing = max_mult * (int)ms_mult.size() -
+	                  accumulate(ms_mult.begin(), ms_mult.end(), 0);
+      result.push_back( {missing, max_mult, int(ms_mult.size())});
     }
       
     return result;
   }
 
   // ==========================================================================
-  MissingSegInfo total_missing_tensorgrid_segments(const Mesh2D&m,
+  MissingSegInfo total_missing_tensorgrid_segments(const Mesh2D& m,
 						   const IntPair range_x,
 						   const IntPair range_y)
   // ==========================================================================
@@ -211,10 +224,12 @@ namespace {
     const auto c1 = missing_tensorgrid_segments(m, XFIXED, range_x, range_y);
     const auto c2 = missing_tensorgrid_segments(m, YFIXED, range_x, range_y);
 
-    return {
-      accumulate(c1.begin(), c1.end(), 0) + accumulate(c2.begin(), c2.end(), 0),
-      c1,
-      c2};
+    const auto add_fun = [](int cur, const array<int, 3>& a) {return cur + a[0];};
+    const int missing =
+      accumulate(c1.begin(), c1.end(), 0, add_fun) +
+      accumulate(c2.begin(), c2.end(), 0, add_fun);
+    
+    return { missing, c1, c2};
   }
   
 
@@ -232,6 +247,19 @@ namespace {
     return l_ix;
   }
 
+  // --------------------------------------------------------------------------
+  bool has_t_junctions(const Mesh2D& m, Direction2D d, int line_ix, IntPair range)
+  // --------------------------------------------------------------------------
+  {
+    // skip first and last value of range
+    for (int i = range.first+1; i < range.second; ++i) {
+      const auto mrects = m.mrects(flip(d), i);
+      if (any_of(mrects.begin(), mrects.end(), [line_ix](GPos p) {return p.ix == line_ix;}))
+	return true;
+    }
+    return false;
+  }
+    
   // ==========================================================================
   SplitInfo suggest_domain_split(const Mesh2D& m,
 				 const IntPair range_x,
@@ -239,45 +267,62 @@ namespace {
 				 const int bnd_mult)
   // ==========================================================================
   {
-    //struct MissingSegInfo {int num; IntVec missing_x; IntVec missing_y;};
+    // Unless there are internal lines in both directions, there is no point in splitting
+    if (min(range_x.second - range_x.first, range_y.second - range_y.first) < 2)
+      return {XFIXED, -1, 0, 0, 0, 0}; // dummy values, except -1, which flags 'no split'
+      
+    // If we got here, we know that both direction has at least one internal line
     const auto init = total_missing_tensorgrid_segments(m, range_x, range_y);
-    const int missing_x = accumulate(init.missing_x.begin(), init.missing_x.end(), 0);
-    const int missing_y = accumulate(init.missing_y.begin(), init.missing_y.end(), 0);
-
+    const auto adder = [](int cur, const array<int, 3>& a) {return cur + a[0];};
+    const int missing_x = accumulate(init.missing_x.begin(), init.missing_x.end(), 0, adder);
+    const int missing_y = accumulate(init.missing_y.begin(), init.missing_y.end(), 0, adder);
 
     // Choose direction of split (the direction with fewest missing multiplicities
     const Direction2D d = (missing_x < missing_y) ? XFIXED : YFIXED; 
     const IntPair range_d     = (d == XFIXED) ? range_x : range_y;
     const IntPair range_other = (d == XFIXED) ? range_y : range_x;
+    const Int3Vec& missing_d  = (d == XFIXED) ? init.missing_x : init.missing_y;
 
     // Identify candidates for split (only those associated with t-junctions in
     // the relevant range)
-    IntVec cand(range_d.second - range_d.first + 1, 0);
-    iota(cand.begin(), cand.end(), range_d.first); // consecutive values
+    IntVec cand(range_d.second - (range_d.first + 1), 0);
+    iota(cand.begin(), cand.end(), range_d.first + 1); // consecutive values
     cand.erase(remove_if(cand.begin(), cand.end(),[&m, d, range_other](int ix)
-			 {!has_t_junctions(m, d, ix, range_other);}),
+			 {return !has_t_junctions(m, d, ix, range_other);}),
 	       cand.end());
 
     // Search for optimal candidate
-    IntVec perf; // candidate performance
+    struct PerfInfo {int perf; int split_cost; int new_cost1; int new_cost2;};
+    vector<PerfInfo> perf; // candidate performance
     transform(cand.begin(), cand.end(), back_inserter(perf), [&] (int ix) {
-	__implement_me__;
+	const int local_ix = ix - (range_d.first + 1);
+	const int cur_missing = missing_d[local_ix][0];
+	const int cur_maxmult = missing_d[local_ix][1]; assert(cur_maxmult <= bnd_mult);
+	const int num_miniseg = missing_d[local_ix][2];
+	
+	// cost to bring this line subdomain up to 'bnd_mult' multiplicity everywhere
+	const int split_cost = cur_missing + (bnd_mult - cur_maxmult) * num_miniseg;
+	const IntPair r1 {range_d.first, ix};
+	const IntPair r2 {ix, range_d.second};
+	const int new_cost1 = total_missing_tensorgrid_segments(m,
+								(d == XFIXED) ? r1 : range_other,
+								(d == XFIXED) ? range_other: r1).num;
+	const int new_cost2 = total_missing_tensorgrid_segments(m,
+								(d == XFIXED) ? r2 : range_other,
+								(d == XFIXED) ? range_other: r2).num;
+	return PerfInfo {init.num - (split_cost + new_cost1 + new_cost2),
+	                split_cost, new_cost1, new_cost2};
       });
-
+    
     // identify the winning candidate, and check if the corresponding split is
     // useful (positive performance)
-    const auto max_perf = max_element(perf.begin(), perf.end());
-    const int split_ix = (*max_perf > 0) ? cand(max_perf - perf.begin()) : -1;
+    const auto max_perf = max_element(perf.begin(), perf.end(),
+				      [](const PerfInfo& p1, const PerfInfo& p2)
+				      {return p1.perf < p2.perf;});
+    const int split_ix = (max_perf->perf > 0) ? cand[max_perf - perf.begin()] : -1;
 
-    // TODO
-    const int split_cost = 1;
-    const int new_cost1 = 1;
-    const int new_cost2 = 1;
-
-    return {d, split_ix, init.num, split_cost, new_cost1, new_cost2};
+    return {d, split_ix, init.num, max_perf->split_cost, max_perf->new_cost1, max_perf->new_cost2};
   }
     
   
 } // end anonymous namespace
-
-  
