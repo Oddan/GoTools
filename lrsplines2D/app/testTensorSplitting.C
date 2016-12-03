@@ -57,7 +57,7 @@ namespace {
   // be strictly lower than the value of the third returned value.  If this is
   // not possible, no split is proposed, and the second returned value will be -1.
   //tuple<Direction2D, int, int, int, int, int>
-  struct SplitInfo {
+  struct DomainSplitDetail {
     Direction2D d;
     int ix;
     int init_cost;
@@ -65,8 +65,22 @@ namespace {
     int new_cost1;
     int new_cost2;
   };
-  SplitInfo suggest_domain_split(const Mesh2D& m, const IntPair range_x,
-				 const IntPair range_y, const int bnd_mult);
+  DomainSplitDetail suggest_domain_split(const Mesh2D& m, const IntPair range_x,
+					 const IntPair range_y, const int bnd_mult);
+
+  struct ConsecutiveSplit {
+    Direction2D d;
+    IntPair from;
+    IntPair to;
+  };
+  struct Subdomain {
+    IntPair ll; // (x,y)-indices of lower left corner
+    IntPair ur; // (x,y)-indices of upper right corner
+  };
+  tuple<vector<ConsecutiveSplit>, vector<Subdomain>> recursive_split(const Mesh2D& m, 
+								     const int bnd_mult);
+  
+  
 } // end anonymous namespace
 
 // ============================================================================
@@ -261,7 +275,7 @@ namespace {
   }
     
   // ==========================================================================
-  SplitInfo suggest_domain_split(const Mesh2D& m,
+  DomainSplitDetail suggest_domain_split(const Mesh2D& m,
 				 const IntPair range_x,
 				 const IntPair range_y,
 				 const int bnd_mult)
@@ -323,6 +337,12 @@ namespace {
 
     return {d, split_ix, init.num, max_perf->split_cost, max_perf->new_cost1, max_perf->new_cost2};
   }
-    
-  
+
+  // ==========================================================================
+  tuple<vector<ConsecutiveSplit>, vector<Subdomain>>
+  recursive_split(const Mesh2D& m, const int bnd_mult)
+  // ==========================================================================
+  {
+
+  }
 } // end anonymous namespace
