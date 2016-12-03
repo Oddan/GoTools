@@ -11,6 +11,7 @@ using namespace Go;
 using namespace std;
 
 using IntPair = pair<int, int>;
+using IntVec  = vector<int>;
 
 namespace {
   int insert_segment(Mesh2D& m,
@@ -23,18 +24,44 @@ namespace {
   // determine the number of segments/multiplicities that are missing in order
   // to convert the specified subdomain to a full grid.   Does not consider the
   // boundary segments (first and last knot of each range)
-  vector<int> missing_tensorgrid_segments(const Mesh2D& m,
-					  const Direction2D d,
-					  const IntPair range_x,  // x-range
-					  const IntPair range_y); // y-range
-  
-  // missing _inner_ refinements (i.e. excluding the boundary)
-  int num_missing_increments(const Mesh2D& m,
-			     Direction2D d, 
-			     IntPair c1,  // lower left corner
-			     IntPair c2); // upper right corner
+  IntVec missing_tensorgrid_segments(const Mesh2D& m,
+				     const Direction2D d,
+				     const IntPair range_x,  // x-range
+				     const IntPair range_y); // y-range
 
-  //vector<int> active_knots(const Mesh2D& m, Direction2D d, IntPair r1, IntPair r2);
+  // count total number of missing segments/multiplicities to make the specified
+  // subdomain into a full grid (not counting boundaries).
+  struct MissingSegInfo {int num; IntVec missing_x; IntVec missing_y;};
+  MissingSegInfo total_missing_tensorgrid_segments(const Mesh2D&m,
+						   const IntPair range_x,
+						   const IntPair range_y);
+
+  // Suggest a split of the specified domain into two subdomains with fewer
+  // total missing segments/multiplicities.  'bnd_mult' specifies the
+  // multiplicity each segment of the split itself should have.
+  // Return values:
+  // 1) Direction (whether the split occurs for XFIXED or YFIXED)
+  // 2) Index of the line along which the split should occur (or -1 if no split
+  //    was found)
+  // 3) The total missing tensorgrid segments before split
+  // 4) The cost of the split (the number of minisegments multiplicities to
+  //    raise along the split line)
+  // 5) The total missing tensorgrid segments of the first new subdomain
+  // 6) The total missing tensorgrid segments of the second new subdomain
+  // If a split is found, then the sum of the three last returned values should
+  // be strictly lower than the value of the third returned value.  If this is
+  // not possible, no split is proposed, and the second returned value will be -1.
+  //tuple<Direction2D, int, int, int, int, int>
+  struct SplitInfo {
+    Direction2D d;
+    int ix;
+    int init_cost;
+    int split_cost;
+    int new_cost1;
+    int new_cost2;
+  };
+  SplitInfo suggest_domain_split(const Mesh2D& m, const IntPair range_x,
+				 const IntPair range_y, const int bnd_mult);
 } // end anonymous namespace
 
 // ============================================================================
@@ -57,10 +84,15 @@ int main(int argc, char* argv[])
   plot_mesh(m);
 
   // TESTING
-  vector<int> n = missing_tensorgrid_segments(m, XFIXED, {0, 6}, {0, 4}); // (0,6), (0,5)
+  IntVec n = missing_tensorgrid_segments(m, YFIXED, {0, 2}, {0, 5}); // (0,6), (0,5)
 
   copy(n.begin(), n.end(), ostream_iterator<int, wchar_t>(wcout, L" "));
   wcout<< endl;
+
+  int total = total_missing_tensorgrid_segments(m, {0, 6}, {0, 5}).num;
+
+  wcout << total << endl;
+  
   
   //const auto knots = active_knots(m, XFIXED, {0, 6}, {3, 5});
   //const auto knots = active_knots(m, XFIXED, {4, 6}, {3, 5});
@@ -72,14 +104,14 @@ int main(int argc, char* argv[])
 
 namespace {
   // --------------------------------------------------------------------------
-  vector<int> active_knots(const Mesh2D& m, Direction2D d, IntPair r1, IntPair r2)
+  IntVec active_knots(const Mesh2D& m, Direction2D d, IntPair r1, IntPair r2)
   // --------------------------------------------------------------------------
   {
     // The first and last knot is automatically 'active' by merit to belong to
     // the boundary of the domain under consideration
     
     if (d==YFIXED) swap(r1, r2); // ensure that r1 correspond to the fixed direction
-    vector<int> result {r1.first}; // include first knot (see initial comment)
+    IntVec result {r1.first}; // include first knot (see initial comment)
 
     // determine which of the "interior" knots should be considered active
     for (int i = r1.first+1; i < r1.second; ++i) {
@@ -96,11 +128,11 @@ namespace {
   }
 
   // --------------------------------------------------------------------------
-  vector<int> make_segmult_map(const vector<GPos>& segs, int start_ix, int end_ix)
+  IntVec make_segmult_map(const vector<GPos>& segs, int start_ix, int end_ix)
   // --------------------------------------------------------------------------
   {
     // determine the knot multiplicities of minisegments starting with a given knot
-    vector<int> result(end_ix - start_ix, segs[0].mult);
+    IntVec result(end_ix - start_ix, segs[0].mult);
 
     for (int i = 1; i != segs.size(); ++i) {
 
@@ -113,10 +145,10 @@ namespace {
 
   
   // --------------------------------------------------------------------------
-  vector<int> minisegment_multiplicities(const Mesh2D& m,
+  IntVec minisegment_multiplicities(const Mesh2D& m,
 					 const Direction2D d,
 					 const int seg_ix,
-					 const vector<int> knots)
+					 const IntVec knots)
   // --------------------------------------------------------------------------
   {
     assert(knots.size() >= 2);
@@ -126,10 +158,10 @@ namespace {
     // segments intersecting with the intervals within the given knots
 
     // making map of multiplicities
-    const vector<int> segmult = make_segmult_map(all_segs, knots.front(), knots.back());
+    const IntVec segmult = make_segmult_map(all_segs, knots.front(), knots.back());
 
     // computing the multiplicities of each segment between two consecutive knots
-    vector<int> result;
+    IntVec result;
     result.reserve(knots.size()-1);
     transform(knots.begin(), knots.end()-1, back_inserter(result),
 	      [&] (int k) {return segmult[k - knots.front()];});
@@ -139,9 +171,9 @@ namespace {
 
 
   // ==========================================================================
-  vector<int> missing_tensorgrid_segments(const Mesh2D& m,
-					  const Direction2D d,
-					  const IntPair range_x, 
+  IntVec missing_tensorgrid_segments(const Mesh2D& m,
+				     const Direction2D d,
+				     const IntPair range_x, 
 					  const IntPair range_y) 
   // ==========================================================================
   {
@@ -151,7 +183,7 @@ namespace {
     const IntPair r1  = (d == XFIXED) ? range_x : range_y; // d-direction
     const IntPair r2 = (d == XFIXED) ? range_y : range_x;  // other direction
 
-    vector<int> result;
+    IntVec result;
     result.reserve(max(r1.second - r1.first - 1, 1));
     
     // we only consider interior.  Ignore first and last value of range
@@ -171,15 +203,20 @@ namespace {
   }
 
   // ==========================================================================
-  int num_missing_increments(const Mesh2D& m,
-			      Direction2D d, 
-			      IntPair c1,  // lower left corner
-			      IntPair c2)  // upper right corner
+  MissingSegInfo total_missing_tensorgrid_segments(const Mesh2D&m,
+						   const IntPair range_x,
+						   const IntPair range_y)
   // ==========================================================================
   {
-    
-    return {};
+    const auto c1 = missing_tensorgrid_segments(m, XFIXED, range_x, range_y);
+    const auto c2 = missing_tensorgrid_segments(m, YFIXED, range_x, range_y);
+
+    return {
+      accumulate(c1.begin(), c1.end(), 0) + accumulate(c2.begin(), c2.end(), 0),
+      c1,
+      c2};
   }
+  
 
   // ==========================================================================
   int insert_segment(Mesh2D& m,
@@ -194,6 +231,53 @@ namespace {
     m.setMult(d, l_ix, start_ix, end_ix, mult);
     return l_ix;
   }
+
+  // ==========================================================================
+  SplitInfo suggest_domain_split(const Mesh2D& m,
+				 const IntPair range_x,
+				 const IntPair range_y,
+				 const int bnd_mult)
+  // ==========================================================================
+  {
+    //struct MissingSegInfo {int num; IntVec missing_x; IntVec missing_y;};
+    const auto init = total_missing_tensorgrid_segments(m, range_x, range_y);
+    const int missing_x = accumulate(init.missing_x.begin(), init.missing_x.end(), 0);
+    const int missing_y = accumulate(init.missing_y.begin(), init.missing_y.end(), 0);
+
+
+    // Choose direction of split (the direction with fewest missing multiplicities
+    const Direction2D d = (missing_x < missing_y) ? XFIXED : YFIXED; 
+    const IntPair range_d     = (d == XFIXED) ? range_x : range_y;
+    const IntPair range_other = (d == XFIXED) ? range_y : range_x;
+
+    // Identify candidates for split (only those associated with t-junctions in
+    // the relevant range)
+    IntVec cand(range_d.second - range_d.first + 1, 0);
+    iota(cand.begin(), cand.end(), range_d.first); // consecutive values
+    cand.erase(remove_if(cand.begin(), cand.end(),[&m, d, range_other](int ix)
+			 {!has_t_junctions(m, d, ix, range_other);}),
+	       cand.end());
+
+    // Search for optimal candidate
+    IntVec perf; // candidate performance
+    transform(cand.begin(), cand.end(), back_inserter(perf), [&] (int ix) {
+	__implement_me__;
+      });
+
+    // identify the winning candidate, and check if the corresponding split is
+    // useful (positive performance)
+    const auto max_perf = max_element(perf.begin(), perf.end());
+    const int split_ix = (*max_perf > 0) ? cand(max_perf - perf.begin()) : -1;
+
+    // TODO
+    const int split_cost = 1;
+    const int new_cost1 = 1;
+    const int new_cost2 = 1;
+
+    return {d, split_ix, init.num, split_cost, new_cost1, new_cost2};
+  }
+    
+  
 } // end anonymous namespace
 
   
