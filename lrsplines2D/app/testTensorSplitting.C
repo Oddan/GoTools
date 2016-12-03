@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
 
   wcout << total << endl;
 
-  const auto info = suggest_domain_split(m, {0, 6}, {0,5}, 1);
+  const auto info = suggest_domain_split(m, {0, 6}, {0,5}, 2);
   wcout << L"Direction:  " << info.d << endl;
   wcout << L"Split ix:   " << info.ix << endl;
   wcout << L"Init cost:  " << info.init_cost << endl;
@@ -149,7 +149,7 @@ namespace {
     for (size_t i = 1; i != segs.size(); ++i) {
 
       const size_t ix = segs[i].ix - start_ix;
-      if (ix > 0 && ix < result.size())
+      if (ix >= 0 && ix < result.size())
 	fill(result.begin()+ix, result.end(), segs[i].mult);
     }
     return result;
