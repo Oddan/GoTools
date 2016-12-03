@@ -312,11 +312,9 @@ namespace {
 	const IntPair r1 {range_d.first, ix};
 	const IntPair r2 {ix, range_d.second};
 	const int new_cost1 = total_missing_tensorgrid_segments(m,
-							   {(d == XFIXED) ? r1 : range_other,
-							    (d == XFIXED) ? range_other: r1}).num;
+		    (d==XFIXED) ? Subdomain {r1, range_other} : Subdomain {range_other, r1}).num;
 	const int new_cost2 = total_missing_tensorgrid_segments(m,
-							   {(d == XFIXED) ? r2 : range_other,
-							    (d == XFIXED) ? range_other: r2}).num;
+		    (d==XFIXED) ? Subdomain {r2, range_other} : Subdomain {range_other, r2}).num;
 	return PerfInfo {init.num - (split_cost + new_cost1 + new_cost2),
 	                split_cost, new_cost1, new_cost2};
       });
