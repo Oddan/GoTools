@@ -17,6 +17,10 @@ using Int3Vec = vector<array<int, 3>>;
 namespace {
   // Structure to denote a subdomain
   struct Subdomain {
+    Subdomain(const Mesh2D& m) :
+      range_x({0, m.numDistinctKnots(XFIXED)-1}),
+      range_y({0, m.numDistinctKnots(YFIXED)-1}) {};
+    Subdomain(IntPair r1, IntPair r2) : range_x(r1), range_y(r2) {}
     IntPair range_x; // first and last knot along x-knotvec (ignoring multiplicities)
     IntPair range_y; // first and last knot along y-knotvec (ignoring multiplicities)
   };
@@ -72,9 +76,9 @@ namespace {
   DomainSplitDetail
   suggest_domain_split(const Mesh2D& m, const Subdomain& dom, const int bnd_mult);
 
-  struct ConsecutiveSplit {Direction2D d; IntPair from; IntPair to;};
+  struct ConsecutiveSplit {Direction2D d; int ix; IntPair range;};
   tuple<vector<ConsecutiveSplit>, vector<Subdomain>>
-  recursive_split(const Mesh2D& m, const int bnd_mult, const Subdomain dom = {{-1, -1}, {-1, -1}});
+  recursive_split(const Mesh2D& m, const int bnd_mult, const Subdomain dom);
 								     
   
 } // end anonymous namespace
@@ -95,6 +99,7 @@ int main(int argc, char* argv[])
   // inserting modifications (no longer tensor product)
   insert_segment(m, YFIXED, 2.5, 2, 5, 1);
   insert_segment(m, XFIXED, 3.5, 1, 3, 1);
+  insert_segment(m, YFIXED, 2.75, 3, 5, 1); // new
 
   plot_mesh(m);
 
@@ -116,6 +121,11 @@ int main(int argc, char* argv[])
   wcout << L"New cost 1: " << info.new_cost1 << endl;
   wcout << L"New cost 2: " << info.new_cost2<< endl;
 
+  const auto result = recursive_split(m, 2, Subdomain(m)); // mesh, bnd_mult
+
+  wcout << L"end" << endl;
+
+    
   //const auto knots = active_knots(m, XFIXED, {0, 6}, {3, 5});
   //const auto knots = active_knots(m, XFIXED, {4, 6}, {3, 5});
   //copy(knots.begin(), knots.end(), ostream_iterator<int, wchar_t>(wcout, L" \n"));
@@ -284,6 +294,9 @@ namespace {
     const int missing_x = accumulate(init.missing_x.begin(), init.missing_x.end(), 0, adder);
     const int missing_y = accumulate(init.missing_y.begin(), init.missing_y.end(), 0, adder);
 
+    if (max(missing_x, missing_y) == 0)
+      return{XFIXED, -1, 0, 0, 0, 0}; // no missing interior segments.  No split necessary
+
     // Choose direction of split (the direction with fewest missing multiplicities
     const Direction2D d = (missing_x < missing_y) ? XFIXED : YFIXED; 
     const IntPair range_d     = (d == XFIXED) ? dom.range_x : dom.range_y;
@@ -334,8 +347,39 @@ namespace {
   recursive_split(const Mesh2D& m, const int bnd_mult, const Subdomain dom)
   // ==========================================================================
   {
-    vector<ConsecutiveSplit> v;
-    vector<Subdomain> s;
-    return make_tuple(v, s);
+    const auto cur = suggest_domain_split(m, dom, bnd_mult);
+
+    if (cur.ix < 0) // no advantageous split possible
+      return make_tuple(vector<ConsecutiveSplit>{}, vector<Subdomain> {dom});
+
+    // a split was found
+    const Direction2D d = cur.d; // avoid having to spell it out every time
+    const pair<Subdomain, Subdomain> new_doms = (d == XFIXED) ?
+      make_pair(Subdomain {{dom.range_x.first, cur.ix}, dom.range_y},
+		Subdomain {{cur.ix, dom.range_x.second}, dom.range_y}) : 
+      make_pair(Subdomain {dom.range_x, {dom.range_y.first, cur.ix}},
+		Subdomain {dom.range_x, {cur.ix, dom.range_y.second}});
+
+    const auto r1 = recursive_split(m, bnd_mult, new_doms.first);
+    const auto r2 = recursive_split(m, bnd_mult, new_doms.second);
+
+    vector<ConsecutiveSplit> splits {{d, cur.ix, (d == XFIXED) ? dom.range_y : dom.range_x} };
+    splits.insert(splits.end(), get<0>(r1).begin(), get<0>(r1).end());
+    splits.insert(splits.end(), get<0>(r2).begin(), get<0>(r2).end());
+    
+    vector<Subdomain> doms = get<1>(r1);
+    doms.insert(doms.end(), get<1>(r2).begin(), get<1>(r2).end());
+
+    return make_tuple(splits, doms);
   }
 } // end anonymous namespace
+
+  //   struct DomainSplitDetail {
+  //   Direction2D d;
+  //   int ix;
+  //   int init_cost;
+  //   int split_cost;
+  //   int new_cost1;
+  //   int new_cost2;
+  // };
+      //struct ConsecutiveSplit {Direction2D d; int ix, IntPair range};
