@@ -1,3 +1,5 @@
+#include <iostream>
+#include <fstream>
 #include <locale>
 #include <iostream>
 #include <iterator> // for ostream_iterator
@@ -6,6 +8,9 @@
 //#include <utility>
 #include "GoTools/lrsplines2D/Mesh2D.h"
 #include "GoTools/lrsplines2D/PlotUtils.h"
+#include "GoTools/lrsplines2D/LRSplineSurface.h"
+#include "GoTools/geometry/ObjectHeader.h"
+#include "GoTools/geometry/SplineSurface.h"
 
 using namespace Go;
 using namespace std;
@@ -24,7 +29,8 @@ namespace {
     IntPair range_x; // first and last knot along x-knotvec (ignoring multiplicities)
     IntPair range_y; // first and last knot along y-knotvec (ignoring multiplicities)
   };
-  
+
+
   int insert_segment(Mesh2D& m,
 		     Direction2D d,
 		     double pval,
@@ -88,32 +94,87 @@ namespace {
 int main(int argc, char* argv[])
 {
   setlocale(LC_ALL, "en_US.UTF.8");
+
+    ifstream is(argv[1]);
+  if (!is) {
+    wcout << L"File not found.\n";
+    return 0;
+  }
+  ObjectHeader header;
+  header.read(is);
   
-  // Defining initial knotvectors
-  const double xvec[] {0, 1, 2, 3, 4, 5};
-  const double yvec[] {0, 1, 2, 3, 4};
+  LRSplineSurface lrs(is);
 
-  // base, tensor-product mesh
-  Mesh2D m = Mesh2D(xvec, xvec + 6, yvec, yvec + 5);
-
-  // inserting modifications (no longer tensor product)
-  insert_segment(m, YFIXED, 2.5, 2, 5, 1);
-  insert_segment(m, XFIXED, 3.5, 1, 3, 1);
-  insert_segment(m, YFIXED, 2.75, 3, 5, 1); // new
-
+  Mesh2D m = lrs.mesh();
   plot_mesh(m);
 
-  // TESTING
-  //IntVec n = missing_tensorgrid_segments(m, YFIXED, {0, 2}, {0, 5}); // (0,6), (0,5)
+  //  auto krull = suggest_domain_split(m, {{4, 6},{27, 43}}, 1);
+  
+  const auto result = recursive_split(m, 2, Subdomain(m));
+  
+  vector<shared_ptr<SplineSurface>> spl_surfs;
+  int counter = 0;
+  for (auto d : get<1>(result)) {
+    auto subsf = shared_ptr<LRSplineSurface>(lrs.subSurface(m.kval(XFIXED, d.range_x.first),
+  							    m.kval(YFIXED, d.range_y.first),
+  							    m.kval(XFIXED, d.range_x.second),
+  							    m.kval(YFIXED, d.range_y.second),
+  							    lrs.getKnotTol()));
+    wcout << L"Subsurface no. " << counter++ << endl;
+    plot_mesh(subsf->mesh());
+    // if (counter == 11) {
+    //   //const auto info = suggest_domain_split(subsf->mesh(), {{0, 8}, {0,6}}, 1);
+    //   int krull = 1;
+    // }
+    spl_surfs.push_back(shared_ptr<SplineSurface>(subsf->asSplineSurface()));
+  }
+  wcout << L"Number of spline surfaces: " << spl_surfs.size() << endl;
 
-  // copy(n.begin(), n.end(), ostream_iterator<int, wchar_t>(wcout, L" "));
-  // wcout<< endl;
+  // LRSplineSurface*
+  //     subSurface(double from_upar, double from_vpar,
+  // 		 double to_upar, double to_vpar,
+  // 		 double fuzzy) const;
 
-  int total = total_missing_tensorgrid_segments(m, {{0, 6}, {0, 5}}).num;
+  // const double xvec[] {0, 1, 2, 3, 4, 5, 6, 7, 8};
+  // const double yvec[] {0, 1, 2, 3, 4, 5};
 
-  wcout << total << endl;
+  // Mesh2D m = Mesh2D(xvec, xvec+9, yvec, yvec + 6);
+  // m.setMult(XFIXED, 0, 0, 5, 4);
+  // m.setMult(XFIXED, 8, 0, 5, 4);
+  // m.setMult(YFIXED, 0, 0, 8, 4);
+  // m.setMult(YFIXED, 5, 0, 8, 4);
 
-  const auto info = suggest_domain_split(m, {{0, 6}, {0,5}}, 2);
+  // insert_segment(m, YFIXED, 4.5, 0, 6, 1);
+
+  // plot_mesh(m);
+  
+
+  // // Defining initial knotvectors
+  // const double xvec[] {0, 1, 2, 3, 4, 5};
+  // const double yvec[] {0, 1, 2, 3, 4};
+
+  
+  // base, tensor-product mesh
+  // Mesh2D m = Mesh2D(xvec, xvec + 6, yvec, yvec + 5);
+
+  // // inserting modifications (no longer tensor product)
+  // insert_segment(m, YFIXED, 2.5, 2, 5, 1);
+  // insert_segment(m, XFIXED, 3.5, 1, 3, 1);
+  // insert_segment(m, YFIXED, 2.75, 3, 5, 1); // new
+
+  // plot_mesh(m);
+
+  // // TESTING
+  // //IntVec n = missing_tensorgrid_segments(m, YFIXED, {0, 2}, {0, 5}); // (0,6), (0,5)
+
+  // // copy(n.begin(), n.end(), ostream_iterator<int, wchar_t>(wcout, L" "));
+  // // wcout<< endl;
+
+  // int total = total_missing_tensorgrid_segments(m, {{0, 6}, {0, 5}}).num;
+
+  // wcout << total << endl;
+
+  const auto info = suggest_domain_split(m, {{0, 8}, {0,6}}, 1);
   wcout << L"Direction:  " << info.d << endl;
   wcout << L"Split ix:   " << info.ix << endl;
   wcout << L"Init cost:  " << info.init_cost << endl;
@@ -121,14 +182,14 @@ int main(int argc, char* argv[])
   wcout << L"New cost 1: " << info.new_cost1 << endl;
   wcout << L"New cost 2: " << info.new_cost2<< endl;
 
-  const auto result = recursive_split(m, 2, Subdomain(m)); // mesh, bnd_mult
+  // const auto result = recursive_split(m, 2, Subdomain(m)); // mesh, bnd_mult
 
-  wcout << L"end" << endl;
+  // wcout << L"end" << endl;
 
     
-  //const auto knots = active_knots(m, XFIXED, {0, 6}, {3, 5});
-  //const auto knots = active_knots(m, XFIXED, {4, 6}, {3, 5});
-  //copy(knots.begin(), knots.end(), ostream_iterator<int, wchar_t>(wcout, L" \n"));
+  // //const auto knots = active_knots(m, XFIXED, {0, 6}, {3, 5});
+  // //const auto knots = active_knots(m, XFIXED, {4, 6}, {3, 5});
+  // //copy(knots.begin(), knots.end(), ostream_iterator<int, wchar_t>(wcout, L" \n"));
     
 }
 
@@ -166,12 +227,8 @@ namespace {
     // determine the knot multiplicities of minisegments starting with a given knot
     IntVec result(end_ix - start_ix, segs[0].mult);
 
-    for (size_t i = 1; i != segs.size(); ++i) {
-
-      const size_t ix = segs[i].ix - start_ix;
-      if (ix >= 0 && ix < result.size())
-	fill(result.begin()+ix, result.end(), segs[i].mult);
-    }
+    for (size_t i = 1; i != segs.size() & segs[i].ix < end_ix; ++i) // @@ can probably be optimized
+      fill(result.begin() + max(0, (segs[i].ix - start_ix)), result.end(), segs[i].mult);
     return result;
   }
 
@@ -235,7 +292,10 @@ namespace {
   }
 
   // ==========================================================================
-  MissingSegInfo total_missing_tensorgrid_segments(const Mesh2D& m,
+  MissingSegInfo
+
+
+  total_missing_tensorgrid_segments(const Mesh2D& m,
 						   const Subdomain& dom)
   // ==========================================================================
   {
@@ -337,7 +397,8 @@ namespace {
     const auto max_perf = max_element(perf.begin(), perf.end(),
 				      [](const PerfInfo& p1, const PerfInfo& p2)
 				      {return p1.perf < p2.perf;});
-    const int split_ix = (max_perf->perf > 0) ? cand[max_perf - perf.begin()] : -1;
+    const int split_ix = (max_perf->perf > 0) ? cand[max_perf - perf.begin()] :
+      (max_perf->split_cost <= max(max_perf->new_cost1, max_perf->new_cost2)) ? cand[max_perf - perf.begin()] : -1;
 
     return {d, split_ix, init.num, max_perf->split_cost, max_perf->new_cost1, max_perf->new_cost2};
   }
@@ -373,13 +434,3 @@ namespace {
     return make_tuple(splits, doms);
   }
 } // end anonymous namespace
-
-  //   struct DomainSplitDetail {
-  //   Direction2D d;
-  //   int ix;
-  //   int init_cost;
-  //   int split_cost;
-  //   int new_cost1;
-  //   int new_cost2;
-  // };
-      //struct ConsecutiveSplit {Direction2D d; int ix, IntPair range};

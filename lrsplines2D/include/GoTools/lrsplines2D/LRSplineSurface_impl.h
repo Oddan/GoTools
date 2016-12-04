@@ -71,12 +71,12 @@ namespace {
   /*   return std::find_if(start, end, [start](int x) {return x != *start;}) - start; */
 
   int consecutives(const std::vector<int>& v) {
-    return std::find_if(v.begin(), v.end(), [&](int x) 
-			{return x != v.front();}) - v.begin();}
+    return int(std::find_if(v.begin(), v.end(), [&](int x) 
+			    {return x != v.front();}) - v.begin());}
 
   int predessesors(const std::vector<int>& v) {
-    return std::find_if(v.rbegin(), v.rend(), [&](int x) 
-			{return x != v.back();}) - v.rbegin();}
+    return int(std::find_if(v.rbegin(), v.rend(), [&](int x) 
+			    {return x != v.back();}) - v.rbegin());}
 
 }; // end anonymous namespace
 
@@ -166,7 +166,7 @@ inline LRSplineSurface::BSKey LRSplineSurface::generate_key(const LRBSpline2D& b
 		consecutives(b.kvec(XFIXED)), consecutives(b.kvec(YFIXED)),
 		predessesors(b.kvec(XFIXED)), predessesors(b.kvec(YFIXED))};
 #ifndef NDEBUG
-  double deb_val = 0.0;
+  //double deb_val = 0.0;
 #endif
    return key;
 }
