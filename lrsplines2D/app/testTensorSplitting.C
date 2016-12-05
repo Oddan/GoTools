@@ -80,13 +80,12 @@ namespace {
     int new_cost2;
   };
   DomainSplitDetail
-  suggest_domain_split(const Mesh2D& m, const Subdomain& dom, const int bnd_mult);
+  suggest_domain_split(const Mesh2D& m, const Subdomain& dom, const IntPair bnd_mult);
 
   struct ConsecutiveSplit {Direction2D d; int ix; IntPair range;};
   tuple<vector<ConsecutiveSplit>, vector<Subdomain>>
-  recursive_split(const Mesh2D& m, const int bnd_mult, const Subdomain dom);
-								     
-  
+  recursive_split(const Mesh2D& m, const IntPair bnd_mult, const Subdomain dom);
+
 } // end anonymous namespace
 
 // ============================================================================
@@ -110,7 +109,7 @@ int main(int argc, char* argv[])
 
   //  auto krull = suggest_domain_split(m, {{4, 6},{27, 43}}, 1);
   
-  const auto result = recursive_split(m, 2, Subdomain(m));
+  const auto result = recursive_split(m, {4, 4}, Subdomain(m));
   
   vector<shared_ptr<SplineSurface>> spl_surfs;
   int counter = 0;
@@ -149,12 +148,12 @@ int main(int argc, char* argv[])
   // plot_mesh(m);
   
 
-  // // Defining initial knotvectors
+  // Defining initial knotvectors
   // const double xvec[] {0, 1, 2, 3, 4, 5};
   // const double yvec[] {0, 1, 2, 3, 4};
 
   
-  // base, tensor-product mesh
+  // //base, tensor-product mesh
   // Mesh2D m = Mesh2D(xvec, xvec + 6, yvec, yvec + 5);
 
   // // inserting modifications (no longer tensor product)
@@ -174,15 +173,15 @@ int main(int argc, char* argv[])
 
   // wcout << total << endl;
 
-  const auto info = suggest_domain_split(m, {{0, 8}, {0,6}}, 1);
-  wcout << L"Direction:  " << info.d << endl;
-  wcout << L"Split ix:   " << info.ix << endl;
-  wcout << L"Init cost:  " << info.init_cost << endl;
-  wcout << L"Split cost: " << info.split_cost << endl;
-  wcout << L"New cost 1: " << info.new_cost1 << endl;
-  wcout << L"New cost 2: " << info.new_cost2<< endl;
+  // const auto info = suggest_domain_split(m, Subdomain(m), {1, 1});
+  // wcout << L"Direction:  " << info.d << endl;
+  // wcout << L"Split ix:   " << info.ix << endl;
+  // wcout << L"Init cost:  " << info.init_cost << endl;
+  // wcout << L"Split cost: " << info.split_cost << endl;
+  // wcout << L"New cost 1: " << info.new_cost1 << endl;
+  // wcout << L"New cost 2: " << info.new_cost2<< endl;
 
-  // const auto result = recursive_split(m, 2, Subdomain(m)); // mesh, bnd_mult
+  // const auto result = recursive_split(m, {1, 1}, Subdomain(m)); // mesh, bnd_mult
 
   // wcout << L"end" << endl;
 
@@ -227,7 +226,7 @@ namespace {
     // determine the knot multiplicities of minisegments starting with a given knot
     IntVec result(end_ix - start_ix, segs[0].mult);
 
-    for (size_t i = 1; i != segs.size() & segs[i].ix < end_ix; ++i) // @@ can probably be optimized
+    for (size_t i = 1; (i != segs.size()) & (segs[i].ix < end_ix); ++i) // @@ can probably be optimized
       fill(result.begin() + max(0, (segs[i].ix - start_ix)), result.end(), segs[i].mult);
     return result;
   }
@@ -293,10 +292,7 @@ namespace {
 
   // ==========================================================================
   MissingSegInfo
-
-
-  total_missing_tensorgrid_segments(const Mesh2D& m,
-						   const Subdomain& dom)
+  total_missing_tensorgrid_segments(const Mesh2D& m, const Subdomain& dom)
   // ==========================================================================
   {
     const auto c1 = missing_tensorgrid_segments(m, XFIXED, dom);
@@ -337,43 +333,36 @@ namespace {
     }
     return false;
   }
-    
-  // ==========================================================================
-  DomainSplitDetail suggest_domain_split(const Mesh2D& m,
-					 const Subdomain& dom,
-					 const int bnd_mult)
-  // ==========================================================================
+
+
+  struct PerfInfo {int ix; int perf; int split_cost; int new_cost1; int new_cost2;};
+  // --------------------------------------------------------------------------
+  PerfInfo choose_splitting_candidate(const Mesh2D& m, const Subdomain& dom,
+				      const MissingSegInfo& init_missing, 
+				      Direction2D d, int bnd_mult)
+  // --------------------------------------------------------------------------
   {
-    // Unless there are internal lines in both directions, there is no point in splitting
-    if (min(dom.range_x.second - dom.range_x.first, dom.range_y.second - dom.range_y.first) < 2)
-      return {XFIXED, -1, 0, 0, 0, 0}; // dummy values, except -1, which flags 'no split'
-      
-    // If we got here, we know that both direction has at least one internal line
-    const auto init = total_missing_tensorgrid_segments(m, dom);
-    const auto adder = [](int cur, const array<int, 3>& a) {return cur + a[0];};
-    const int missing_x = accumulate(init.missing_x.begin(), init.missing_x.end(), 0, adder);
-    const int missing_y = accumulate(init.missing_y.begin(), init.missing_y.end(), 0, adder);
+    const Int3Vec& missing_d  = (d == XFIXED) ? init_missing.missing_x :
+                                                init_missing.missing_y;
+    // const auto adder = [](int cur, const array<int, 3>& a) {return cur + a[0];};
+    // const int num_missing = accumulate(missing_d.begin(), missing_d.end(), 0, adder);
 
-    if (max(missing_x, missing_y) == 0)
-      return{XFIXED, -1, 0, 0, 0, 0}; // no missing interior segments.  No split necessary
+    // if (num_missing == 0)
+    //   return{-1, 0, 0, 0, 0}; // no split necessary. 
 
-    // Choose direction of split (the direction with fewest missing multiplicities
-    const Direction2D d = (missing_x < missing_y) ? XFIXED : YFIXED; 
     const IntPair range_d     = (d == XFIXED) ? dom.range_x : dom.range_y;
     const IntPair range_other = (d == XFIXED) ? dom.range_y : dom.range_x;
-    const Int3Vec& missing_d  = (d == XFIXED) ? init.missing_x : init.missing_y;
-
-    // Identify candidates for split (only those associated with t-junctions in
-    // the relevant range)
+    
     IntVec cand(range_d.second - (range_d.first + 1), 0);
     iota(cand.begin(), cand.end(), range_d.first + 1); // consecutive values
     cand.erase(remove_if(cand.begin(), cand.end(),[&m, d, range_other](int ix)
 			 {return !has_t_junctions(m, d, ix, range_other);}),
 	       cand.end());
+    if (cand.size() == 0) // no possible split
+      return {-1, 0, 0, 0, 0};
 
-    // Search for optimal candidate
-    struct PerfInfo {int perf; int split_cost; int new_cost1; int new_cost2;};
-    vector<PerfInfo> perf; // candidate performance
+    // search for optimal candidate
+    vector<PerfInfo> perf; // assess performance of each candidate
     transform(cand.begin(), cand.end(), back_inserter(perf), [&] (int ix) {
 	const int local_ix = ix - (range_d.first + 1);
 	const int cur_missing = missing_d[local_ix][0];
@@ -388,24 +377,44 @@ namespace {
 		    (d==XFIXED) ? Subdomain {r1, range_other} : Subdomain {range_other, r1}).num;
 	const int new_cost2 = total_missing_tensorgrid_segments(m,
 		    (d==XFIXED) ? Subdomain {r2, range_other} : Subdomain {range_other, r2}).num;
-	return PerfInfo {init.num - (split_cost + new_cost1 + new_cost2),
-	                split_cost, new_cost1, new_cost2};
+	return PerfInfo {ix,
+	                 init_missing.num - (split_cost + new_cost1 + new_cost2),
+	                 split_cost, new_cost1, new_cost2};
       });
-    
-    // identify the winning candidate, and check if the corresponding split is
-    // useful (positive performance)
-    const auto max_perf = max_element(perf.begin(), perf.end(),
-				      [](const PerfInfo& p1, const PerfInfo& p2)
-				      {return p1.perf < p2.perf;});
-    const int split_ix = (max_perf->perf > 0) ? cand[max_perf - perf.begin()] :
-      (max_perf->split_cost <= max(max_perf->new_cost1, max_perf->new_cost2)) ? cand[max_perf - perf.begin()] : -1;
 
-    return {d, split_ix, init.num, max_perf->split_cost, max_perf->new_cost1, max_perf->new_cost2};
+    return *max_element(perf.begin(), perf.end(),
+			[](const PerfInfo& p1, const PerfInfo& p2)
+			{return p1.perf < p2.perf;});
+  }
+  
+  // ==========================================================================
+  DomainSplitDetail suggest_domain_split(const Mesh2D& m,
+					 const Subdomain& dom,
+					 const IntPair bnd_mult)
+  // ==========================================================================
+  {
+    // Unless there are internal lines in both directions, there is no point in splitting
+    if (min(dom.range_x.second - dom.range_x.first, dom.range_y.second - dom.range_y.first) < 2)
+      return {XFIXED, -1, 0, 0, 0, 0}; // dummy values, except -1, which flags 'no split'
+      
+    // If we got here, we know that both direction has at least one internal line
+    const auto init = total_missing_tensorgrid_segments(m, dom);
+    const PerfInfo best_split_x = choose_splitting_candidate(m, dom, init, XFIXED, bnd_mult.first);
+    const PerfInfo best_split_y = choose_splitting_candidate(m, dom, init, YFIXED, bnd_mult.second);
+    const Direction2D best_dir = best_split_x.ix < 0                     ? YFIXED :
+                                 best_split_y.ix < 0                     ? XFIXED :
+                                 (best_split_x.perf > best_split_y.perf) ? XFIXED : YFIXED;
+    const PerfInfo split = (best_dir == XFIXED) ? best_split_x : best_split_y;
+    
+    const int split_ix = (split.perf > 0) ? split.ix :
+      (split.split_cost <= max(split.new_cost1, split.new_cost2)) ? split.ix : -1;
+
+    return {best_dir, split_ix, init.num, split.split_cost, split.new_cost1, split.new_cost2};
   }
 
   // ==========================================================================
   tuple<vector<ConsecutiveSplit>, vector<Subdomain>>
-  recursive_split(const Mesh2D& m, const int bnd_mult, const Subdomain dom)
+  recursive_split(const Mesh2D& m, const IntPair bnd_mult, const Subdomain dom)
   // ==========================================================================
   {
     const auto cur = suggest_domain_split(m, dom, bnd_mult);

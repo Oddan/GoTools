@@ -50,10 +50,10 @@ namespace Go
 {
 
 namespace {
-  double least   (double a, double b)           { return std::min(a, b);}
-  double least   (double a, double b, double c) { return std::min(std::min(a, b), c); }
-  double greatest(double a, double b)           { return std::max(a, b);}
-  double greatest(double a, double b, double c) { return std::max(std::max(a, b), c); }
+  // double least   (double a, double b)           { return std::min(a, b);}
+  // double least   (double a, double b, double c) { return std::min(std::min(a, b), c); }
+  // double greatest(double a, double b)           { return std::max(a, b);}
+  // double greatest(double a, double b, double c) { return std::max(std::max(a, b), c); }
 
   // making a 'knot vector' (with explicit multiplicities), whose values are indices
   // into the knotvector values stored in the mesh, rather than storing the knot values
