@@ -567,6 +567,11 @@ namespace Go
     return knot_tol_;
   }
 
+  // Generate a set of simpler LRSplineSurfaces that collectively represent the same surface as
+  // the original one.  The generated surfaces have simpler mesh structure (close to tensor
+  // product form), and should therefore be relatively cheap to convert to full tensor form.
+  std::vector<std::shared_ptr<LRSplineSurface>> subdivideIntoSimpler() const;
+  
   // ----------------------------------------------------
   // --------------- EDIT FUNCTIONS ---------------------
   // ----------------------------------------------------

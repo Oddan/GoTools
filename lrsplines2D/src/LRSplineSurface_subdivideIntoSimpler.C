@@ -1,45 +1,77 @@
-#include <iostream>
-#include <fstream>
-#include <locale>
-#include <iostream>
-#include <iterator> // for ostream_iterator
-#include <vector>
-#include <chrono>
-//#include <tuple>
-//#include <utility>
-#include "GoTools/lrsplines2D/Mesh2D.h"
-#include "GoTools/lrsplines2D/PlotUtils.h"
+/*
+ * Copyright (C) 1998, 2000-2007, 2010, 2011, 2012, 2013 SINTEF ICT,
+ * Applied Mathematics, Norway.
+ *
+ * Contact information: E-mail: tor.dokken@sintef.no                      
+ * SINTEF ICT, Department of Applied Mathematics,                         
+ * P.O. Box 124 Blindern,                                                 
+ * 0314 Oslo, Norway.                                                     
+ *
+ * This file is part of GoTools.
+ *
+ * GoTools is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version. 
+ *
+ * GoTools is distributed in the hope that it will be useful,        
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of         
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public
+ * License along with GoTools. If not, see
+ * <http://www.gnu.org/licenses/>.
+ *
+ * In accordance with Section 7(b) of the GNU Affero General Public
+ * License, a covered work must retain the producer line in every data
+ * file that is created or manipulated using GoTools.
+ *
+ * Other Usage
+ * You can be released from the requirements of the license by purchasing
+ * a commercial license. Buying such a license is mandatory as soon as you
+ * develop commercial activities involving the GoTools library without
+ * disclosing the source code of your own applications.
+ *
+ * This file may be used in accordance with the terms contained in a
+ * written agreement between you and SINTEF ICT. 
+ */
+
+#include <iostream> // debug
+#include <algorithm>
 #include "GoTools/lrsplines2D/LRSplineSurface.h"
-#include "GoTools/geometry/ObjectHeader.h"
-#include "GoTools/geometry/SplineSurface.h"
+
+using std::vector;
+using std::pair;
+using std::array;
+using std::tuple;
+using std::make_pair;
+using std::max;
+using std::min;
+using std::get;
+using std::cout; //debug
+using std::wcout; //debug
 
 using namespace Go;
-using namespace std;
 
 using IntPair = pair<int, int>;
 using IntVec  = vector<int>;
 using Int3Vec = vector<array<int, 3>>;
 
-namespace {
+namespace { // anonymous namespace
+
   // Structure to denote a subdomain
   struct Subdomain {
     Subdomain(const Mesh2D& m) :
       range_x({0, m.numDistinctKnots(XFIXED)-1}),
       range_y({0, m.numDistinctKnots(YFIXED)-1}) {};
     Subdomain(IntPair r1, IntPair r2) : range_x(r1), range_y(r2) {}
+    
     IntPair range_x; // first and last knot along x-knotvec (ignoring multiplicities)
     IntPair range_y; // first and last knot along y-knotvec (ignoring multiplicities)
   };
 
-
-  int insert_segment(Mesh2D& m,
-		     Direction2D d,
-		     double pval,
-		     int start_ix,
-		     int end_ix,
-		     int mult);
-
-  // determine the number of segments/multiplicities that are missing in order
+    // determine the number of segments/multiplicities that are missing in order
   // to convert the specified subdomain to a full grid.  Does not consider the
   // boundary segments (first and last knot of each range) Vector contains one
   // entry per line considered.  First value is the number of missing
@@ -48,13 +80,14 @@ namespace {
   // the range under consideration.
   Int3Vec missing_tensorgrid_segments(const Mesh2D& m,
 				      const Direction2D d,
-				      const Subdomain& dom); 
+				      const Subdomain& dom);
 
   // count total number of missing segments/multiplicities to make the specified
   // subdomain into a full grid (not counting boundaries).
   struct MissingSegInfo {int num; Int3Vec missing_x; Int3Vec missing_y;};
   MissingSegInfo total_missing_tensorgrid_segments(const Mesh2D&m,
 						   const Subdomain& dom);
+
 
   // Suggest a split of the specified domain into two subdomains with fewer
   // total missing segments/multiplicities.  'bnd_mult' specifies the
@@ -87,133 +120,16 @@ namespace {
   tuple<vector<ConsecutiveSplit>, vector<Subdomain>>
   recursive_split(const Mesh2D& m, const IntPair bnd_mult, const Subdomain dom);
 
+  vector<LRSplineSurface::Refinement2D>
+  prepare_refinements(const Mesh2D& m,
+		      const vector<ConsecutiveSplit>& splits,
+		      const IntPair mult);
 
-  vector<LRSplineSurface::Refinement2D> prepare_refinements(const Mesh2D& m, const vector<ConsecutiveSplit>& splits,
-					   const IntPair mult);
-    
+}; //end anonymous namespace
 
-} // end anonymous namespace
-
-// ============================================================================
-
-int main(int argc, char* argv[])
+namespace Go
 {
-  setlocale(LC_ALL, "en_US.UTF.8");
 
-    ifstream is(argv[1]);
-  if (!is) {
-    wcout << L"File not found.\n";
-    return 0;
-  }
-  ObjectHeader header;
-  header.read(is);
-  
-  LRSplineSurface lrs(is);
-
-  Mesh2D m = lrs.mesh();
-  //plot_mesh(m);
-
-  //  auto krull = suggest_domain_split(m, {{4, 6},{27, 43}}, 1);
-
-  auto t1 = chrono::high_resolution_clock::now();
-  const auto result = recursive_split(m, {4, 4}, Subdomain(m));
-  auto t2 = chrono::high_resolution_clock::now();
-  // wcout << L"Function call took " <<
-  //   chrono::duration_cast<chrono::milliseconds>(t2-t1).count() <<
-  //   L" milliseconds" << endl;
-
-  // raising multiplicities of internal seams
-  const vector<LRSplineSurface::Refinement2D> refinements = prepare_refinements(lrs.mesh(),
-							       get<0>(result),
-							       {lrs.degree(XFIXED)+1, lrs.degree(YFIXED)+1});
-  lrs.refine(refinements, true);
-
-  plot_mesh(lrs.mesh());
-  
-  vector<shared_ptr<SplineSurface>> spl_surfs;
-  int counter = 0;
-  for (auto d : get<1>(result)) {
-    auto subsf = shared_ptr<LRSplineSurface>(lrs.subSurface(m.kval(XFIXED, d.range_x.first),
-  							    m.kval(YFIXED, d.range_y.first),
-  							    m.kval(XFIXED, d.range_x.second),
-  							    m.kval(YFIXED, d.range_y.second),
-  							    lrs.getKnotTol()));
-    wcout << L"Subsurface no. " << counter++ << endl;
-    //plot_mesh(subsf->mesh());
-    // if (counter == 11) {
-    //   //const auto info = suggest_domain_split(subsf->mesh(), {{0, 8}, {0,6}}, 1);
-    //   int krull = 1;
-    // }
-    spl_surfs.push_back(shared_ptr<SplineSurface>(subsf->asSplineSurface()));
-  }
-  wcout << L"Number of spline surfaces: " << spl_surfs.size() << endl;
-
-  // LRSplineSurface*
-  //     subSurface(double from_upar, double from_vpar,
-  // 		 double to_upar, double to_vpar,
-  // 		 double fuzzy) const;
-
-  // const double xvec[] {0, 1, 2, 3, 4, 5, 6, 7, 8};
-  // const double yvec[] {0, 1, 2, 3, 4, 5};
-
-  // Mesh2D m = Mesh2D(xvec, xvec+9, yvec, yvec + 6);
-  // m.setMult(XFIXED, 0, 0, 5, 4);
-  // m.setMult(XFIXED, 8, 0, 5, 4);
-  // m.setMult(YFIXED, 0, 0, 8, 4);
-  // m.setMult(YFIXED, 5, 0, 8, 4);
-
-  // insert_segment(m, YFIXED, 4.5, 0, 6, 1);
-
-  // plot_mesh(m);
-  
-
-  // Defining initial knotvectors
-  // const double xvec[] {0, 1, 2, 3, 4, 5};
-  // const double yvec[] {0, 1, 2, 3, 4};
-
-  
-  // //base, tensor-product mesh
-  // Mesh2D m = Mesh2D(xvec, xvec + 6, yvec, yvec + 5);
-
-  // // inserting modifications (no longer tensor product)
-  // insert_segment(m, YFIXED, 2.5, 2, 5, 1);
-  // insert_segment(m, XFIXED, 3.5, 1, 3, 1);
-  // insert_segment(m, YFIXED, 2.75, 3, 5, 1); // new
-
-  // plot_mesh(m);
-
-  // // TESTING
-  // //IntVec n = missing_tensorgrid_segments(m, YFIXED, {0, 2}, {0, 5}); // (0,6), (0,5)
-
-  // // copy(n.begin(), n.end(), ostream_iterator<int, wchar_t>(wcout, L" "));
-  // // wcout<< endl;
-
-  // int total = total_missing_tensorgrid_segments(m, {{0, 6}, {0, 5}}).num;
-
-  // wcout << total << endl;
-
-  // const auto info = suggest_domain_split(m, Subdomain(m), {1, 1});
-  // wcout << L"Direction:  " << info.d << endl;
-  // wcout << L"Split ix:   " << info.ix << endl;
-  // wcout << L"Init cost:  " << info.init_cost << endl;
-  // wcout << L"Split cost: " << info.split_cost << endl;
-  // wcout << L"New cost 1: " << info.new_cost1 << endl;
-  // wcout << L"New cost 2: " << info.new_cost2<< endl;
-
-  // const auto result = recursive_split(m, {1, 1}, Subdomain(m)); // mesh, bnd_mult
-
-  // wcout << L"end" << endl;
-
-    
-  // //const auto knots = active_knots(m, XFIXED, {0, 6}, {3, 5});
-  // //const auto knots = active_knots(m, XFIXED, {4, 6}, {3, 5});
-  // //copy(knots.begin(), knots.end(), ostream_iterator<int, wchar_t>(wcout, L" \n"));
-    
-}
-
-// ============================================================================
-
-namespace {
   // --------------------------------------------------------------------------
   IntVec active_knots(const Mesh2D& m, Direction2D d, IntPair r1, IntPair r2)
   // --------------------------------------------------------------------------
@@ -276,6 +192,30 @@ namespace {
     return result;
   }
 
+  
+  // ============================================================================
+  vector<shared_ptr<LRSplineSurface>> LRSplineSurface::subdivideIntoSimpler() const
+  // ============================================================================
+  {
+    // Determine subdivisions
+    const IntPair order {degree(XFIXED)+1, degree(YFIXED)+1};
+    const auto splits = recursive_split(mesh(), order, Subdomain(mesh()));
+
+    // Making working copy of the present surface, and carry out the determined
+    // splits by raising internal multiplicities accordingly.
+    auto lrs_copy = shared_ptr<LRSplineSurface>(this->clone());
+    lrs_copy->refine(prepare_refinements(mesh(), get<0>(splits), order), true);
+					 
+    // Extract and return individual surface patches
+    std::wcout << L"I will generate " << get<0>(splits).size() << L" new surfaces." << std::endl;
+
+    return vector<shared_ptr<LRSplineSurface>> {};
+  }
+  
+}; // end namespace Go
+
+
+namespace { // anonymous namespace
 
   // ==========================================================================
   Int3Vec missing_tensorgrid_segments(const Mesh2D& m,
@@ -323,21 +263,6 @@ namespace {
       accumulate(c2.begin(), c2.end(), 0, add_fun);
     
     return { missing, c1, c2};
-  }
-  
-
-  // ==========================================================================
-  int insert_segment(Mesh2D& m,
-		    Direction2D d,
-		    double pval,
-		    int start_ix,
-		    int end_ix,
-		    int mult)
-  // ==========================================================================
-  {
-    int l_ix = m.insertLine(d, pval);
-    m.setMult(d, l_ix, start_ix, end_ix, mult);
-    return l_ix;
   }
 
   // --------------------------------------------------------------------------
@@ -480,6 +405,7 @@ namespace {
       });
     return result;
   }
-} // end anonymous namespace
-//struct ConsecutiveSplit {Direction2D d; int ix; IntPair range;};
-//transform(cand.begin(), cand.end(), back_inserter(perf), [&] (int ix) {
+
+
+  
+}; //end anonymous namespace
