@@ -40,7 +40,7 @@
 #include <iostream> // debug
 #include <algorithm>
 #include "GoTools/lrsplines2D/LRSplineSurface.h"
-
+#include "GoTools/lrsplines2D/PlotUtils.h" // debug
 using std::vector;
 using std::pair;
 using std::array;
@@ -207,9 +207,32 @@ namespace Go
     lrs_copy->refine(prepare_refinements(mesh(), get<0>(splits), order), true);
 					 
     // Extract and return individual surface patches
-    std::wcout << L"I will generate " << get<0>(splits).size() << L" new surfaces." << std::endl;
+    std::wcout << L"Generating " << get<0>(splits).size() << L" new surfaces..." << std::endl;
 
-    return vector<shared_ptr<LRSplineSurface>> {};
+    vector<shared_ptr<LRSplineSurface>> result;
+    
+    for (const auto patch : get<1>(splits)) {
+
+      auto submesh = *mesh().subMesh(patch.range_x.first,
+				     patch.range_x.second,
+				     patch.range_y.first,
+				     patch.range_y.second);
+      plot_mesh(submesh);
+
+      // @@@@@remember to remove internal knot lines with zero multplicity!
+
+      auto cur = shared_ptr<LRSplineSurface>(new LRSplineSurface());
+
+      // cur->knot_tol_ = knot_tol_;
+      // cur->rational_ = rational_;
+      // cur->mesh_     = submesh; // @@ make sure internal 0-multiple knots are removed first
+      // cur->bsplines_ = ;
+      // cur->emap_     = ;
+      result.emplace_back(cur);
+    }
+
+    // Dummy
+    return result;
   }
   
 }; // end namespace Go
