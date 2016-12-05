@@ -257,6 +257,10 @@ public:
 
   void reverseParameterDirection(bool dir_is_u);  
 
+  // Remove meshlines with zero multiplicity throughout.  Return value is number
+  // of meshlines removed.
+  int removeUnusedLines(Direction2D d); 
+  
  private:
 
   // --------------------

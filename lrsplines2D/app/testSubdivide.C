@@ -34,7 +34,7 @@ int main(int argc, char* argv[])
   plot_mesh(lrs.mesh());
 
   auto result = lrs.subdivideIntoSimpler();
-
+  int krull = 1;
 
 }; // main
 

@@ -40,8 +40,12 @@
 #include <iostream> // debug
 #include <algorithm>
 #include "GoTools/lrsplines2D/LRSplineSurface.h"
+#include "GoTools/lrsplines2D/LRSplineUtils.h"
+#include "GoTools/lrsplines2D/LRBSpline2D.h"
 #include "GoTools/lrsplines2D/PlotUtils.h" // debug
 using std::vector;
+using std::map;
+using std::unique_ptr;
 using std::pair;
 using std::array;
 using std::tuple;
@@ -125,6 +129,16 @@ namespace { // anonymous namespace
 		      const vector<ConsecutiveSplit>& splits,
 		      const IntPair mult);
 
+
+  Mesh2D remove_unused_knots(Mesh2D& m);
+
+  vector<int> reindex_knots(const vector<int>& ixs_old,
+			    const vector<double>& kvals_new,
+			    const vector<double>& kvals_old);
+
+  unique_ptr<LRBSpline2D> adapt_bspline(const LRBSpline2D* const b,
+					const LRSplineSurface& patch,
+					const LRSplineSurface& orig_surf);
 }; //end anonymous namespace
 
 namespace Go
@@ -207,39 +221,110 @@ namespace Go
     lrs_copy->refine(prepare_refinements(mesh(), get<0>(splits), order), true);
 					 
     // Extract and return individual surface patches
-    std::wcout << L"Generating " << get<0>(splits).size() << L" new surfaces..." << std::endl;
-
+    std::wcout << L"Generating " << get<1>(splits).size() << L" new surfaces..." << std::endl;
     vector<shared_ptr<LRSplineSurface>> result;
-    
+    map<ElemKey, size_t> patchmap;
+
+    // Establishing individual surface patches, empty, without Bspline-functions
     for (const auto patch : get<1>(splits)) {
 
-      auto submesh = *mesh().subMesh(patch.range_x.first,
-				     patch.range_x.second,
-				     patch.range_y.first,
-				     patch.range_y.second);
+      const auto submesh =
+	remove_unused_knots(*(lrs_copy->mesh().subMesh(patch.range_x.first,
+						       patch.range_x.second,
+						       patch.range_y.first,
+						       patch.range_y.second)));
       plot_mesh(submesh);
-
-      // @@@@@remember to remove internal knot lines with zero multplicity!
 
       auto cur = shared_ptr<LRSplineSurface>(new LRSplineSurface());
 
-      // cur->knot_tol_ = knot_tol_;
-      // cur->rational_ = rational_;
-      // cur->mesh_     = submesh; // @@ make sure internal 0-multiple knots are removed first
-      // cur->bsplines_ = ;
-      // cur->emap_     = ;
-      result.emplace_back(cur);
-    }
+      cur->knot_tol_ = lrs_copy->knot_tol_;
+      cur->rational_ = lrs_copy->rational_;
+      cur->mesh_     = submesh;
 
-    // Dummy
+      // etablishing the element map
+      cur->emap_ = LRSplineUtils::identify_elements_from_mesh(cur->mesh_);
+      result.emplace_back(cur);
+
+      // making the current surface easy to find when distributing the
+      // Bspline-functions later
+      const size_t ix = result.size()-1;
+      for (auto e = cur->elementsBegin(); e != cur->elementsEnd(); ++e)
+	patchmap[e->first] = ix;
+    }
+    // Distribute Bsplines.  If surface has been correctly subdivided, each
+    // Bspline function belongs to exactly one patch.
+    for (auto b = lrs_copy->basisFunctionsBegin();
+	 b != lrs_copy->basisFunctionsEnd(); ++b) {
+      const BSKey key = b->first;
+      const size_t patch_ix = patchmap[ElemKey {key.u_min, key.v_min}];
+      auto patch = result[patch_ix];
+
+      // make copy of current BSpline basis function, and add it to the patch
+      patch->bsplines_[key] = adapt_bspline(b->second.get(), *patch, *lrs_copy);
+      
+      // update internal links
+      LRSplineUtils::update_elements_with_single_bspline(patch->bsplines_[key].get(),
+							 patch->emap_,
+							 patch->mesh(), false);
+    }
     return result;
   }
+
+    
+
   
 }; // end namespace Go
 
 
 namespace { // anonymous namespace
 
+  // ----------------------------------------------------------------------------
+  vector<int> reindex_knots(const vector<int>& ixs_old,
+			    const vector<double>& kvals_new,
+			    const vector<double>& kvals_old)
+  // ----------------------------------------------------------------------------
+  {
+    vector<double> kvals; kvals.reserve(ixs_old.size());
+    transform(ixs_old.begin(), ixs_old.end(), back_inserter(kvals),
+	      [&kvals_old] (int ix) {return kvals_old[ix];});
+
+    vector<int> result; result.reserve(ixs_old.size());
+    transform(kvals.begin(), kvals.end(), back_inserter(result),
+	      [&kvals_new] (double val) {
+		return int(find(kvals_new.begin(), kvals_new.end(), val) -
+			   kvals_new.begin());});
+    return result;
+  }
+  
+  // ----------------------------------------------------------------------------
+  unique_ptr<LRBSpline2D> adapt_bspline(const LRBSpline2D* const b,
+					const LRSplineSurface& patch,
+					const LRSplineSurface& orig_surf)
+  // ----------------------------------------------------------------------------
+  {
+    // make a copy of the original bspline function
+    auto result = unique_ptr<LRBSpline2D>(new LRBSpline2D(*b));
+
+    // clear old support
+    result->setSupport(vector<Element2D*> {}); 
+    
+    // determine knot indices according to new spline mesh
+    result->kvec(XFIXED) =
+      reindex_knots(result->kvec(XFIXED),
+		    vector<double>(patch.mesh().knotsBegin(XFIXED),
+				   patch.mesh().knotsEnd(XFIXED)),
+		    vector<double>(orig_surf.mesh().knotsBegin(XFIXED),
+				   orig_surf.mesh().knotsEnd(XFIXED)));
+    result->kvec(YFIXED) =
+      reindex_knots(result->kvec(YFIXED),
+		    vector<double>(patch.mesh().knotsBegin(YFIXED),
+				   patch.mesh().knotsEnd(YFIXED)),
+		    vector<double>(orig_surf.mesh().knotsBegin(YFIXED),
+				   orig_surf.mesh().knotsEnd(YFIXED)));
+
+    return result;
+  }
+  
   // ==========================================================================
   Int3Vec missing_tensorgrid_segments(const Mesh2D& m,
 				      const Direction2D d,
@@ -429,6 +514,12 @@ namespace { // anonymous namespace
     return result;
   }
 
-
-  
+  // ----------------------------------------------------------------------------
+  Mesh2D remove_unused_knots(Mesh2D& m)
+  // ----------------------------------------------------------------------------
+  {
+    m.removeUnusedLines(XFIXED);
+    m.removeUnusedLines(YFIXED);
+    return m;
+  }
 }; //end anonymous namespace

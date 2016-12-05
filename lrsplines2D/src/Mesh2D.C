@@ -258,7 +258,7 @@ int Mesh2D::insertLine(Direction2D d, double kval, int mult)
   if (*p == kval) 
     THROW("Knotvalue already in vector.");
 
-  const int ix = (p - kvec.begin());  // this is the index of the line to insert
+  const int ix = int(p - kvec.begin());  // this is the index of the line to insert
   
   auto& target = (d == XFIXED) ? mrects_x_ : mrects_y_;
   auto& other  = (d == XFIXED) ? mrects_y_ : mrects_x_;
@@ -329,7 +329,7 @@ void Mesh2D::reverseParameterDirection(bool dir_is_u)
       std::reverse(knotvals_x_.begin(), knotvals_x_.end());
       std::reverse(mrects_x_.begin(), mrects_x_.end());
       // We must also update the mrects_y_ indices.
-      int last_ind = mrects_x_.size() - 1;
+      int last_ind = int(mrects_x_.size()) - 1;
       for (auto iter = mrects_y_.begin(); iter != mrects_y_.end(); ++iter)
 	{
 	  for (auto iter2 = iter->begin(); iter2 != iter->end(); ++iter2)
@@ -360,7 +360,7 @@ void Mesh2D::reverseParameterDirection(bool dir_is_u)
       std::reverse(mrects_y_.begin(), mrects_y_.end());
 
       // We must also update the mrects_y_ indices.
-      int last_ind = mrects_y_.size() - 1;
+      int last_ind = int(mrects_y_.size()) - 1;
       for (auto iter = mrects_x_.begin(); iter != mrects_x_.end(); ++iter)
 	{
 	  for (auto iter2 = iter->begin(); iter2 != iter->end(); ++iter2)
@@ -377,7 +377,28 @@ void Mesh2D::reverseParameterDirection(bool dir_is_u)
     }
 }
 
+// =============================================================================
+int Mesh2D::removeUnusedLines(Direction2D d)
+// =============================================================================
+{
+  // Identify unused parameter lines
+  vector<int> empty_ix;
+  for (int i = 0; i != numDistinctKnots(d); ++i)
+    if (largestMultInLine(d, i) == 0)
+      empty_ix.push_back(i);
 
+  vector<double>& kvals       = (d==XFIXED) ? knotvals_x_ : knotvals_y_;
+  vector<vector<GPos>>&mrects = (d==XFIXED) ? mrects_x_   : mrects_y_; 
+  
+  // Remove unused parameter lines
+  int num_removed = int(empty_ix.size());
+  for (int j = num_removed - 1; j >= 0; --j) {
+    kvals.erase(kvals.begin() + empty_ix[j]);
+    mrects.erase(mrects.begin() + empty_ix[j]);
+  }
+  return num_removed;
+}
+  
 // =============================================================================
   vector<double> Mesh2D::getKnots(Direction2D d, int ix, bool right) const
 // =============================================================================
