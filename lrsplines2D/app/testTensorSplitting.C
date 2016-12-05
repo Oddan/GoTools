@@ -4,6 +4,7 @@
 #include <iostream>
 #include <iterator> // for ostream_iterator
 #include <vector>
+#include <chrono>
 //#include <tuple>
 //#include <utility>
 #include "GoTools/lrsplines2D/Mesh2D.h"
@@ -86,6 +87,11 @@ namespace {
   tuple<vector<ConsecutiveSplit>, vector<Subdomain>>
   recursive_split(const Mesh2D& m, const IntPair bnd_mult, const Subdomain dom);
 
+
+  vector<LRSplineSurface::Refinement2D> prepare_refinements(const Mesh2D& m, const vector<ConsecutiveSplit>& splits,
+					   const IntPair mult);
+    
+
 } // end anonymous namespace
 
 // ============================================================================
@@ -105,11 +111,24 @@ int main(int argc, char* argv[])
   LRSplineSurface lrs(is);
 
   Mesh2D m = lrs.mesh();
-  plot_mesh(m);
+  //plot_mesh(m);
 
   //  auto krull = suggest_domain_split(m, {{4, 6},{27, 43}}, 1);
-  
+
+  auto t1 = chrono::high_resolution_clock::now();
   const auto result = recursive_split(m, {4, 4}, Subdomain(m));
+  auto t2 = chrono::high_resolution_clock::now();
+  // wcout << L"Function call took " <<
+  //   chrono::duration_cast<chrono::milliseconds>(t2-t1).count() <<
+  //   L" milliseconds" << endl;
+
+  // raising multiplicities of internal seams
+  const vector<LRSplineSurface::Refinement2D> refinements = prepare_refinements(lrs.mesh(),
+							       get<0>(result),
+							       {lrs.degree(XFIXED)+1, lrs.degree(YFIXED)+1});
+  lrs.refine(refinements, true);
+
+  plot_mesh(lrs.mesh());
   
   vector<shared_ptr<SplineSurface>> spl_surfs;
   int counter = 0;
@@ -120,7 +139,7 @@ int main(int argc, char* argv[])
   							    m.kval(YFIXED, d.range_y.second),
   							    lrs.getKnotTol()));
     wcout << L"Subsurface no. " << counter++ << endl;
-    plot_mesh(subsf->mesh());
+    //plot_mesh(subsf->mesh());
     // if (counter == 11) {
     //   //const auto info = suggest_domain_split(subsf->mesh(), {{0, 8}, {0,6}}, 1);
     //   int krull = 1;
@@ -442,4 +461,25 @@ namespace {
 
     return make_tuple(splits, doms);
   }
+
+  // ==========================================================================
+vector<LRSplineSurface::Refinement2D> prepare_refinements(const Mesh2D& m,
+					   const vector<ConsecutiveSplit>& splits,
+					   const IntPair mult)
+  // ==========================================================================
+  {
+    vector<LRSplineSurface::Refinement2D> result;
+    transform(splits.begin(), splits.end(), back_inserter(result), [&] (const ConsecutiveSplit& s) {
+	
+	return LRSplineSurface::Refinement2D {
+	  m.kval(s.d, s.ix),
+	  m.kval(flip(s.d), s.range.first),
+	  m.kval(flip(s.d), s.range.second),
+	  s.d,
+	  s.d==XFIXED ? mult.first : mult.second};
+      });
+    return result;
+  }
 } // end anonymous namespace
+//struct ConsecutiveSplit {Direction2D d; int ix; IntPair range;};
+//transform(cand.begin(), cand.end(), back_inserter(perf), [&] (int ix) {
