@@ -31,11 +31,17 @@ int main(int argc, char* argv[])
   
   LRSplineSurface lrs(is);
 
-  plot_mesh(lrs.mesh());
+  //plot_mesh(lrs.mesh());
 
   auto result = lrs.subdivideIntoSimpler();
-  int krull = 1;
-
+  
+  ofstream os("result.g2");
+  for (size_t i = 0; i != result.size(); ++i) {
+    (*result[i]).writeStandardHeader(os);
+    (*result[i]).write(os);
+  }
+  os.close();
+  
 }; // main
 
 

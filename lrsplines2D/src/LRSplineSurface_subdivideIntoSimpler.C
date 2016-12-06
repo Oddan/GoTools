@@ -39,10 +39,12 @@
 
 #include <iostream> // debug
 #include <algorithm>
+#include <chrono> // profiling
 #include "GoTools/lrsplines2D/LRSplineSurface.h"
 #include "GoTools/lrsplines2D/LRSplineUtils.h"
 #include "GoTools/lrsplines2D/LRBSpline2D.h"
 #include "GoTools/lrsplines2D/PlotUtils.h" // debug
+
 using std::vector;
 using std::map;
 using std::unique_ptr;
@@ -182,15 +184,15 @@ namespace Go
 
   
   // --------------------------------------------------------------------------
-  IntVec minisegment_multiplicities(const Mesh2D& m,
+  IntVec inisegment_multiplicities(const Mesh2D& m,
 					 const Direction2D d,
 					 const int seg_ix,
-					 const IntVec knots)
+					 const IntVec& knots)
   // --------------------------------------------------------------------------
   {
     assert(knots.size() >= 2);
 
-    const auto all_segs = m.mrects(d, seg_ix); // all segments
+    const auto& all_segs = m.mrects(d, seg_ix); // all segments
 
     // segments intersecting with the intervals within the given knots
 
@@ -198,11 +200,29 @@ namespace Go
     const IntVec segmult = make_segmult_map(all_segs, knots.front(), knots.back());
 
     // computing the multiplicities of each segment between two consecutive knots
-    IntVec result;
-    result.reserve(knots.size()-1);
-    transform(knots.begin(), knots.end()-1, back_inserter(result),
-	      [&] (int k) {return segmult[k - knots.front()];});
-		  
+
+    IntVec result(knots.size()-1);
+    const auto end_it = knots.end()-1;
+    const int first_ix = knots.front();
+    transform(knots.begin(), end_it, result.begin(),
+    	      [&] (int k) {return segmult[k - first_ix];});
+
+    // IntVec result;
+    // result.reserve(knots.size()-1);
+    // const auto end_it = knots.end()-1;
+    // const int first_ix = knots.front();
+    // transform(knots.begin(), end_it, back_inserter(result),
+    // 	      [&] (int k) {return segmult[k - first_ix];});
+
+    
+    // IntVec result(knots.size()-1);
+    // auto target = result.begin();
+    // int first_ix = knots.front();
+    // const auto last_it = knots.end()-1;
+    // for (auto it = knots.begin(); it != last_it; ++it) {
+    //   *target++ = segmult[*it - first_ix];
+    // }
+    
     return result;
   }
 
@@ -211,29 +231,48 @@ namespace Go
   vector<shared_ptr<LRSplineSurface>> LRSplineSurface::subdivideIntoSimpler() const
   // ============================================================================
   {
+    std::wcout << L"Entering subdivision function." << std::endl;
     // Determine subdivisions
     const IntPair order {degree(XFIXED)+1, degree(YFIXED)+1};
+    auto t1 = std::chrono::high_resolution_clock::now();
     const auto splits = recursive_split(mesh(), order, Subdomain(mesh()));
-
+    auto t2 = std::chrono::high_resolution_clock::now();
+    std::wcout << L"identifying splits took "
+	       << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count()
+	       << L" milliseconds\n";
+    std::wcout << get<0>(splits).size() << L" splits identified." << std::endl;
     // Making working copy of the present surface, and carry out the determined
     // splits by raising internal multiplicities accordingly.
     auto lrs_copy = shared_ptr<LRSplineSurface>(this->clone());
+
+    t1 = std::chrono::high_resolution_clock::now();
     lrs_copy->refine(prepare_refinements(mesh(), get<0>(splits), order), true);
-					 
+    t2 = std::chrono::high_resolution_clock::now();
+    std::wcout << L"refining  took "
+	       << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count()
+	       << L" milliseconds\n";
+    std::wcout << L"Finished refining." << std::endl;
     // Extract and return individual surface patches
     std::wcout << L"Generating " << get<1>(splits).size() << L" new surfaces..." << std::endl;
     vector<shared_ptr<LRSplineSurface>> result;
     map<ElemKey, size_t> patchmap;
 
+
+    t1 = std::chrono::high_resolution_clock::now();    
     // Establishing individual surface patches, empty, without Bspline-functions
     for (const auto patch : get<1>(splits)) {
 
       const auto submesh =
-	remove_unused_knots(*(lrs_copy->mesh().subMesh(patch.range_x.first,
-						       patch.range_x.second,
-						       patch.range_y.first,
-						       patch.range_y.second)));
-      plot_mesh(submesh);
+      	remove_unused_knots(*(lrs_copy->mesh().subMesh(patch.range_x.first,
+       						       patch.range_x.second,
+       						       patch.range_y.first,
+       						       patch.range_y.second)));
+      // const auto submesh = lrs_copy->mesh().subMesh(patch.range_x.first,
+      // 						    patch.range_x.second,
+      // 						    patch.range_y.first,
+      // 						    patch.range_y.second);
+
+      //plot_mesh(submesh);
 
       auto cur = shared_ptr<LRSplineSurface>(new LRSplineSurface());
 
@@ -248,25 +287,39 @@ namespace Go
       // making the current surface easy to find when distributing the
       // Bspline-functions later
       const size_t ix = result.size()-1;
-      for (auto e = cur->elementsBegin(); e != cur->elementsEnd(); ++e)
-	patchmap[e->first] = ix;
+      for (auto e = cur->elementsBegin(); e != cur->elementsEnd(); ++e) {
+      	assert(e->first.u_min < cur->mesh_.maxParam(XFIXED));
+      	assert(e->first.v_min < cur->mesh_.maxParam(YFIXED));
+      	patchmap[e->first] = ix;
+      }
     }
     // Distribute Bsplines.  If surface has been correctly subdivided, each
     // Bspline function belongs to exactly one patch.
     for (auto b = lrs_copy->basisFunctionsBegin();
-	 b != lrs_copy->basisFunctionsEnd(); ++b) {
+    	 b != lrs_copy->basisFunctionsEnd(); ++b) {
       const BSKey key = b->first;
       const size_t patch_ix = patchmap[ElemKey {key.u_min, key.v_min}];
       auto patch = result[patch_ix];
 
       // make copy of current BSpline basis function, and add it to the patch
       patch->bsplines_[key] = adapt_bspline(b->second.get(), *patch, *lrs_copy);
-      
+
+      auto krull1 = patch->bsplines_[key]->kvec(XFIXED); //@@@
+      // auto p1 = krull1.front();
+      // auto p2 = krull1.back();
+      // if (p1 == p2)
+      // 	wcout << p1 << L" " << p2 << patch_ix << std::endl;
       // update internal links
       LRSplineUtils::update_elements_with_single_bspline(patch->bsplines_[key].get(),
-							 patch->emap_,
-							 patch->mesh(), false);
+    							 patch->emap_,
+    							 patch->mesh(), false);
     }
+    t2 = std::chrono::high_resolution_clock::now();
+    std::wcout << L"generating patches  took "
+	       << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count()
+	       << L" milliseconds\n";
+    std::wcout << L"Finished generating patches." << std::endl;
+
     return result;
   }
 
@@ -324,7 +377,7 @@ namespace { // anonymous namespace
 
     return result;
   }
-  
+
   // ==========================================================================
   Int3Vec missing_tensorgrid_segments(const Mesh2D& m,
 				      const Direction2D d,
@@ -344,7 +397,7 @@ namespace { // anonymous namespace
     for (int i = r1.first+1; i != r1.second; ++i) {
 
       // multiplicities for each "mini-segment" along this line, within the domain
-      const auto ms_mult = minisegment_multiplicities(m, d, i, d2_knots);
+      const auto ms_mult = inisegment_multiplicities(m, d, i, d2_knots);
 
       const int max_mult = *max_element(ms_mult.begin(), ms_mult.end());
 
