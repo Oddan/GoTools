@@ -11,6 +11,9 @@ ENDIF(GoTools_ENABLE_OPENMP)
 
 INCLUDE_DIRECTORIES(
   ${GoLRspline2D_SOURCE_DIR}/include
+  ${GoCompositeModel_SOURCE_DIR}/include
+  ${GoTopology_SOURCE_DIR}/include
+  ${GoIgeslib_SOURCE_DIR}/include
   ${GoToolsCore_SOURCE_DIR}/include
   ${GoTools_COMMON_INCLUDE_DIRS}
   )
@@ -19,6 +22,9 @@ INCLUDE_DIRECTORIES(
 # Linked in libraries
 
 SET(DEPLIBS
+  GoCompositeModel
+  GoTopology
+  GoIgeslib
   GoToolsCore
   sisl
   )
