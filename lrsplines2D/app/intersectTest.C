@@ -53,10 +53,10 @@ int main()
   
   // Simple test of one intersection curve, using SurfaceModel as currently
   // defined
-  simple_SurfaceModel_test(lrs, os);
+  //simple_SurfaceModel_test(lrs, os);
 
   // Test function computing a isocontour for a 1D spline function
-  //simple_isocontour_test(lrs, os, 1600);
+  simple_isocontour_test(lrs, os, 1600);
   
   os.close();
   
@@ -82,7 +82,7 @@ void simple_isocontour_test(LRSplineSurface& lrs, ofstream& os, double isoval)
 // ----------------------------------------------------------------------------
 // Two first members of tuple represents parameter values of intersection point.
 // Last member expresses the nature of associated intersection curve.
-vector<GPoint> get_isocontour_topology(shared_ptr<SISLSurf> s, double isoval)
+vector<SISLIntcurve*> get_isocontour_topology(SISLSurf* s, double isoval)
 // ----------------------------------------------------------------------------
 {
   // This function does the equivalent of SISL sh1851, but assumes that the
@@ -90,34 +90,78 @@ vector<GPoint> get_isocontour_topology(shared_ptr<SISLSurf> s, double isoval)
 
   
   // Finding intersections, using SISL function sh1761.
+  int jpt = 0; // number of single intersection point
+  int jcrv = 0; // number of intersection curves
+  int jsurf = 0; 
+  double* gpar = SISL_NULL; // parameter values of the single intersection points
+  double* spar = SISL_NULL; // dummy array
+  int *pretop=SISL_NULL;
+  SISLIntcurve** wcurve; // array containing descriptions of the intersection curves
+  SISLIntsurf** wsurf; 
+
+  auto qp  = newPoint(&isoval, 1, 1);
+  auto qo1 = newObject(SISLSURFACE);
+  qo1->s1 = s;
+  qo1->o1 = qo1;
+  auto qo2 = newObject(SISLPOINT);
+  qo2->p1 = qp;
+  
   SISLIntdat* qintdat = SISL_NULL; // intersection result
-  auto qp = shared_ptr<SISLPoint>(newPoint(&isoval, 1, 1));
-  auto qo1 = shared_ptr<SISLObject>(newObject(SISLSURFACE));
-  qo1->s1 = s.get();
-  qo1->o1 = qo1.get();
-  auto qo2 = shared_ptr<SISLObject>(newObject(SISLPOINT));
-  qo2->p1 = qp.get();
+  auto freeall = [&] () {
+    if (gpar)    free(gpar);
+    if (spar)    free(spar);
+    if (pretop)  free(pretop);
+    if (qintdat) freeIntdat(qintdat);
+    if (wcurve)  freeIntcrvlist(wcurve, jcrv);
+    for (int i = 0; i < jsurf; ++i) freeIntsurf(wsurf[i]);
+    if (wsurf) free(wsurf);
+  };
+  
+  auto cleanup_and_throw = [&freeall] (string s) {
+    freeall();
+    throw runtime_error(s.c_str());
+  };
+  
   const double epsge = 1e-6;
   int kstat = 0;
-  sh1761(qo1.get(), qo2.get(), epsge, &qintdat, &kstat);
-  if (kstat < 0) {
-    if (qintdat) freeIntdat(qintdat);
-    throw runtime_error("SISL error in sh1761");
-  }
+  
+  // find intersections
+  sh1761(qo1, qo2, epsge, &qintdat, &kstat);
+  if (kstat < 0) cleanup_and_throw("SISL error in sh1761.");
+
+  // // represent degenerated intersection curves as one point
+  // sh6degen(qo1, qo1, &qintdat, epsge, &kstat);
+  // if (kstat < 0) cleanup_and_throw("SISL error in sh6degen.");
+
+  // join periodic curves
+  const int kdeg = 1;
+  double eimpli = 1;
+  // int_join_per(&qintdat, qo1, qo1, &eimpli, kdeg, epsge, &kstat);
+  // if (kstat < 0) cleanup_and_throw("SISL error in int_join_per.");
+  
+  // express intersections on output format (SISL)
+  if (qintdat)
+    hp_s1880 (qo1, qo1, kdeg, 2, 0, qintdat, &jpt, &gpar, &spar, &pretop,
+	      &jcrv, &wcurve, &jsurf, &wsurf, &kstat);
   
   // @@ still unimplemented
-  if (qintdat) freeIntdat(qintdat);
-  return vector<GPoint>();
+  vector<SISLIntcurve*> result;
+  for (int i = 0; i != jcrv; ++i)
+    result.push_back(wcurve[i]);
+  
+  freeall();
+  
+  return result;
 }
 
-// ----------------------------------------------------------------------------
-pair<SCurvePtr, SCurvePtr>
-trace_isoval_curve(shared_ptr<SISLSurf> s, double p1, double p2)
-// ----------------------------------------------------------------------------
-{
-  //@@UNIMPLEMENTED
-  return pair<SCurvePtr, SCurvePtr>();
-}
+// // ----------------------------------------------------------------------------
+// pair<SCurvePtr, SCurvePtr>
+// trace_isoval_curve(shared_ptr<SISLSurf> s, double p1, double p2)
+// // ----------------------------------------------------------------------------
+// {
+//   //@@UNIMPLEMENTED
+//   return pair<SCurvePtr, SCurvePtr>();
+// }
 
 // ----------------------------------------------------------------------------
 // First returned value is the curve in the parametric plane.  Second returned
@@ -130,19 +174,27 @@ compute_isocontour(const SplineSurface& ss, double isoval)
   // The following asserts spefifies prerequisites for calling this function.
   assert(ss.dimension() == 1);
   assert(ss.basis_u().isKreg() && ss.basis_v().isKreg());
-  
-  auto sislsurf = shared_ptr<SISLSurf>(GoSurf2SISL(ss, false));
-                                       
-  // determine topology (simplified version of 1851)
-  auto guidepoints = get_isocontour_topology(sislsurf, isoval);
-  
-  // march out curves
-  vector<pair<SCurvePtr, SCurvePtr>> result(guidepoints.size());
 
-  transform(guidepoints.begin(), guidepoints.end(), result.begin(),
-	    [&] (const GPoint& p) {
-	      return trace_isoval_curve(sislsurf, get<0>(p), get<1>(p));
-	    });
+  SISLSurf* sislsurf = GoSurf2SISL(ss, false);
+  vector<pair<SCurvePtr, SCurvePtr>> result;
+  
+  try {
+    // determine topology (simplified version of 1851)
+    auto curves = get_isocontour_topology(sislsurf, isoval);
+    result = vector<pair<SCurvePtr, SCurvePtr>>(curves.size());
+    // march out curves
+    
+    
+    // transform(guidepoints.begin(), guidepoints.end(), result.begin(),
+    // 	      [&] (const GPoint& p) {
+    // 		return trace_isoval_curve(sislsurf, get<0>(p), get<1>(p));
+    // 	      });
+  } catch (exception& e) {
+    freeSurf(sislsurf);
+    throw e;
+  }
+
+  freeSurf(sislsurf);
 
   return result;
 }
