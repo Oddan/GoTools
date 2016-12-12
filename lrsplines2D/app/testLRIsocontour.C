@@ -35,6 +35,8 @@ namespace { // anonymous namespace
   vector<double> contour_vals(LRSurfPtr lrs, int num_contours);
   vector<CurveVec> computeIsocurves(const LRSurfPtr lrs,
 				    const vector<double>& isovals);
+  vector<CurveVec> merge_isocontours(const vector<vector<CurveVec>>& curve_fragments,
+				     const vector<LRSurfPtr>& surf_frags);
 }; // end anonymous namespace
 
 int main(int varnum, char* vararg[]) {
@@ -55,38 +57,139 @@ int main(int varnum, char* vararg[]) {
 	    [&cvals] (LRSurfPtr sp) { return computeIsocurves(sp, cvals); });
 
 
-  ofstream os(debug_file.c_str());
+  // ofstream os(debug_file.c_str());
 
-  for (size_t i = 0; i != curve_fragments.size(); ++i) {
-    const int cnum = accumulate(curve_fragments[i].begin(),
-				curve_fragments[i].end(),
-				0,
-				[] (const int& cur, const CurveVec& cv) {return cur + cv.size();});
+  // for (size_t i = 0; i != curve_fragments.size(); ++i) {
+  //   const int cnum = accumulate(curve_fragments[i].begin(),
+  // 				curve_fragments[i].end(),
+  // 				0,
+  // 				[] (const int& cur, const CurveVec& cv) {return cur + cv.size();});
     
-    cout << "Patch " << i << " has " << cnum << " curves." << endl;
+  //   cout << "Patch " << i << " has " << cnum << " curves." << endl;
     
-    frags[i]->writeStandardHeader(os);
-    frags[i]->write(os);
-    for (size_t j = 0; j != curve_fragments[i].size(); ++j) {
-      for (size_t k = 0; k != curve_fragments[i][j].size(); ++k){
-	const IsectCurve& cv = curve_fragments[i][j][k];
-	cv.scurve->writeStandardHeader(os);
-	cv.scurve->write(os);
-      }
-    }
-  }
+  //   frags[i]->writeStandardHeader(os);
+  //   frags[i]->write(os);
+  //   for (size_t j = 0; j != curve_fragments[i].size(); ++j) {
+  //     for (size_t k = 0; k != curve_fragments[i][j].size(); ++k){
+  // 	const IsectCurve& cv = curve_fragments[i][j][k];
+  // 	cv.scurve->writeStandardHeader(os);
+  // 	cv.scurve->write(os);
+  //     }
+  //   }
+  // }
 
-  os.close();
-  
+  // os.close();
   
   // merge isocontours
-	      
+  const vector<CurveVec> curves = merge_isocontours(curve_fragments, frags);
   
 
   return 0;
 }
 
 namespace {
+
+// ----------------------------------------------------------------------------
+  array<double, 4> parameter_domain(const LRSurfPtr& patch)
+// ----------------------------------------------------------------------------
+{
+  return array<double, 4>{ { patch->paramMin(XFIXED),
+	                     patch->paramMax(XFIXED), 
+	                     patch->paramMin(YFIXED),
+	                     patch->paramMax(YFIXED)} };
+}
+
+// ----------------------------------------------------------------------------
+int find_exit_edge(const IsectCurve& c, const array<double, 4>& domain, bool start)
+// ----------------------------------------------------------------------------
+{
+  const double epsge = 1e-6;
+  const double t = start ? c.pcurve->startparam() : c.pcurve->endparam();
+  Point uv;  // represent u and v parameters
+  c.pcurve->point(uv, t);  // evaluate (u, v) parameter pair at curve start or end
+
+  const vector<double> dists = {fabs(domain[0] - uv[0]),
+				fabs(domain[1] - uv[0]),
+				fabs(domain[2] - uv[1]),
+				fabs(domain[3] - uv[1])};
+  auto min_it = min_element(dists.begin(), dists.end());
+  if (*min_it > epsge)
+    return -1; // curve doesn't end on edge, but inside domain (either closed, or ends at
+	       // singularity)
+
+  return int(min_it - dists.begin()); // index of boundary edge where curve starts/ends
+		 
+}
+
+// ----------------------------------------------------------------------------
+void map_curve(const IsectCurve& c, const array<double, 4>& domain, bool at_start,
+	       map<double, CurveVec>& u_map, map<double, CurveVec>& v_map)
+// ----------------------------------------------------------------------------
+{
+  const int edge = find_exit_edge(c, domain, at_start);
+
+  // if none of the cases below apply, curve does not terminate at edge.
+  switch (edge) {
+  case 0:
+  case 1:
+    u_map[domain[edge]].push_back(c);
+    break;
+  case 2:
+  case 3:
+    v_map[domain[edge]].push_back(c);
+    break;
+  }
+}    
+  
+// ----------------------------------------------------------------------------
+void prepare_curvemaps(const array<double, 4>& domain, const CurveVec& cvec,
+		       map<double, CurveVec>& u_map, map<double, CurveVec>& v_map)
+// ----------------------------------------------------------------------------
+{
+  for_each(cvec.begin(), cvec.end(), [&] (const IsectCurve& c) {
+      map_curve(c, domain, true, u_map, v_map);  // map curve according to start point
+      map_curve(c, domain, false, u_map, v_map); // map curve according to end point
+  });
+}
+  
+// ----------------------------------------------------------------------------
+CurveVec single_isocontour_merge(const vector<CurveVec>& curves,
+				 const vector<LRSurfPtr>& surf_patches)
+// ----------------------------------------------------------------------------
+{
+  map<double, CurveVec> u_map, v_map; // map curves exiting patch domains along u or v
+					// parameter direction
+  for (int i = 0; i != (int)surf_patches.size(); ++i) {
+    prepare_curvemaps(parameter_domain(surf_patches[i]), curves[i], u_map, v_map);
+  }
+    
+  return CurveVec(); // @@ UNIMPLEMENTED
+}
+  
+// =============================================================================
+vector<CurveVec> merge_isocontours(const vector<vector<CurveVec>>& curve_fragments,
+				   const vector<LRSurfPtr>& surf_frags)
+// =============================================================================
+{
+  // curve_fragments is indexed [surface patch][isovalue][set of curves]
+  const int num_patches	    = (int)curve_fragments.size();  assert(num_patches > 0);
+  const int num_isocontours = (int)curve_fragments[0].size();
+  
+  vector<CurveVec> result; // should contain one entry per isovalue
+
+  for (int i = 0; i != num_isocontours; ++i) {
+    vector<CurveVec> isocurves_to_merge; // isocurve(s) for each surface patch
+    transform(curve_fragments.begin(),
+	      curve_fragments.end(),
+	      back_inserter(isocurves_to_merge),
+	      [i] (const vector<CurveVec>& v) {return v[i];});
+
+    result.emplace_back(single_isocontour_merge(isocurves_to_merge, surf_frags));
+  }
+
+  return result;
+}
+
 // =============================================================================
 LRSurfPtr read_surface(string fname)
 // =============================================================================
