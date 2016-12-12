@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <chrono>
 #include "sislP.h"
 #include "GoTools/lrsplines2D/LRSplineSurface.h"
 #include "GoTools/geometry/ObjectHeader.h"
@@ -22,8 +23,9 @@ const string filename("data/64_lr_1d.g2");
 const string savefile("result.g2");
 
 void simple_SurfaceModel_test(LRSplineSurface& lrs, ofstream& os);
-void simple_isocontour_test(LRSplineSurface& lrs, ofstream& os, double isoval);
-vector<pair<SCurvePtr, SCurvePtr>> compute_isocontour(const SplineSurface& ss, double isoval);
+void simple_isocontour_test(LRSplineSurface& lrs, ofstream& os, const vector<double>& isovals);
+vector<pair<SCurvePtr, SCurvePtr>> compute_isocontours(const LRSplineSurface& ss,
+						       const vector<double>& isovals);
   
 int main()
 {
@@ -53,12 +55,17 @@ int main()
   
   // Simple test of one intersection curve, using SurfaceModel as currently
   // defined
-  //simple_SurfaceModel_test(lrs, os);
+  simple_SurfaceModel_test(lrs, os);
 
   // Test function computing a isocontour for a 1D spline function
-  simple_isocontour_test(lrs, os, 1600);
+  // vector<double> isovals;
+  // const int num_levels = 40;
+  // for (double i = minval; i < maxval; i = i + (maxval-minval)/num_levels)
+  //   isovals.push_back(i);
   
-  os.close();
+  // simple_isocontour_test(lrs, os, isovals);
+  
+  // os.close();
   
   //lrs.expandToFullTensorProduct();
   
@@ -70,19 +77,25 @@ int main()
 };
 
 // ----------------------------------------------------------------------------
-void simple_isocontour_test(LRSplineSurface& lrs, ofstream& os, double isoval)
+void simple_isocontour_test(LRSplineSurface& lrs, ofstream& os,
+			    const vector<double>& isovals)
 // ----------------------------------------------------------------------------
 {
-  // make spline function (1D)
-  const auto splfun = shared_ptr<SplineSurface>(lrs.asSplineSurface());
+  auto curves = compute_isocontours(lrs, isovals);
 
-  auto curves = compute_isocontour(*splfun, isoval);
+  cout << "Number of curves found: " << curves.size() << endl;
+
+  // @@@Write stuff to stream below
+  for_each(curves.begin(), curves.end(), [&](pair<SCurvePtr, SCurvePtr>& p) {
+      p.first->writeStandardHeader(os);
+      p.first->write(os);
+    });
 }
 
 // ----------------------------------------------------------------------------
 // Two first members of tuple represents parameter values of intersection point.
 // Last member expresses the nature of associated intersection curve.
-vector<SISLIntcurve*> get_isocontour_topology(SISLSurf* s, double isoval)
+pair<SISLIntcurve**, int> get_isocontour_topology(SISLSurf* s, double isoval)
 // ----------------------------------------------------------------------------
 {
   // This function does the equivalent of SISL sh1851, but assumes that the
@@ -107,14 +120,14 @@ vector<SISLIntcurve*> get_isocontour_topology(SISLSurf* s, double isoval)
   qo2->p1 = qp;
   
   SISLIntdat* qintdat = SISL_NULL; // intersection result
-  auto freeall = [&] () {
-    if (gpar)    free(gpar);
-    if (spar)    free(spar);
-    if (pretop)  free(pretop);
-    if (qintdat) freeIntdat(qintdat);
-    if (wcurve)  freeIntcrvlist(wcurve, jcrv);
-    for (int i = 0; i < jsurf; ++i) freeIntsurf(wsurf[i]);
-    if (wsurf) free(wsurf);
+  auto freeall = [&] (bool skip_wcurves = false) {
+    if (gpar)                         free(gpar);
+    if (spar)                         free(spar);
+    if (pretop)                       free(pretop);
+    if (qintdat)                      freeIntdat(qintdat);
+    if ((bool)wcurve & (jcrv > 0) & !skip_wcurves) freeIntcrvlist(wcurve, jcrv);
+    for (int i = 0; i < jsurf; ++i)   freeIntsurf(wsurf[i]);
+    if ((bool)wsurf & (jsurf > 0))          free(wsurf);
   };
   
   auto cleanup_and_throw = [&freeall] (string s) {
@@ -144,58 +157,96 @@ vector<SISLIntcurve*> get_isocontour_topology(SISLSurf* s, double isoval)
     hp_s1880 (qo1, qo1, kdeg, 2, 0, qintdat, &jpt, &gpar, &spar, &pretop,
 	      &jcrv, &wcurve, &jsurf, &wsurf, &kstat);
   
-  // @@ still unimplemented
-  vector<SISLIntcurve*> result;
-  for (int i = 0; i != jcrv; ++i)
-    result.push_back(wcurve[i]);
+  freeall(true);
   
-  freeall();
-  
-  return result;
+  return pair<SISLIntcurve**, int>(wcurve, jcrv);
 }
 
-// // ----------------------------------------------------------------------------
-// pair<SCurvePtr, SCurvePtr>
-// trace_isoval_curve(shared_ptr<SISLSurf> s, double p1, double p2)
-// // ----------------------------------------------------------------------------
-// {
-//   //@@UNIMPLEMENTED
-//   return pair<SCurvePtr, SCurvePtr>();
-// }
+// ----------------------------------------------------------------------------
+pair<SCurvePtr, SCurvePtr>
+trace_isoval_curve(SISLSurf* s, SISLIntcurve* ic, double isoval)
+// ----------------------------------------------------------------------------
+{
+  double pnt[] = {0, 0, isoval};
+  double nrm[] = {0, 0, 1};
+  const double epsge = 1e-6;
+  const double epsco = 1e-15; // Not used
+  const double maxstep = 0.0;
+  const int dim = 3;
+  const int makecurv = 2; // make both geometric and parametric curves
+  int stat;
+  //@@UNIMPLEMENTED
+  s1314(s, pnt, nrm, dim, epsco, epsge, maxstep, ic, makecurv, 0, &stat);
+
+  SISLCurve* sc = ic->pgeom;
+  SISLCurve* sp = ic->ppar1;
+  if (sc == 0) {
+    MESSAGE("s1314 returned code: " << stat << ", returning.");
+    return pair<SCurvePtr, SCurvePtr>();
+  }
+  
+  assert(sc->rcoef == 0); // otherwise, slight modification of the below is necessary
+  const bool rational = false;
+  return pair<SCurvePtr, SCurvePtr>
+    {SCurvePtr(new SplineCurve(sc->in, sc->ik, sc->et, sc->ecoef, 3, rational)),
+     SCurvePtr(new SplineCurve(sp->in, sp->ik, sp->et, sp->ecoef, 2, rational))};
+  
+}
 
 // ----------------------------------------------------------------------------
 // First returned value is the curve in the parametric plane.  Second returned
 // value is the curve as a (1D) spline function.  (This function should be of
 // constant value).
 vector<pair<SCurvePtr, SCurvePtr>> 
-compute_isocontour(const SplineSurface& ss, double isoval)
+compute_isocontours(const LRSplineSurface& lrs, const vector<double>& isovals)
 // ----------------------------------------------------------------------------
 {
   // The following asserts spefifies prerequisites for calling this function.
-  assert(ss.dimension() == 1);
-  assert(ss.basis_u().isKreg() && ss.basis_v().isKreg());
+  assert(lrs.dimension() == 1);
 
-  SISLSurf* sislsurf = GoSurf2SISL(ss, false);
+  auto lrs_working_copy = shared_ptr<LRSplineSurface>(lrs.clone());
+
+  // make 1D spline function 
+  const auto ss   = shared_ptr<SplineSurface>(lrs_working_copy->asSplineSurface());
+  assert(ss->basis_u().isKreg() && ss->basis_v().isKreg());
+  SISLSurf* sislsurf1D = GoSurf2SISL(*ss, false);
+
+  // make 3D spline function
+  lrs_working_copy->to3D();
+  const auto ss3D = shared_ptr<SplineSurface>(lrs_working_copy->asSplineSurface());
+  SISLSurf* sislsurf3D = GoSurf2SISL(*ss3D, false);
+  
   vector<pair<SCurvePtr, SCurvePtr>> result;
+  pair<SISLIntcurve**, int> curves;
   
   try {
-    // determine topology (simplified version of 1851)
-    auto curves = get_isocontour_topology(sislsurf, isoval);
-    result = vector<pair<SCurvePtr, SCurvePtr>>(curves.size());
-    // march out curves
-    
-    
-    // transform(guidepoints.begin(), guidepoints.end(), result.begin(),
-    // 	      [&] (const GPoint& p) {
-    // 		return trace_isoval_curve(sislsurf, get<0>(p), get<1>(p));
-    // 	      });
+    for (auto ival : isovals) {
+      // determine topology (simplified version of 1851)
+
+      auto t1 = chrono::high_resolution_clock::now();
+      curves = get_isocontour_topology(sislsurf1D, ival);
+      auto t2 = chrono::high_resolution_clock::now();
+      cout << "Time to compute topology: " << chrono::duration_cast<chrono::milliseconds>(t2-t1).count() << " milliseconds. " << endl;
+      
+      // march out curves
+      t1 = chrono::high_resolution_clock::now();
+      transform(curves.first, curves.first + curves.second, back_inserter(result),
+		[&] (SISLIntcurve* ic) {
+		  return trace_isoval_curve(sislsurf3D, ic, ival);
+		});
+      t2 = chrono::high_resolution_clock::now();
+      cout << "Time for marching: " << chrono::duration_cast<chrono::milliseconds>(t2-t1).count() << " milliseconds. " << endl;
+    }
+    if (curves.second > 0) freeIntcrvlist(curves.first, curves.second);
   } catch (exception& e) {
-    freeSurf(sislsurf);
+    if (curves.second > 0) freeIntcrvlist(curves.first, curves.second);
+    freeSurf(sislsurf1D);
+    freeSurf(sislsurf3D);
     throw e;
   }
 
-  freeSurf(sislsurf);
-
+  freeSurf(sislsurf3D);
+  freeSurf(sislsurf1D);
   return result;
 }
   
@@ -203,7 +254,7 @@ compute_isocontour(const SplineSurface& ss, double isoval)
 void simple_SurfaceModel_test(LRSplineSurface& lrs, ofstream& os)
 // ----------------------------------------------------------------------------
 {
-  lrs.to3D();
+  //lrs.to3D();
   auto splineSurf = shared_ptr<SplineSurface>(lrs.asSplineSurface());
   const int id = 1;
   auto  ftSurf = shared_ptr<ftSurface>(new ftSurface(splineSurf, id));

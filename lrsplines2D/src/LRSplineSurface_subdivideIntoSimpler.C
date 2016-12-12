@@ -56,7 +56,6 @@ using std::max;
 using std::min;
 using std::get;
 using std::cout; //debug
-using std::wcout; //debug
 
 using namespace Go;
 
@@ -231,16 +230,16 @@ namespace Go
   vector<shared_ptr<LRSplineSurface>> LRSplineSurface::subdivideIntoSimpler() const
   // ============================================================================
   {
-    std::wcout << L"Entering subdivision function." << std::endl;
+    std::cout << "Entering subdivision function." << std::endl;
     // Determine subdivisions
     const IntPair order {degree(XFIXED)+1, degree(YFIXED)+1};
     auto t1 = std::chrono::high_resolution_clock::now();
     const auto splits = recursive_split(mesh(), order, Subdomain(mesh()));
     auto t2 = std::chrono::high_resolution_clock::now();
-    std::wcout << L"identifying splits took "
+    std::cout << "identifying splits took "
 	       << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count()
-	       << L" milliseconds\n";
-    std::wcout << get<0>(splits).size() << L" splits identified." << std::endl;
+	       << " milliseconds\n";
+    std::cout << get<0>(splits).size() << " splits identified." << std::endl;
     // Making working copy of the present surface, and carry out the determined
     // splits by raising internal multiplicities accordingly.
     auto lrs_copy = shared_ptr<LRSplineSurface>(this->clone());
@@ -248,12 +247,12 @@ namespace Go
     t1 = std::chrono::high_resolution_clock::now();
     lrs_copy->refine(prepare_refinements(mesh(), get<0>(splits), order), true);
     t2 = std::chrono::high_resolution_clock::now();
-    std::wcout << L"refining  took "
+    std::cout << "refining  took "
 	       << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count()
-	       << L" milliseconds\n";
-    std::wcout << L"Finished refining." << std::endl;
+	       << " milliseconds\n";
+    std::cout << "Finished refining." << std::endl;
     // Extract and return individual surface patches
-    std::wcout << L"Generating " << get<1>(splits).size() << L" new surfaces..." << std::endl;
+    std::cout << "Generating " << get<1>(splits).size() << " new surfaces..." << std::endl;
     vector<shared_ptr<LRSplineSurface>> result;
     map<ElemKey, size_t> patchmap;
 
@@ -308,17 +307,17 @@ namespace Go
       // auto p1 = krull1.front();
       // auto p2 = krull1.back();
       // if (p1 == p2)
-      // 	wcout << p1 << L" " << p2 << patch_ix << std::endl;
+      // 	cout << p1 << " " << p2 << patch_ix << std::endl;
       // update internal links
       LRSplineUtils::update_elements_with_single_bspline(patch->bsplines_[key].get(),
     							 patch->emap_,
     							 patch->mesh(), false);
     }
     t2 = std::chrono::high_resolution_clock::now();
-    std::wcout << L"generating patches  took "
+    std::cout << "generating patches  took "
 	       << std::chrono::duration_cast<std::chrono::milliseconds>(t2-t1).count()
-	       << L" milliseconds\n";
-    std::wcout << L"Finished generating patches." << std::endl;
+	       << " milliseconds\n";
+    std::cout << "Finished generating patches." << std::endl;
 
     return result;
   }
