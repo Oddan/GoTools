@@ -82,7 +82,14 @@ int main(int varnum, char* vararg[]) {
   
   // merge isocontours
   const vector<CurveVec> curves = merge_isocontours(curve_fragments, frags);
-  
+
+  ofstream os(debug_file.c_str());
+  for (auto c_level : curves)
+    for (auto c : c_level) {
+      c.scurve->writeStandardHeader(os);
+      c.scurve->write(os);
+    }
+  os.close();
 
   return 0;
 }
@@ -151,7 +158,146 @@ void prepare_curvemaps(const array<double, 4>& domain, const CurveVec& cvec,
       map_curve(c, domain, false, u_map, v_map); // map curve according to end point
   });
 }
+
+// ----------------------------------------------------------------------------
+inline double endpoint_on_parameter_line(CurvePtr c, double pval, Direction2D d)
+// ----------------------------------------------------------------------------
+{
+  Point p1, p2;
+  c->point(p1, c->startparam());
+  c->point(p2, c->endparam());
+  if (d==YFIXED) {
+    swap(p1[0], p1[1]);
+    swap(p2[0], p2[1]);
+  }
+  return fabs(p1[0] - pval) < fabs(p2[0] - pval) ? p1[1] : p2[1];
+}
+
+// ----------------------------------------------------------------------------
+inline double endpoint_dist(CurvePtr c1, bool c1_at_start, CurvePtr c2, bool c2_at_start)
+// ----------------------------------------------------------------------------
+{
+  Point p1, p2;
+  c1->point(p1, c1_at_start ? c1->startparam() : c1->endparam());
+  c2->point(p2, c2_at_start ? c2->startparam() : c2->endparam());
+  return p1.dist2(p2);
+}
+
+// ----------------------------------------------------------------------------
+IsectCurve join_splinecurves(IsectCurve& c1, IsectCurve& c2, Direction2D d, double pval)
+// ----------------------------------------------------------------------------
+{
+  // ensure parameter directions are OK (the curves should be oriented so that the start of c2
+  // can be joined to the end of c1).
   
+  const array<double, 4> dists { endpoint_dist(c1.pcurve, true, c2.pcurve, true), // c1 start, c2 start
+                                 endpoint_dist(c1.pcurve, true, c2.pcurve, false), // c1 start, c2 end
+                                 endpoint_dist(c1.pcurve, false, c2.pcurve, true), // c1 end, c2 start
+                                 endpoint_dist(c1.pcurve, false, c2.pcurve, false)}; // c1 end, c2 end
+
+  const auto it = min_element(dists.begin(), dists.end());
+  const double epsge = 1e-6; //@@
+  assert(fabs(*it) < epsge);
+  switch (it - dists.begin()) {
+  case 0:
+    c1.pcurve->reverseParameterDirection();
+    c1.scurve->reverseParameterDirection();
+    break;
+  case 1:
+    swap(c1, c2);
+    break;
+  case 2:
+    // perfect, do nothing
+    break;
+  case 3:
+    c2.pcurve->reverseParameterDirection();
+    c2.scurve->reverseParameterDirection();
+  };
+  
+  // joining curves
+  IsectCurve result {CurvePtr {c1.pcurve->clone()}, CurvePtr {c1.scurve->clone()}};
+
+  result.pcurve->appendCurve(c2.pcurve.get());
+  result.scurve->appendCurve(c2.scurve.get());
+  
+  return result;
+}
+
+// ----------------------------------------------------------------------------
+void replace_segments(const IsectCurve& old1, const IsectCurve& old2,
+		      const IsectCurve& updated, map<double, CurveVec>& target)
+// ----------------------------------------------------------------------------
+{
+  for (auto& it_map : target) 
+    for (auto& it_vec : it_map.second)
+      if ((it_vec.pcurve == old1.pcurve) || (it_vec.pcurve == old2.pcurve))
+	it_vec = updated;
+}
+
+// ----------------------------------------------------------------------------
+void merge_segments(map<double, CurveVec>& mergemap, // map whose segments should be merged
+		    map<double, CurveVec>& othermap, // map whose entries must also be updated
+		    Direction2D d,                   // the fixed parameter direction
+		    CurveVec& finished_curves) // insert finished curves here
+// ----------------------------------------------------------------------------
+{
+  for (auto it = mergemap.begin(); it != mergemap.end(); ++it) {
+    // sorting incident curve segments so that those that should be merged will lie right next
+    // to each other
+    CurveVec& incident_curves = it->second;
+
+    ofstream os("dilldall.g2");
+    for (int i = 0; i != incident_curves.size(); ++i) {
+      incident_curves[i].scurve->writeStandardHeader(os);
+      incident_curves[i].scurve->write(os);
+    }
+    os.close();
+    
+    assert(incident_curves.size() % 2 == 0);  // we suppose that for each curve going in, there is one going out
+    sort(incident_curves.begin(), incident_curves.end(),
+	 [&it, d](const IsectCurve& c1, const IsectCurve& c2) {
+	   return endpoint_on_parameter_line(c1.pcurve, it->first, d) < 
+   	          endpoint_on_parameter_line(c2.pcurve, it->first, d);
+	 });
+    
+    while (!incident_curves.empty()) {
+      // pop the two last elements
+      auto cp1 = incident_curves.back(); incident_curves.pop_back(); 
+      auto cp2 = incident_curves.back(); incident_curves.pop_back();
+      if (cp1.pcurve == cp2.pcurve) {
+	// this is a single curve whose endpoints meet across this edge.  There are no more
+	// merges to be done.  This curve is finished and can be returned.
+	finished_curves.push_back(cp1);
+      } else {
+	auto cp_new = join_splinecurves(cp1, cp2, d, it->first);
+	// replace references to cp1 and cp2 with references to cp_new throughout
+	replace_segments(cp1, cp2, cp_new, mergemap);
+	replace_segments(cp1, cp2, cp_new, othermap);
+      }
+    }
+  }
+}
+
+// ----------------------------------------------------------------------------
+array<double, 4> outer_boundary_pvals(const vector<LRSurfPtr>& patches)
+// ----------------------------------------------------------------------------
+{
+  const auto start_u = [](LRSurfPtr l) {return l->startparam_u();};
+  const auto end_u   = [](LRSurfPtr l) {return l->endparam_u();};
+  const auto start_v = [](LRSurfPtr l) {return l->startparam_v();};
+  const auto end_v   = [](LRSurfPtr l) {return l->endparam_v();};
+  
+  return array<double, 4>
+    {(*min_element(patches.begin(), patches.end(),
+	   [&start_u](LRSurfPtr l1, LRSurfPtr l2) {return start_u(l1) < start_u(l2);}))->startparam_u(),
+     (*max_element(patches.begin(), patches.end(),
+	   [&end_u](LRSurfPtr l1, LRSurfPtr l2) {return end_u(l1) < end_u(l2);}))->endparam_u(),
+     (*min_element(patches.begin(), patches.end(),
+	   [&start_v](LRSurfPtr l1, LRSurfPtr l2) {return start_v(l1) < start_v(l2);}))->startparam_v(),
+     (*max_element(patches.begin(), patches.end(),
+	   [&end_v](LRSurfPtr l1, LRSurfPtr l2) {return end_v(l1) < end_v(l2);}))->endparam_v()};
+}
+
 // ----------------------------------------------------------------------------
 CurveVec single_isocontour_merge(const vector<CurveVec>& curves,
 				 const vector<LRSurfPtr>& surf_patches)
@@ -159,11 +305,33 @@ CurveVec single_isocontour_merge(const vector<CurveVec>& curves,
 {
   map<double, CurveVec> u_map, v_map; // map curves exiting patch domains along u or v
 					// parameter direction
+  ofstream os("krull.g2");
+  for (auto cv : curves)
+    for (auto c : cv) {
+      c.scurve->writeStandardHeader(os);
+      c.scurve->write(os);
+    }
+  os.close();
+  
   for (int i = 0; i != (int)surf_patches.size(); ++i) {
     prepare_curvemaps(parameter_domain(surf_patches[i]), curves[i], u_map, v_map);
   }
-    
-  return CurveVec(); // @@ UNIMPLEMENTED
+
+  // remove mapped entries corresponding with outer boundaries (no merge will take place across
+  // these)
+  const array<double, 4> outer_bnd = outer_boundary_pvals(surf_patches);
+  u_map.erase(outer_bnd[0]);
+  u_map.erase(outer_bnd[1]);
+  v_map.erase(outer_bnd[2]);
+  v_map.erase(outer_bnd[3]);
+  
+  // looping through each parameter line, merging curve segments, and spitting out finished
+  // curves
+  CurveVec result;
+  merge_segments(u_map, v_map, XFIXED, result);
+  merge_segments(v_map, u_map, YFIXED, result);
+
+  return result;
 }
   
 // =============================================================================
