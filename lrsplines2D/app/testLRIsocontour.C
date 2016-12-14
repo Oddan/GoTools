@@ -2,6 +2,7 @@
 #include <string>
 #include <fstream>
 #include <stdexcept>
+#include <limits>
 
 #include "sislP.h"
 #include "GoTools/geometry/SISLconversion.h"
@@ -16,11 +17,15 @@ using namespace Go;
 using namespace std;
 
 using LRSurfPtr = shared_ptr<LRSplineSurface>;
-using CurvePtr  = shared_ptr<SplineCurve>;
+using CurvePtr  = shared_ptr<const SplineCurve>;
 
 struct IsectCurve {
-  CurvePtr pcurve; // curve in parameter plane (2D)
-  CurvePtr scurve; // space curve (3D)
+  const CurvePtr pcurve; // curve in parameter plane (2D)
+  const CurvePtr scurve; // space curve (3D)
+
+  IsectCurve operator=(const IsectCurve& other) {
+    return IsectCurve {other.pcurve, other.scurve};
+  }
 };
 
 using CurveVec  = vector<IsectCurve>;
@@ -135,6 +140,12 @@ void map_curve(const IsectCurve& c, const array<double, 4>& domain, bool at_star
 {
   const int edge = find_exit_edge(c, domain, at_start);
 
+  const double epsge = 1e-6;
+  if (edge >=0) {
+    Point p1; c.pcurve->point(p1, at_start ? c.pcurve->startparam() : c.pcurve->endparam());
+    assert( (fabs(domain[edge] - p1[0]) < epsge) | (fabs(domain[edge] - p1[1]) < epsge) );
+  }
+
   // if none of the cases below apply, curve does not terminate at edge.
   switch (edge) {
   case 0:
@@ -160,79 +171,100 @@ void prepare_curvemaps(const array<double, 4>& domain, const CurveVec& cvec,
 }
 
 // ----------------------------------------------------------------------------
-inline double endpoint_on_parameter_line(CurvePtr c, double pval, Direction2D d)
+IsectCurve join_isectcurves(const IsectCurve& c1, const IsectCurve& c2,
+			    bool c1_at_start, bool c2_at_start)
 // ----------------------------------------------------------------------------
 {
-  Point p1, p2;
-  c->point(p1, c->startparam());
-  c->point(p2, c->endparam());
-  if (d==YFIXED) {
-    swap(p1[0], p1[1]);
-    swap(p2[0], p2[1]);
+  SplineCurve pcurve1 = SplineCurve(*c1.pcurve);
+  SplineCurve scurve1 = SplineCurve(*c1.scurve);
+  SplineCurve pcurve2 = SplineCurve(*c2.pcurve);
+  SplineCurve scurve2 = SplineCurve(*c2.scurve);
+
+  if (c1_at_start) {
+    pcurve1.reverseParameterDirection();
+    scurve1.reverseParameterDirection();
   }
-  return fabs(p1[0] - pval) < fabs(p2[0] - pval) ? p1[1] : p2[1];
+
+  if (!c2_at_start) {
+    pcurve2.reverseParameterDirection();
+    scurve2.reverseParameterDirection();
+  }
+
+  pcurve1.appendCurve(&pcurve2);
+  scurve1.appendCurve(&scurve2);
+  
+  return IsectCurve { CurvePtr(pcurve1.clone()), CurvePtr(scurve1.clone())};
 }
 
-// ----------------------------------------------------------------------------
-inline double endpoint_dist(CurvePtr c1, bool c1_at_start, CurvePtr c2, bool c2_at_start)
-// ----------------------------------------------------------------------------
-{
-  Point p1, p2;
-  c1->point(p1, c1_at_start ? c1->startparam() : c1->endparam());
-  c2->point(p2, c2_at_start ? c2->startparam() : c2->endparam());
-  return p1.dist2(p2);
-}
+void map_sanity_check(map<double, CurveVec>& m, Direction2D d) { // @@
+  //cout << "Entering sanity check" << endl;
+  const double epsge=1e-6;
+  for (auto it : m) {
 
-// ----------------------------------------------------------------------------
-IsectCurve join_splinecurves(IsectCurve& c1, IsectCurve& c2, Direction2D d, double pval)
-// ----------------------------------------------------------------------------
-{
-  // ensure parameter directions are OK (the curves should be oriented so that the start of c2
-  // can be joined to the end of c1).
-  
-  const array<double, 4> dists { endpoint_dist(c1.pcurve, true, c2.pcurve, true), // c1 start, c2 start
-                                 endpoint_dist(c1.pcurve, true, c2.pcurve, false), // c1 start, c2 end
-                                 endpoint_dist(c1.pcurve, false, c2.pcurve, true), // c1 end, c2 start
-                                 endpoint_dist(c1.pcurve, false, c2.pcurve, false)}; // c1 end, c2 end
 
-  const auto it = min_element(dists.begin(), dists.end());
-  const double epsge = 1e-6; //@@
-  assert(fabs(*it) < epsge);
-  switch (it - dists.begin()) {
-  case 0:
-    c1.pcurve->reverseParameterDirection();
-    c1.scurve->reverseParameterDirection();
-    break;
-  case 1:
-    swap(c1, c2);
-    break;
-  case 2:
-    // perfect, do nothing
-    break;
-  case 3:
-    c2.pcurve->reverseParameterDirection();
-    c2.scurve->reverseParameterDirection();
-  };
-  
-  // joining curves
-  IsectCurve result {CurvePtr {c1.pcurve->clone()}, CurvePtr {c1.scurve->clone()}};
-
-  result.pcurve->appendCurve(c2.pcurve.get());
-  result.scurve->appendCurve(c2.scurve.get());
-  
-  return result;
+    // vector<CurvePtr> vec;
+    // for (int i = 0; i != it.second.size(); ++i) {
+    //   vec.push_back(it.second[i].pcurve);
+    // }
+    // auto endit = unique(vec.begin(), vec.end());
+    // assert(endit==vec.end());
+    
+    
+    const double p = it.first;
+    for (auto v : it.second) {
+      Point p1, p2;
+      v.pcurve->point(p1, v.pcurve->startparam());
+      v.pcurve->point(p2, v.pcurve->endparam());
+      if (d == XFIXED) 
+	assert( (fabs(p1[0] - p) < epsge) | (fabs(p2[0]-p) < epsge));
+      else
+	assert( (fabs(p1[1] - p) < epsge) | (fabs(p2[1]-p) < epsge));
+    }
+  }
 }
 
 // ----------------------------------------------------------------------------
 void replace_segments(const IsectCurve& old1, const IsectCurve& old2,
-		      const IsectCurve& updated, map<double, CurveVec>& target)
+		      const IsectCurve& updated, map<double, CurveVec>& target,
+		      Direction2D d) //@@ d is here only for debugging.  Can be removed
 // ----------------------------------------------------------------------------
 {
+  map_sanity_check(target, d);
   for (auto& it_map : target) 
-    for (auto& it_vec : it_map.second)
-      if ((it_vec.pcurve == old1.pcurve) || (it_vec.pcurve == old2.pcurve))
+    for (auto& it_vec : it_map.second) 
+      if ((it_vec.pcurve == old1.pcurve) || (it_vec.pcurve == old2.pcurve)) {
+	Point p1, p2, q1, q2, r1, r2;
+	old1.pcurve->point(p1, old1.pcurve->startparam());
+	old1.pcurve->point(p2, old1.pcurve->endparam());
+	old2.pcurve->point(q1, old2.pcurve->startparam());
+	old2.pcurve->point(q2, old2.pcurve->endparam());
+	updated.pcurve->point(r1, updated.pcurve->startparam());
+	updated.pcurve->point(r2, updated.pcurve->endparam());
 	it_vec = updated;
+	map_sanity_check(target, d);
+      }
 }
+
+
+// ----------------------------------------------------------------------------
+pair<double, double> identify_truncated_endpoints(const IsectCurve& c, Direction2D d, double pval)
+// ----------------------------------------------------------------------------
+{
+  const double epsge = 1e-6;
+  Point startpoint, endpoint;
+  c.pcurve->point(startpoint, c.pcurve->startparam());
+  c.pcurve->point(endpoint  , c.pcurve->endparam());
+  if (d==YFIXED) {
+    swap(startpoint[0], startpoint[1]);
+    swap(endpoint[0], endpoint[1]);
+  }
+  auto NaN = numeric_limits<double>::quiet_NaN();
+  return pair<double, double> {
+    (fabs(startpoint[0] - pval) < epsge ? startpoint[1] : NaN),
+    (fabs(endpoint[0] - pval) < epsge ? endpoint[1] : NaN)
+  };
+}
+
 
 // ----------------------------------------------------------------------------
 void merge_segments(map<double, CurveVec>& mergemap, // map whose segments should be merged
@@ -241,38 +273,85 @@ void merge_segments(map<double, CurveVec>& mergemap, // map whose segments shoul
 		    CurveVec& finished_curves) // insert finished curves here
 // ----------------------------------------------------------------------------
 {
-  for (auto it = mergemap.begin(); it != mergemap.end(); ++it) {
+  map_sanity_check(mergemap, d);
+  map_sanity_check(othermap, flip(d));
+  const double epsge = 1e-6;
+  struct EndPoint {double pval; IsectCurve icurve;bool at_start;};
+
+  while (!mergemap.empty()) {
+    auto it = *mergemap.begin();   mergemap.erase(mergemap.begin());
+  //for (auto it = mergemap.begin(); it != mergemap.end(); ++it) {
     // sorting incident curve segments so that those that should be merged will lie right next
     // to each other
-    CurveVec& incident_curves = it->second;
-
-    ofstream os("dilldall.g2");
-    for (int i = 0; i != incident_curves.size(); ++i) {
-      incident_curves[i].scurve->writeStandardHeader(os);
-      incident_curves[i].scurve->write(os);
+    vector<CurvePtr> encountered;
+    vector<EndPoint> tp_vec;
+    for (auto& ic : it.second) { // loop over intersection curve segments cut by this parameter line
+      auto ends = identify_truncated_endpoints(ic, d, it.first);
+      if (!isnan(ends.first + ends.second)) {
+	// both endpoints of this curve are truncated by the parameter line.
+	if (find(encountered.begin(), encountered.end(), ic.pcurve) != encountered.end())
+	  continue;
+	encountered.push_back(ic.pcurve); // ensure we will only register the curve once
+      }
+      if (!isnan(ends.first))  tp_vec.push_back({ends.first, ic, true});
+      if (!isnan(ends.second)) tp_vec.push_back({ends.second, ic, false});
     }
-    os.close();
+
+    assert(tp_vec.size() % 2 == 0);  // we suppose that for each curve going in, there is one going out
+
+    sort(tp_vec.begin(), tp_vec.end(), [](const EndPoint& t1, const EndPoint& t2) {return t1.pval < t2.pval;});
+
+    ofstream os1("kalle.g2");
+    for (size_t i = 0; i != tp_vec.size(); ++i) {
+      tp_vec[i].icurve.scurve->writeStandardHeader(os1);
+      tp_vec[i].icurve.scurve->write(os1);
+    }
+    os1.close();
     
-    assert(incident_curves.size() % 2 == 0);  // we suppose that for each curve going in, there is one going out
-    sort(incident_curves.begin(), incident_curves.end(),
-	 [&it, d](const IsectCurve& c1, const IsectCurve& c2) {
-	   return endpoint_on_parameter_line(c1.pcurve, it->first, d) < 
-   	          endpoint_on_parameter_line(c2.pcurve, it->first, d);
-	 });
     
-    while (!incident_curves.empty()) {
-      // pop the two last elements
-      auto cp1 = incident_curves.back(); incident_curves.pop_back(); 
-      auto cp2 = incident_curves.back(); incident_curves.pop_back();
-      if (cp1.pcurve == cp2.pcurve) {
+    for (size_t i = 0; i != tp_vec.size(); i += 2) {
+      const auto entry1 = tp_vec[i];
+      const auto entry2 = tp_vec[i+1];
+
+      map_sanity_check(mergemap, d);
+      map_sanity_check(othermap, flip(d));
+
+      
+      assert(fabs(entry1.pval - entry2.pval) < epsge);
+      if (entry1.icurve.pcurve == entry2.icurve.pcurve) {
 	// this is a single curve whose endpoints meet across this edge.  There are no more
-	// merges to be done.  This curve is finished and can be returned.
-	finished_curves.push_back(cp1);
+	// merges to be done.  The curve is finished, and can be returned.
+	finished_curves.push_back(entry1.icurve);
       } else {
-	auto cp_new = join_splinecurves(cp1, cp2, d, it->first);
-	// replace references to cp1 and cp2 with references to cp_new throughout
-	replace_segments(cp1, cp2, cp_new, mergemap);
-	replace_segments(cp1, cp2, cp_new, othermap);
+	map_sanity_check(mergemap, d);
+	map_sanity_check(othermap, flip(d));
+	
+	auto new_curve = join_isectcurves(entry1.icurve, entry2.icurve, entry1.at_start, entry2.at_start);
+
+	map_sanity_check(mergemap, d);
+	map_sanity_check(othermap, flip(d));
+
+	
+	ofstream os("tull.g2"); //@@
+	entry1.icurve.scurve->writeStandardHeader(os);
+	entry1.icurve.scurve->write(os);
+	entry2.icurve.scurve->writeStandardHeader(os);
+	entry2.icurve.scurve->write(os);
+	new_curve.scurve->writeStandardHeader(os);
+	new_curve.scurve->write(os);
+	os.close();
+	
+	// replace references to the old curves with references to new_curve throughout
+	map_sanity_check(mergemap, d);
+	map_sanity_check(othermap, flip(d));
+	replace_segments(entry1.icurve, entry2.icurve, new_curve, mergemap, d);
+	replace_segments(entry1.icurve, entry2.icurve, new_curve, othermap, flip(d));
+	map_sanity_check(mergemap, d);
+	map_sanity_check(othermap, flip(d));
+	for (size_t j = i+2; j < tp_vec.size(); ++j) 
+	  if ((tp_vec[j].icurve.pcurve == entry1.icurve.pcurve) |
+	      (tp_vec[j].icurve.pcurve == entry2.icurve.pcurve))
+	    tp_vec[j].icurve = new_curve;
       }
     }
   }
@@ -315,6 +394,8 @@ CurveVec single_isocontour_merge(const vector<CurveVec>& curves,
   
   for (int i = 0; i != (int)surf_patches.size(); ++i) {
     prepare_curvemaps(parameter_domain(surf_patches[i]), curves[i], u_map, v_map);
+    map_sanity_check(u_map, XFIXED);
+    map_sanity_check(v_map, YFIXED);
   }
 
   // remove mapped entries corresponding with outer boundaries (no merge will take place across
@@ -343,7 +424,7 @@ vector<CurveVec> merge_isocontours(const vector<vector<CurveVec>>& curve_fragmen
   const int num_patches	    = (int)curve_fragments.size();  assert(num_patches > 0);
   const int num_isocontours = (int)curve_fragments[0].size();
   
-  vector<CurveVec> result; // should contain one entry per isovalue
+  vector<CurveVec> result; // should contain one entry1 per isovalue
 
   for (int i = 0; i != num_isocontours; ++i) {
     vector<CurveVec> isocurves_to_merge; // isocurve(s) for each surface patch
