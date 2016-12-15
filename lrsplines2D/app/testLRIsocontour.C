@@ -3,6 +3,7 @@
 #include <fstream>
 #include <stdexcept>
 #include <limits>
+#include <chrono>
 
 #include "sislP.h"
 #include "GoTools/geometry/SISLconversion.h"
@@ -20,18 +21,25 @@ using LRSurfPtr = shared_ptr<LRSplineSurface>;
 using CurvePtr  = shared_ptr<const SplineCurve>;
 
 struct IsectCurve {
-  const CurvePtr pcurve; // curve in parameter plane (2D)
-  const CurvePtr scurve; // space curve (3D)
+  CurvePtr pcurve; // curve in parameter plane (2D)
+  CurvePtr scurve; // space curve (3D)
 
-  const IsectCurve& operator=(const IsectCurve& other) {
-    return IsectCurve {other.pcurve, other.scurve};
+  // IsectCurve(const IsectCurve& other)
+  //   : pcurve(other.pcurve), scurve(other.scurve) {}
+  bool operator<(const IsectCurve& rhs) const {
+    return (pcurve.get() < rhs.pcurve.get());
+  }
+
+  bool operator==(const IsectCurve& rhs) const {
+    return pcurve.get() == rhs.pcurve.get();
   }
 };
 
 using CurveVec  = vector<IsectCurve>;
 
+// ----------------------------------------------------------------------------
 namespace { // anonymous namespace
-  
+// ----------------------------------------------------------------------------  
   const string default_filename("data/64_lr_1d.g2");
   const string debug_file("result.g2");
   const int default_cvals = 10;
@@ -44,25 +52,37 @@ namespace { // anonymous namespace
 				     const vector<LRSurfPtr>& surf_frags);
 }; // end anonymous namespace
 
-int main(int varnum, char* vararg[]) {
 
+// ============================================================================
+int main(int varnum, char* vararg[]) {
+// ============================================================================
   // read LR-spline surface
   const auto lrs = read_surface(varnum > 1 ? vararg[1] : default_filename);
   
   // generate vectors of surface fragments
+  auto t1 = chrono::high_resolution_clock::now();
   const vector<LRSurfPtr> frags = lrs->subdivideIntoSimpler();
-  
+  auto t2 = chrono::high_resolution_clock::now();
+  cout << "** Subdivision took: " << chrono::duration_cast<chrono::milliseconds>(t2-t1).count() << " milliseconds. " << endl;
+ 
   // find isocontours on each surface fragment
+
   const vector<double> cvals = contour_vals(lrs, varnum > 2 ?
 					    stoi(vararg[2]) :
 					    default_cvals);
 
+  t1 = chrono::high_resolution_clock::now();  
   vector<vector<CurveVec>> curve_fragments;
   transform(frags.begin(), frags.end(), back_inserter(curve_fragments),
 	    [&cvals] (LRSurfPtr sp) { return computeIsocurves(sp, cvals); });
-
+  t2 = chrono::high_resolution_clock::now();
+  cout << "** Finding isocontours took: " << chrono::duration_cast<chrono::milliseconds>(t2-t1).count() << " milliseconds. " << endl;
+  
   // merge isocontours
+  t1 = chrono::high_resolution_clock::now();  
   const vector<CurveVec> curves = merge_isocontours(curve_fragments, frags);
+  t2 = chrono::high_resolution_clock::now();
+  cout << "** Merging segments took: " << chrono::duration_cast<chrono::milliseconds>(t2-t1).count() << " milliseconds. " << endl;  
 
   ofstream os(debug_file.c_str());
   for (auto c_level : curves)
@@ -134,6 +154,24 @@ void map_curve(const IsectCurve& c, const array<double, 4>& domain, bool at_star
     break;
   }
 }    
+
+// void check_map_integrity(const map<double, CurveVec>& m, Direction2D d)
+// {
+//   for (auto it : m) {
+//     const double pval = it.first;
+//     for (auto v : it.second) {
+//       Point p1, p2;
+//       v.pcurve->point(p1, v.pcurve->startparam());
+//       v.pcurve->point(p2, v.pcurve->endparam());
+//       const int ix = (d==XFIXED) ? 0 : 1;
+//       const double d1 = fabs(p1[ix]-pval);
+//       const double d2 = fabs(p2[ix]-pval);
+
+//       assert(min(d1, d2) < 1e-6);
+//     }
+//   }
+// }
+      
   
 // ----------------------------------------------------------------------------
 void prepare_curvemaps(const array<double, 4>& domain, const CurveVec& cvec,
@@ -209,7 +247,8 @@ pair<double, double> identify_truncated_endpoints(const IsectCurve& c, Direction
 void merge_segments(map<double, CurveVec>& mergemap, // map whose segments should be merged
 		    map<double, CurveVec>& othermap, // map whose entries must also be updated
 		    Direction2D d,                   // the fixed parameter direction
-		    CurveVec& finished_curves) // insert finished curves here
+		    CurveVec& bcurves,            
+		    CurveVec& finished_curves) // insert newly merged finished curves here
 // ----------------------------------------------------------------------------
 {
   const double epsge = 1e-6;
@@ -217,13 +256,12 @@ void merge_segments(map<double, CurveVec>& mergemap, // map whose segments shoul
 
   while (!mergemap.empty()) {
     auto it = *mergemap.begin();   mergemap.erase(mergemap.begin());
-  //for (auto it = mergemap.begin(); it != mergemap.end(); ++it) {
     // sorting incident curve segments so that those that should be merged will lie right next
     // to each other
     vector<CurvePtr> encountered;
     vector<EndPoint> tp_vec;
     for (auto& ic : it.second) { // loop over intersection curve segments cut by this parameter line
-      auto ends = identify_truncated_endpoints(ic, d, it.first);
+      const auto ends = identify_truncated_endpoints(ic, d, it.first);
       if (!isnan(ends.first + ends.second)) {
 	// both endpoints of this curve are truncated by the parameter line.
 	if (find(encountered.begin(), encountered.end(), ic.pcurve) != encountered.end())
@@ -249,14 +287,25 @@ void merge_segments(map<double, CurveVec>& mergemap, // map whose segments shoul
 	finished_curves.push_back(entry1.icurve);
       } else {
 	auto new_curve = join_isectcurves(entry1.icurve, entry2.icurve, entry1.at_start, entry2.at_start);
-	
+
 	// replace references to the old curves with references to new_curve throughout
 	replace_segments(entry1.icurve, entry2.icurve, new_curve, mergemap, d);
 	replace_segments(entry1.icurve, entry2.icurve, new_curve, othermap, flip(d));
+
 	for (size_t j = i+2; j < tp_vec.size(); ++j) 
 	  if ((tp_vec[j].icurve.pcurve == entry1.icurve.pcurve) |
-	      (tp_vec[j].icurve.pcurve == entry2.icurve.pcurve))
+	      (tp_vec[j].icurve.pcurve == entry2.icurve.pcurve)) {
 	    tp_vec[j].icurve = new_curve;
+	    const auto ends = identify_truncated_endpoints(new_curve, d, it.first);
+	    tp_vec[j].at_start = (!isnan(ends.first));
+	    // if ends.second is also truncated by this line (i.e. !isnan(ends.second)), we
+	    // have just closed a loop.  It will be picked up in one of the upcoming
+	    // iterations.
+	  }
+
+	// updating boundary curve pointers if necessary
+	transform(bcurves.begin(), bcurves.end(), bcurves.begin(), [&](const IsectCurve& c) {
+	    return ((c.pcurve == entry1.icurve.pcurve) | (c.pcurve == entry2.icurve.pcurve)) ? new_curve : c;});
       }
     }
   }
@@ -283,6 +332,68 @@ array<double, 4> outer_boundary_pvals(const vector<LRSurfPtr>& patches)
 }
 
 // ----------------------------------------------------------------------------
+template<typename T>
+void add_to_vec(vector<T>& target, const vector<T>& new_elements)
+// ----------------------------------------------------------------------------
+{
+  target.insert(target.end(), new_elements.cbegin(), new_elements.cend());
+}
+
+// ----------------------------------------------------------------------------
+template<typename T>
+vector<T> expand_vec(const vector<vector<T>>& vv)
+// ----------------------------------------------------------------------------
+{
+  vector<T> result;
+  for (auto v : vv)
+    add_to_vec(result, v);
+  return result; 
+}
+
+// ----------------------------------------------------------------------------
+template<typename K, typename T>
+map<K, vector<T>> map_combine(const map<K, vector<T>>& m1,
+			      const map<K, vector<T>>& m2)
+// ----------------------------------------------------------------------------
+{
+  auto result = m1;
+  result.insert(m2.begin(), m2.end());
+  return result;
+}
+  
+// ----------------------------------------------------------------------------
+template<typename K, typename T>
+vector<T> expand_map(const map<K, vector<T>>& m)
+// ----------------------------------------------------------------------------
+{
+  vector<T> result;
+  for (auto it : m)
+    result.insert(result.end(), it.second.begin(), it.second.end());
+  return result;
+	    
+}
+
+// ----------------------------------------------------------------------------
+template<typename C>
+const C sort_container(C co)
+// ----------------------------------------------------------------------------
+{
+  sort(co.begin(), co.end());
+  return co;
+}
+
+// ----------------------------------------------------------------------------
+template<typename T>
+vector<T> remove_duplicates(vector<T>& c)
+// ----------------------------------------------------------------------------
+{
+  auto tmp = sort_container(c);
+  const auto it = unique(tmp.begin(), tmp.end());
+  tmp.erase(it, tmp.end());
+  return tmp;
+}
+
+// ----------------------------------------------------------------------------
 CurveVec single_isocontour_merge(const vector<CurveVec>& curves,
 				 const vector<LRSurfPtr>& surf_patches)
 // ----------------------------------------------------------------------------
@@ -293,20 +404,31 @@ CurveVec single_isocontour_merge(const vector<CurveVec>& curves,
     prepare_curvemaps(parameter_domain(surf_patches[i]), curves[i], u_map, v_map);
   }
 
+  // identify intersection curves that do not need to be merged, and output them directly
+  CurveVec result; // this will contain all isocontours (merged if necessary)
+  const auto all_icurves = sort_container(expand_vec(curves));
+  const auto mapped_icurves = sort_container(expand_map(map_combine(u_map, v_map)));
+  set_difference(all_icurves.begin(), all_icurves.end(),
+		 mapped_icurves.begin(), mapped_icurves.end(), back_inserter(result));
+
   // remove mapped entries corresponding with outer boundaries (no merge will take place across
   // these)
   const array<double, 4> outer_bnd = outer_boundary_pvals(surf_patches);
-  u_map.erase(outer_bnd[0]);
-  u_map.erase(outer_bnd[1]);
-  v_map.erase(outer_bnd[2]);
-  v_map.erase(outer_bnd[3]);
-  
+  CurveVec bcurves;
+  auto it = u_map.find(outer_bnd[0]); if (it != u_map.end()) {add_to_vec(bcurves, it->second); u_map.erase(it);}
+  it      = u_map.find(outer_bnd[1]); if (it != u_map.end()) {add_to_vec(bcurves, it->second); u_map.erase(it);}
+  it      = v_map.find(outer_bnd[2]); if (it != v_map.end()) {add_to_vec(bcurves, it->second); v_map.erase(it);}
+  it      = v_map.find(outer_bnd[3]); if (it != v_map.end()) {add_to_vec(bcurves, it->second); v_map.erase(it);}
+
   // looping through each parameter line, merging curve segments, and spitting out finished
   // curves
-  CurveVec result;
-  merge_segments(u_map, v_map, XFIXED, result);
-  merge_segments(v_map, u_map, YFIXED, result);
+  CurveVec merged_segs;
+  merge_segments(u_map, v_map, XFIXED, bcurves, merged_segs);
+  merge_segments(v_map, u_map, YFIXED, bcurves, merged_segs);
 
+  add_to_vec(result, remove_duplicates(bcurves));
+  add_to_vec(result, merged_segs);
+  
   return result;
 }
   
