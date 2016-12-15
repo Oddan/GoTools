@@ -178,7 +178,7 @@ namespace Go
 	   double knot_tol = 1.0e-8);
 
   // Construct a LRSplineSurface based on a spline surface
-  LRSplineSurface(SplineSurface *surf, double knot_tol);
+  LRSplineSurface(const SplineSurface* const surf, double knot_tol);
 
   // construct empty, invalid spline
   LRSplineSurface() 

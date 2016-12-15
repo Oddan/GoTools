@@ -94,7 +94,7 @@ LRSplineSurface::construct_element_map_(const Mesh2D& m, const BSplineMap& bmap)
 };
 
 //==============================================================================
-LRSplineSurface::LRSplineSurface(SplineSurface *surf, double knot_tol)
+LRSplineSurface::LRSplineSurface(const SplineSurface * const surf, double knot_tol)
 //==============================================================================
   : knot_tol_(knot_tol), rational_(surf->rational()), curr_element_(NULL),
   mesh_(surf->basis_u().begin(), surf->basis_u().end(),
@@ -107,8 +107,8 @@ LRSplineSurface::LRSplineSurface(SplineSurface *surf, double knot_tol)
   int deg_v = surf->order_v() - 1;
   int coefs_u = surf->numCoefs_u();
   int coefs_v = surf->numCoefs_v();
-  std::vector<double>::iterator rcoefs = surf->rcoefs_begin();
-  std::vector<double>::iterator coefs = surf->coefs_begin();
+  std::vector<double>::const_iterator rcoefs = surf->rcoefs_begin();
+  std::vector<double>::const_iterator coefs = surf->coefs_begin();
   int dim = surf->dimension();
   int kdim = (rational_) ? dim + 1 : dim;
   for (int v_ix = 0; v_ix != coefs_v; ++v_ix)  {
