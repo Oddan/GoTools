@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <vector>
+#include <cmath>
 
 #include "GoTools/geometry/ObjectHeader.h"
 #include "GoTools/geometry/SplineCurve.h"
@@ -14,8 +15,11 @@ using namespace std;
 namespace {
   enum PointStatus {REGULAR = 0, BOUNDARY=1, CYCLIC_END = 3, SINGULAR = 4};
   using CurvePtr = shared_ptr<const SplineCurve>;
+  using Array4   = array<double, 4>;
 
   CurvePtr traceIsoval(const SplineSurface& surf, double u, double v);
+
+  Array4 get_derivs(const SplineSurface& surf, const Point& p, PointStatus& status);
   
 }; // end anonymous namespace 
 
@@ -35,7 +39,29 @@ int main(int varnum, char* vararg[])
   
   const double u = 0.5;
   const double v = 0.5;
-  const CurvePtr result = traceIsoval(surf, u, v);
+
+  Point p1;
+  PointStatus status;
+  const Array4 derivs = get_derivs(surf, {u, v}, status);
+  const double  k = 3;
+  const double tlim_1 = fabs(2 * derivs[0] / (k * derivs[2]));
+  const double tlim_2 = fabs(2 * derivs[1] / (k * derivs[3]));
+  //const double dt = 0.15;
+  const double dt = min(tlim_1, tlim_2);
+  cout << "Chosen steplength: " << dt << endl  << endl;
+  
+  surf.point(p1, u, v);
+  cout << "Point: " << p1 << endl;
+  surf.point(p1, u+dt, v);
+  cout << "Point (u+dt): " << p1 << endl;
+  surf.point(p1, u+derivs[0] * dt, v + derivs[1] * dt);
+  cout << "Point (tangent): " << p1 << endl;
+  surf.point(p1,
+	     u + derivs[0] * dt + 0.5 * derivs[2] * dt * dt,
+	     v + derivs[1] * dt + 0.5 * derivs[3] * dt * dt);
+  cout << "Point (curve): " << p1 << endl;
+  
+  //const CurvePtr result = traceIsoval(surf, u, v);
 
 
   // plot 3D version of surface (for use with goview only).  LR surface is here
@@ -77,34 +103,74 @@ vector<T> reverse_vec(vector<T> v)
 // }
 
 // ----------------------------------------------------------------------------  
-array<double, 4> get_derivs(const SplineSurface& surf, const Point& p,
-			    PointStatus& status)
+Array4 get_derivs(const SplineSurface& surf, const Point& p, PointStatus& status)
 // ----------------------------------------------------------------------------
 {
-  return array<double, 4> {0, 0, 0, 0}; // @@ dummy
+  // If the parameter domain is described by (u, v) and the arc length
+  // parameterization of the curve represented by 't', then the entries of the
+  // returned array will be: [du/dt, dv/dt, d2u/dt2, d2v/dt2].
+  static vector<Point> tmp(6, {0.0, 0.0});
+  surf.point(tmp, p[0], p[1], 2);  // evaluate surface and its first and second
+				   // derivatives
+  const double ds_du    = tmp[1][0];
+  const double ds_dv    = tmp[2][0];
+  const double d2s_du2  = tmp[3][0];
+  const double d2s_dudv = tmp[4][0];
+  const double d2s_dv2  = tmp[5][0];
+
+  const double dsdu2 = pow(ds_du, 2);
+  const double dsdv2 = pow(ds_dv, 2);
+
+  const double a = 1.0 / sqrt(dsdu2 + dsdv2);
+  const double da_dt = pow(a, 4) *
+    (d2s_dudv * (dsdu2 - dsdv2) + ds_du * ds_dv * (d2s_dv2 - d2s_du2));
+
+  return Array4
+    { a * ds_dv,  // u-component of tangent
+     -a * ds_du, // v-component of tangent
+      da_dt * ds_dv + pow(a,2) * (d2s_dudv * ds_dv - d2s_dv2 * ds_du), // double deriv.
+     -da_dt * ds_du - pow(a,2) * (d2s_du2 * ds_dv - d2s_dudv * ds_du) // ditto
+    };
 }
 
 // ----------------------------------------------------------------------------
 Point find_next_point(const SplineSurface& surf, const vector<Point>& prev_points,
-		      bool forward, PointStatus& status)
+		      bool forward, double isoval, Array4& derivs, PointStatus& status)
 // ----------------------------------------------------------------------------
 {
+  // upon entry, 'derivs' should contain the derivatives corresponding to the
+  // last point in the 'prev_points' vector.  At exit, 'derivs' will contain the
+  // derivatives corresponding to the last point added.  The use of this
+  // variable is for efficiency only.
   return Point(); //@@ Dummy
 }
+
+// ----------------------------------------------------------------------------
+double value_at(const SplineSurface& s, const Point& par)
+// ----------------------------------------------------------------------------
+{
+  static Point tmp;
+  s.point(tmp, par[0], par[1]);
+  return tmp[0];
+}
+  
 // ----------------------------------------------------------------------------
 vector<Point> trace_unidir(const SplineSurface& surf, const Point& startpoint,
 			   const bool forward, PointStatus& last_point_status)
 // ----------------------------------------------------------------------------
 {
   vector<Point> result(1, startpoint);
-
-  // check the status of the startpoint (REGULAR, BOUNDARY, etc.)
-  get_derivs(surf, startpoint, last_point_status); 
-
-  while (last_point_status == REGULAR) {
-    // we are at a regular point inside the domain, keep tracing
-    result.emplace_back(find_next_point(surf, result, forward, last_point_status));
-  }
+  const double isoval = value_at(surf, startpoint); // the isovalue at which the
+						    // curve should lie
+  
+  // get curve tangent, second derivatives, and check the status of the
+  // startpoint (REGULAR, BOUNDARY, etc.)
+  auto derivs = get_derivs(surf, startpoint, last_point_status); 
+  
+  // we are at a regular point inside the domain, keep traceing
+  while (last_point_status == REGULAR)
+    result.emplace_back(find_next_point(surf, result, forward, isoval,
+					derivs, last_point_status));
 
   // only include the startpoint itself if we have been tracing forward
   if (!forward)
@@ -126,6 +192,7 @@ CurvePtr curve_from_points(const SplineSurface& surf, const vector<Point>& pvec)
 CurvePtr traceIsoval(const SplineSurface& surf, double u, double v)
 // ============================================================================
 {
+  assert(surf.dimension()==1);
   PointStatus ps;
 
   // trace in the first direction
@@ -141,3 +208,4 @@ CurvePtr traceIsoval(const SplineSurface& surf, double u, double v)
 }
 
 } // end anonymous namespace
+
