@@ -49,6 +49,14 @@ int main(int varnum, char* vararg[])
   //const double dt = 0.15;
   const double dt = min(tlim_1, tlim_2);
   cout << "Chosen steplength: " << dt << endl  << endl;
+
+  const double K = 3;         // @@ this factor might be adapted
+  const double d1 = max(fabs(derivs[0]), fabs(derivs[1]));
+  const double d2 = max(fabs(derivs[2]), fabs(derivs[3]));
+
+  const double dt_bis = 2 * d1 / (K * d2);
+
+  cout << "Chosen steplength (bis) : " << dt_bis << endl;
   
   surf.point(p1, u, v);
   cout << "Point: " << p1 << endl;
@@ -134,6 +142,20 @@ Array4 get_derivs(const SplineSurface& surf, const Point& p, PointStatus& status
 }
 
 // ----------------------------------------------------------------------------
+double choose_steplength(const Array4& derivs)
+// ----------------------------------------------------------------------------
+{
+  const double K = 3;         // @@ this factor might be adapted
+  const double maxlen = 0.2;  // @@ this factor should be adapted to patch size
+
+  const double d1 = max(fabs(derivs[0]), fabs(derivs[1]));
+  const double d2 = max(fabs(derivs[2]), fabs(derivs[3]));
+
+  const double dt = min(maxlen, 2 * d1 / (K * d2));
+
+}
+  
+// ----------------------------------------------------------------------------
 Point find_next_point(const SplineSurface& surf, const vector<Point>& prev_points,
 		      bool forward, double isoval, Array4& derivs, PointStatus& status)
 // ----------------------------------------------------------------------------
@@ -142,6 +164,7 @@ Point find_next_point(const SplineSurface& surf, const vector<Point>& prev_point
   // last point in the 'prev_points' vector.  At exit, 'derivs' will contain the
   // derivatives corresponding to the last point added.  The use of this
   // variable is for efficiency only.
+  const double dt = choose_steplength(derivs);
   return Point(); //@@ Dummy
 }
 
