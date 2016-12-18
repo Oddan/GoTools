@@ -18,6 +18,7 @@ namespace {
   enum PointIterationOutcome {OK = 0, ITERATION_EXCEED = 1, SINGULARITY_ENCOUNTERED = 2};
   using CurvePtr = shared_ptr<const SplineCurve>;
   using Array4   = array<double, 4>;
+  using PandDer  = pair<Point, Array4>; // point with its derivatives
 
   CurvePtr traceIsoval(const SplineSurface& surf, double u, double v, double tol);
   Array4 get_derivs(const SplineSurface& surf, const Point& p, PointStatus& status);
@@ -95,7 +96,7 @@ int main(int varnum, char* vararg[])
   surf.point(p1, cpoint[0], cpoint[1]);
   cout << "Point (iterated): " << p1 << " " << cpoint << endl;
   
-  const CurvePtr result = traceIsoval(surf, u, v, 1e-10);
+  const CurvePtr result = traceIsoval(surf, u, v, 1e-8);
 
   // plot 3D version of surface (for use with goview only).  LR surface is here
   // used as goview supports plotting of 1D LR surfaces, but not regular
@@ -122,15 +123,15 @@ double value_at(const SplineSurface& s, const Point& par)
 }
   
 // ----------------------------------------------------------------------------
-inline Point tangent_at(const SplineSurface& surf, const Point& p)
-// ----------------------------------------------------------------------------
-{
-  static vector<Point> tmp(3);
-  surf.point(tmp, p[0], p[1], 1);
-  Point res {tmp[2][0], -tmp[1][0]};
-  res = res / res.length(); // @@ What to do in case of singularity?
-  return res;
-}
+// inline Point tangent_at(const SplineSurface& surf, const Point& p)
+// // ----------------------------------------------------------------------------
+// {
+//   static vector<Point> tmp(3);
+//   surf.point(tmp, p[0], p[1], 1);
+//   Point res {tmp[2][0], -tmp[1][0]};
+//   res = res / res.length(); // @@ What to do in case of singularity?
+//   return res;
+// }
 
   
 // ----------------------------------------------------------------------------
@@ -281,14 +282,16 @@ double choose_steplength(const Array4& derivs)
 }
 
 // ----------------------------------------------------------------------------
-Point extrapolate_point(const SplineSurface& surf, double dt, const Point& cur_point,
-			const Array4& derivs, const double isoval, double tol, PointStatus& status)
+PandDer extrapolate_point(const SplineSurface& surf, double dt, const PandDer& cur_pander,
+			  const double isoval, double tol, PointStatus& status)
 // ----------------------------------------------------------------------------
 {
   // determine a new test point based on previous point and derivatives.
   // Converge the new point so that it lies on the isocurve.  Check status of
   // the new point (could be REGULAR, BOUNDARY or SINGULAR).
-
+  const Point& cur_point = cur_pander.first;
+  const Array4& derivs   = cur_pander.second;
+  
   // Loop until a suitable point is found
   bool found = false;
   Point new_point;
@@ -327,7 +330,15 @@ Point extrapolate_point(const SplineSurface& surf, double dt, const Point& cur_p
   // @@ Validity of this should be tested
   if (cur_point.dist2(new_point) < tol * tol)
     status = SINGULAR;
-  return new_point;
+
+  PointStatus tmp_status; // just a throwaway value - we already have a more
+			  // precise assessment of the status of this point
+  return PandDer
+    { new_point,
+      (status == SINGULAR) ? Array4 { 0, 0, 0, 0} :
+                             get_derivs(surf, new_point, tmp_status)
+    };
+
 }
 
 // ----------------------------------------------------------------------------
@@ -350,39 +361,48 @@ double estimate_arclength(const Point& p1, const Point& p2,
 }  
 
 // ----------------------------------------------------------------------------
-bool check_midpoint(const SplineSurface& surf, const Point& pstart, const Point& pend,
+bool check_midpoint(const SplineSurface& surf, const PandDer& pstart, const PandDer& pend,
 		    const bool forward, const double isoval, const double tol,
-		    Point& midpoint, PointIterationOutcome& outcome)
+		    PandDer& midpoint, PointIterationOutcome& outcome)
 // ----------------------------------------------------------------------------
 {
   // Function returns 'true' if midpoint is already OK
   outcome = OK; // this is the default case
   
   // Computing tangents @@ could be passed along, for optimization purposes...
-  const Point der_start = tangent_at(surf, pstart) * (forward ? 1 : -1);
-  const Point der_end   = tangent_at(surf, pend) * (forward ? 1 : -1);
+  const int dir = forward ? 1 : -1;
+  const Point der_start {pstart.second[0] * dir, pstart.second[1] * dir};
+  const Point der_end   {pend.second[0]   * dir, pend.second[1]   * dir};
+  
+  // const Point der_start = tangent_at(surf, pstart) * (forward ? 1 : -1);
+  // const Point der_end   = tangent_at(surf, pend) * (forward ? 1 : -1);
 
-  const double arclen = estimate_arclength(pstart, pend, der_start, der_end);
+  const double arclen = estimate_arclength(pstart.first, pend.first, der_start, der_end);
   
   // Estimating position of new point (assuming a cubic hermite spline with arc
   // length parameterization, tangent scaled by approximate arc length)
-  midpoint = 0.5 * (pstart + pend) + 0.125 * (der_start - der_end) * arclen;
+  midpoint.first = 0.5 * (pstart.first + pend.first) + 0.125 * (der_start - der_end) * arclen;
 
   // Check whether the new point is close enough to the isoval
-  vector<Point> tmp(3); surf.point(tmp, midpoint[0], midpoint[1], 1);
+  vector<Point> tmp(3); surf.point(tmp, midpoint.first[0], midpoint.first[1], 1);
   const double err = tmp[0][0] - isoval;
   const double grad2 = (tmp[1][0] * tmp[1][0]) + (tmp[2][0] * tmp[2][0]);
   if (pow(err, 2) <= (tol * tol * grad2))
     return true;
 
-  outcome = move_point_to_isocontour(surf, isoval, tol, midpoint);
+  // the midpoint is not already accurate enough.  Move it to isocontour and
+  // compute associated derivative information
+  
+  outcome = move_point_to_isocontour(surf, isoval, tol, midpoint.first);
+  PointStatus status;  // @@ Should we keep/return this value?
+  midpoint.second = get_derivs(surf, midpoint.first, status); 
   return false;
 }
 
 // ----------------------------------------------------------------------------
-vector<Point> intermediate_points(const SplineSurface& surf, const Point& old_point,
-				  const Point& new_point, const bool forward,
-				  const double isoval, const double tol, bool& ok)
+vector<PandDer> intermediate_points(const SplineSurface& surf, const PandDer& old_point,
+				    const PandDer& new_point, const bool forward,
+				    const double isoval, const double tol, bool& ok)
 // ----------------------------------------------------------------------------
 {
   // Find enough intersection points between 'new_point', and 'old_point', to
@@ -393,13 +413,14 @@ vector<Point> intermediate_points(const SplineSurface& surf, const Point& old_po
   // establish a list of new points to insert
 
   ok = true;
-  Point midpoint;
+  
+  PandDer midpoint;
   PointIterationOutcome outcome;
   if (!check_midpoint(surf, old_point, new_point, forward, isoval, tol, midpoint, outcome) &
       (outcome == OK)) {
     
     // this curve needs to be refined.  But more than one point might be required.
-    list<Point> tmp {old_point, midpoint, new_point};
+    list<PandDer> tmp {old_point, midpoint, new_point};
     for (auto it = tmp.begin(), it_prev = it++; it != tmp.end(); it_prev = it++) {
 
       if (!check_midpoint(surf, *it_prev, *it, forward, isoval, tol, midpoint, outcome) &
@@ -412,12 +433,12 @@ vector<Point> intermediate_points(const SplineSurface& surf, const Point& old_po
     }
 
     ok = (outcome == OK);
-    return vector<Point>(++tmp.begin(), --tmp.end()); // Skip first and last point
+    return vector<PandDer>(++tmp.begin(), --tmp.end()); // Skip first and last point
   } 
   
   // if we got here, no midpoint was needed, and we can return an empty vector
   ok = (outcome == OK);
-  return vector<Point>();
+  return vector<PandDer>();
 
 }
 
@@ -432,10 +453,14 @@ inline double signed_angle(const Point& dir1, const Point& dir2)
 }
 
 // ----------------------------------------------------------------------------
-inline bool in_between(const SplineSurface& surf, const Point& testp,
-		       const Point& startp, const Point& endp)
+inline bool in_between(const SplineSurface& surf, const PandDer& testpad,
+		       const PandDer& startpad, const PandDer& endpad)
 // ----------------------------------------------------------------------------
 {
+  const Point& testp  = testpad.first;
+  const Point& startp = startpad.first;
+  const Point& endp   = endpad.first;
+  
   const double start_end_dist2 = startp.dist2(endp);
   const double dist2_1 = testp.dist2(startp);
   const double dist2_2 = testp.dist2(endp);
@@ -446,9 +471,14 @@ inline bool in_between(const SplineSurface& surf, const Point& testp,
     return false;
 
   // compare directions of tangents to intersection curve
-  const Point start_dir = tangent_at(surf, startp);
-  const Point end_dir   = tangent_at(surf, endp);
-  const Point test_dir  = tangent_at(surf, testp);
+  const Point start_dir {startpad.second[0], startpad.second[1]};
+  const Point end_dir   {endpad.second[0],   endpad.second[1]};
+  const Point test_dir  {testpad.second[0],  testpad.second[1]};
+
+  // const Point start_dir = tangent_at(surf, startp);
+  // const Point end_dir   = tangent_at(surf, endp);
+  // const Point test_dir  = tangent_at(surf, testp);
+
   const double angle_diff_1 = signed_angle(start_dir, test_dir);
   const double angle_diff_2 = signed_angle(test_dir, end_dir);
 
@@ -462,18 +492,19 @@ inline bool in_between(const SplineSurface& surf, const Point& testp,
 }
 
 // ----------------------------------------------------------------------------
-int closed_cycle_check(const SplineSurface& surf, const vector<Point>& points,
+int closed_cycle_check(const SplineSurface& surf, const vector<PandDer>& points,
 		       const size_t old_size)
 // ----------------------------------------------------------------------------
 {
   // check if the first point of the vector (start point) is found in-between
   // the newly inserted points, in which case we assume the cycle to have been
   // closed.
-  const Point& startpoint = points.front();
+  const PandDer& startpoint = points.front();
 
   // Initial check to see if we have moved far enough along the curve to be in
   // the vicinity of the curve's start point.
-  if (startpoint.dist2(points.back()) > points[old_size-1].dist2(points.back()))
+  if (startpoint.first.dist2(points.back().first) >
+      points[old_size-1].first.dist2(points.back().first))
     return 0;
   
   for (size_t it = old_size; it != points.size(); ++it) 
@@ -485,8 +516,8 @@ int closed_cycle_check(const SplineSurface& surf, const vector<Point>& points,
 }
 				  
 // ----------------------------------------------------------------------------
-PointStatus find_next_point(const SplineSurface& surf, vector<Point>& prev_points,
-			    bool forward, double isoval, Array4& derivs, double tol)
+PointStatus find_next_point(const SplineSurface& surf, vector<PandDer>& prev_points,
+			    bool forward, double isoval, double tol)
 // ----------------------------------------------------------------------------
 {
   PointStatus status = REGULAR; // Will be changed in functions call below
@@ -494,13 +525,13 @@ PointStatus find_next_point(const SplineSurface& surf, vector<Point>& prev_point
   // last point in the 'prev_points' vector.  At exit, 'derivs' will contain the
   // derivatives corresponding to the last point added.  The use of this
   // variable is for efficiency only.
-  const double dt = choose_steplength(derivs);
+  const double dt = choose_steplength(prev_points.back().second);
 
   // returned status here can be REGULAR, BOUNDARY or SINGULAR (CYCLIC_END will
   // be checked for later).  Since the current point is REGULAR, we should be
   // guaranteed that another point can be produced.
-  const Point new_pt = extrapolate_point(surf, (forward ? dt : -dt),
-					 prev_points.back(), derivs, isoval, tol, status);
+  const PandDer new_pt = extrapolate_point(surf, (forward ? dt : -dt),
+					   prev_points.back(), isoval, tol, status);
 
   // ensure that the curve between previous and new point will stick closely
   // enough to the actual intersection
@@ -510,8 +541,8 @@ PointStatus find_next_point(const SplineSurface& surf, vector<Point>& prev_point
 	   // points assumed to be lying on the present curve (but the new point
 	   // will not, and should thus be discarded).
   const size_t prev_size = prev_points.size();
-  const vector<Point> ipoints = intermediate_points(surf, prev_points.back(),
-						    new_pt, forward, isoval, tol, ok);
+  const vector<PandDer> ipoints =
+    intermediate_points(surf, prev_points.back(), new_pt, forward, isoval, tol, ok);
 
   prev_points.insert(prev_points.end(), ipoints.begin(), ipoints.end());
   if (ok)
@@ -525,8 +556,10 @@ PointStatus find_next_point(const SplineSurface& surf, vector<Point>& prev_point
     prev_points.erase(prev_points.begin() + ix, prev_points.end());
   }
 
+  // Ensuring point status is correct
+  // @@ could this information be preserved from earlier computations?
   PointStatus ps_tmp;
-  derivs = get_derivs(surf, prev_points.back(), ps_tmp);
+  get_derivs(surf, prev_points.back().first, ps_tmp);
   if (status != CYCLIC_END)
     status = ps_tmp;
   
@@ -534,21 +567,23 @@ PointStatus find_next_point(const SplineSurface& surf, vector<Point>& prev_point
 }
 
 // ----------------------------------------------------------------------------
-vector<Point> trace_unidir(const SplineSurface& surf, const Point& startpoint,
+vector<PandDer> trace_unidir(const SplineSurface& surf, const Point& startpoint,
 			   const bool forward, double tol, PointStatus& last_point_status)
 // ----------------------------------------------------------------------------
 {
-  vector<Point> result(1, startpoint);
   const double isoval = value_at(surf, startpoint); // the isovalue at which the
 						    // curve should lie
   
   // get curve tangent, second derivatives, and check the status of the
   // startpoint (REGULAR, BOUNDARY, etc.)
   auto derivs = get_derivs(surf, startpoint, last_point_status); 
+
+  // Establishing the result vector
+  vector<PandDer> result(1, PandDer {startpoint, derivs});
   
   // we are at a regular point inside the domain, keep traceing
   while (last_point_status == REGULAR)
-    last_point_status = find_next_point(surf, result, forward, isoval, derivs, tol);
+    last_point_status = find_next_point(surf, result, forward, isoval, tol);
 
   // only include the startpoint itself if we have been tracing forward
   if (!forward)
@@ -558,12 +593,51 @@ vector<Point> trace_unidir(const SplineSurface& surf, const Point& startpoint,
 }
 
 // ----------------------------------------------------------------------------
-CurvePtr curve_from_points(const SplineSurface& surf, const vector<Point>& pvec)
+CurvePtr curve_from_points(const SplineSurface& surf, const vector<PandDer>& pvec)
 // ----------------------------------------------------------------------------  
 {
-  // make a hermite spline based on these points
-  const CurvePtr dummy; //@@
-  return dummy;
+  // make a cubic hermite spline based on these points
+
+  // compute the arc length for each interval
+  const int num_intervals = pvec.size() - 1;
+  vector<double> alengths(num_intervals);
+  transform(pvec.begin(), pvec.end()-1, pvec.begin()+1, alengths.begin(),
+	    [] (const PandDer& p1, const PandDer& p2) {
+	      return estimate_arclength(p1.first, p2.first,
+					Point {p1.second[0], p1.second[1]},
+					Point {p2.second[0], p2.second[1]})});
+
+  // compute individual knot values
+  vector<double> kvals(pvec.size(), 0); // first knotval will be zero.  Compute the rest
+  accumulate(alengths.begin(), alengths.end(), kvals.begin()+1);
+
+  // Constructing knot vector (triple interior knots, quadruple knots at endpoints)
+  vector<double> kvec(kvals.size() * 3 + 2, 0);
+  for (auto vals = kvals.begin(), target = kvals.begin() + 1; vals != kvals.end(); ++vals) {
+    for (int i = 0; i != 3; ++i)
+      *target++ = *vals;
+  }
+  kvec.back = kvec(kvec.size() - 2); // qudadruple last know
+  
+  // computing control point values
+  const int dim = 2;
+  vector<double> coefs(dim * (3 * num_intervals + 1));
+
+  // filling in the control points lying on the curve
+  for (size_t i = 0; i != pvec.size(); ++i) {
+    const int ix = dim * 3 * i;
+    coefs[ix]   = pvec[i].first[0];
+    coefs[ix+1] = pvec[i].first[1];
+  }
+    
+
+  // filling in the control points controlling tangent directions
+  
+  
+  // Constructing the final spline curve
+  
+  const int order = 4;
+  return CurvePtr {new SplineCurve((int)coefs.size()/dim, order, knots, coefs, dim)};
 }
 
 // ============================================================================
@@ -586,7 +660,7 @@ CurvePtr traceIsoval(const SplineSurface& surf, double u, double v, double tol)
   cout << "Number of points: " << res1.size() << endl;
   ofstream os("krull.mat");
   for (auto p : res1)
-    os << p[0] <<  " " << p[1] << '\n';
+    os << p.first[0] <<  " " << p.first[1] << '\n';
 
   os.close();
 
