@@ -41,9 +41,9 @@ int main(int varnum, char* vararg[])
 
   const SplineSurface surf(4, 4, 4, 4, kvec, kvec, coefs, 1, false);
 
-  // sample and save surface, for debug purposes
-  save_sampled_surface(surf, 200, "sampled.mat");
-  return 0;
+  // // sample and save surface, for debug purposes
+  // save_sampled_surface(surf, 200, "sampled.mat");
+  // return 0;
   
   const double u = 0.5;
   const double v = 0.5;
@@ -95,7 +95,7 @@ int main(int varnum, char* vararg[])
   surf.point(p1, cpoint[0], cpoint[1]);
   cout << "Point (iterated): " << p1 << " " << cpoint << endl;
   
-  const CurvePtr result = traceIsoval(surf, u, v, 1e-9);
+  const CurvePtr result = traceIsoval(surf, u, v, 1e-10);
 
   // plot 3D version of surface (for use with goview only).  LR surface is here
   // used as goview supports plotting of 1D LR surfaces, but not regular
@@ -521,7 +521,7 @@ PointStatus find_next_point(const SplineSurface& surf, vector<Point>& prev_point
   const int ix = closed_cycle_check(surf, prev_points, prev_size);
   if (ix > 0) {
     status = CYCLIC_END;
-    assert(ix >= int(prev_size));
+    assert(ix >= int(prev_size)-1);
     prev_points.erase(prev_points.begin() + ix, prev_points.end());
   }
 
@@ -583,14 +583,13 @@ CurvePtr traceIsoval(const SplineSurface& surf, double u, double v, double tol)
 
 
   // debug
+  cout << "Number of points: " << res1.size() << endl;
   ofstream os("krull.mat");
   for (auto p : res1)
     os << p[0] <<  " " << p[1] << '\n';
 
   os.close();
 
-  
-    
   return curve_from_points(surf, res);
   
 }
