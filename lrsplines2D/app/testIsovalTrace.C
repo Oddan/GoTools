@@ -7,6 +7,7 @@
 #include "GoTools/geometry/ObjectHeader.h"
 #include "GoTools/geometry/SplineCurve.h"
 #include "GoTools/geometry/SplineSurface.h"
+#include "GoTools/geometry/PointCloud.h"
 
 #include "GoTools/lrsplines2D/LRSplineSurface.h"
 
@@ -20,13 +21,26 @@ namespace {
   using Array4   = array<double, 4>;
   using PandDer  = pair<Point, Array4>; // point with its derivatives
 
-  CurvePtr traceIsoval(const SplineSurface& surf, double u, double v, double tol);
+  pair<CurvePtr, CurvePtr>
+  traceIsoval(const SplineSurface& surf, double u, double v, double tol, bool include_3D_curve);
+
   Array4 get_derivs(const SplineSurface& surf, const Point& p, PointStatus& status);
 
   PointIterationOutcome move_point_to_isocontour(const SplineSurface& surf,
 						 const double isoval, const double tol,
 						 Point& uv);
   void save_sampled_surface(const SplineSurface& surf, const int samples, string filename);
+
+  // ----------------------------------------------------------------------------
+  double value_at(const SplineSurface& s, const Point& par)
+  // ----------------------------------------------------------------------------
+  {
+    static Point tmp;
+    s.point(tmp, par[0], par[1]);
+    return tmp[0];
+  }
+  
+
 }; // end anonymous namespace 
 
 
@@ -34,94 +48,127 @@ namespace {
 int main(int varnum, char* vararg[])
 // ============================================================================
 {
-  const double kvec[] = {0, 0, 0, 0, 1, 1, 1, 1};
-  const double coefs[] = {0, 0, 0, 0,
-			  0, 0, 0, 0,
-			  0, 0, 1, 0,
-			  0, 0, 0, 0};
+  ifstream is("data/64_lr_1d.g2");
+  ObjectHeader header;
+  header.read(is);
+  LRSplineSurface lrsurf(is);
+  is.close();
+  SplineSurface* ssurf = lrsurf.asSplineSurface();
 
-  const SplineSurface surf(4, 4, 4, 4, kvec, kvec, coefs, 1, false);
+  const double ustart = ssurf->startparam_u();
+  const double uend   = ssurf->endparam_u();
+  const double vstart = ssurf->startparam_v();
+  const double vend   = ssurf->endparam_v();
 
-  // // sample and save surface, for debug purposes
-  // save_sampled_surface(surf, 200, "sampled.mat");
-  // return 0;
+  const double u = ustart + 0.1 * (uend-ustart);
+  const double v = vstart + 0.2 * (vend-vstart);
   
-  const double u = 0.5;
-  const double v = 0.5;
+  // const double u = (ssurf->startparam_u() + ssurf->endparam_u()) * 0.5;
+  // const double v = (ssurf->startparam_v() + ssurf->endparam_v()) * 0.5;
 
-  Point p1;
-  PointStatus status;
-  const Array4 derivs = get_derivs(surf, {u, v}, status);
-  const double  k = 3;
-  const double tlim_1 = fabs(2 * derivs[0] / (k * derivs[2]));
-  const double tlim_2 = fabs(2 * derivs[1] / (k * derivs[3]));
-  //const double dt = 0.15;
-  const double dt = min(tlim_1, tlim_2);
-  cout << "Chosen steplength: " << dt << endl  << endl;
+  //const double isoval = value_at(*ssurf, Point {u, v});
 
-  const double K = 3;         // @@ this factor might be adapted
-  const double d1 = max(fabs(derivs[0]), fabs(derivs[1]));
-  const double d2 = max(fabs(derivs[2]), fabs(derivs[3]));
-
-  const double dt_bis = 2 * d1 / (K * d2);
-
-  cout << "Chosen steplength (bis) : " << dt_bis << endl;
-  
-  surf.point(p1, u, v);
-  const double isoval = p1[0];
-  cout << "Point: " << p1 << endl;
-  Point ipoint = {u+dt, v};
-  surf.point(p1, ipoint[0], ipoint[1]);
-  cout << "Point (u+dt): " << p1 << endl;
-  bool success = (move_point_to_isocontour(surf, isoval, 1e-12, ipoint) == OK);
-  cout << "Convergence: " << (success ? " Yes!" : " No!") << endl;
-  surf.point(p1, ipoint[0], ipoint[1]);
-  cout << "Point (parameter line): " << p1 << " " <<  ipoint << endl;
-  
-  Point tpoint = {u+derivs[0] * dt, v + derivs[1] * dt};
-  surf.point(p1, tpoint[0], tpoint[1] );
-  cout << "Point (tangent): " << p1 << endl;
-  success = (move_point_to_isocontour(surf, isoval, 1e-12, tpoint) == OK);
-  cout << "Convergence: " << (success ? " Yes!" : " No!") << endl;
-  surf.point(p1, tpoint[0], tpoint[1]);
-  cout << "Point (tangent): " << p1 << " " << tpoint << endl;
-
-  Point cpoint = {u + derivs[0] * dt + 0.5 * derivs[2] * dt * dt,
-		  v + derivs[1] * dt + 0.5 * derivs[3] * dt * dt};
-  surf.point(p1, cpoint[0], cpoint[1]);
-  cout << "Point (curve): " << p1 << endl;
-
-  success = (move_point_to_isocontour(surf, isoval, 1e-12, cpoint) == OK);
-  cout << "Convergence: " << (success ? " Yes!" : " No!") << endl;
-  surf.point(p1, cpoint[0], cpoint[1]);
-  cout << "Point (iterated): " << p1 << " " << cpoint << endl;
-  
-  const CurvePtr result = traceIsoval(surf, u, v, 1e-8);
-
-  // plot 3D version of surface (for use with goview only).  LR surface is here
-  // used as goview supports plotting of 1D LR surfaces, but not regular
-  // SplineSurfaces.
-  const LRSplineSurface lrs(&surf, double(1e-6));
-  ofstream os("dill.g2");
-  lrs.writeStandardHeader(os);
-  lrs.write(os);
-  os.close();
+  const auto result = traceIsoval(*ssurf, u, v, 1e-5, true);
+  ofstream ostr("cratercurve.g2");
+  result.second->writeStandardHeader(ostr);
+  result.second->write(ostr);
+  ostr.close();
   
   return 0;
+  
+
+  // const double kvec[] = {0, 0, 0, 0, 1, 1, 1, 1};
+  // const double coefs[] = {0, 0, 0, 0,
+  // 			  0, 0, 0, 0,
+  // 			  0, 0, 0, 0,
+  // 			  0, 0, 0, 0};
+
+  // const SplineSurface surf(4, 4, 4, 4, kvec, kvec, coefs, 1, false);
+
+  // // // sample and save surface, for debug purposes
+  // // save_sampled_surface(surf, 200, "sampled.mat");
+  // // return 0;
+  
+  // const double u = 0.5;
+  // const double v = 0.5;
+
+  // Point p1;
+  // PointStatus status;
+  // const Array4 derivs = get_derivs(surf, {u, v}, status);
+  // const double  k = 3;
+  // const double tlim_1 = fabs(2 * derivs[0] / (k * derivs[2]));
+  // const double tlim_2 = fabs(2 * derivs[1] / (k * derivs[3]));
+  // //const double dt = 0.15;
+  // const double dt = min(tlim_1, tlim_2);
+  // cout << "Chosen steplength: " << dt << endl  << endl;
+
+  // const double K = 3;         // @@ this factor might be adapted
+  // const double d1 = max(fabs(derivs[0]), fabs(derivs[1]));
+  // const double d2 = max(fabs(derivs[2]), fabs(derivs[3]));
+
+  // const double dt_bis = 2 * d1 / (K * d2);
+
+  // cout << "Chosen steplength (bis) : " << dt_bis << endl;
+  
+  // surf.point(p1, u, v);
+  // const double isoval = p1[0];
+  // cout << "Point: " << p1 << endl;
+  // Point ipoint = {u+dt, v};
+  // surf.point(p1, ipoint[0], ipoint[1]);
+  // cout << "Point (u+dt): " << p1 << endl;
+  // bool success = (move_point_to_isocontour(surf, isoval, 1e-12, ipoint) == OK);
+  // cout << "Convergence: " << (success ? " Yes!" : " No!") << endl;
+  // surf.point(p1, ipoint[0], ipoint[1]);
+  // cout << "Point (parameter line): " << p1 << " " <<  ipoint << endl;
+  
+  // Point tpoint = {u+derivs[0] * dt, v + derivs[1] * dt};
+  // surf.point(p1, tpoint[0], tpoint[1] );
+  // cout << "Point (tangent): " << p1 << endl;
+  // success = (move_point_to_isocontour(surf, isoval, 1e-12, tpoint) == OK);
+  // cout << "Convergence: " << (success ? " Yes!" : " No!") << endl;
+  // surf.point(p1, tpoint[0], tpoint[1]);
+  // cout << "Point (tangent): " << p1 << " " << tpoint << endl;
+
+  // Point cpoint = {u + derivs[0] * dt + 0.5 * derivs[2] * dt * dt,
+  // 		  v + derivs[1] * dt + 0.5 * derivs[3] * dt * dt};
+  // surf.point(p1, cpoint[0], cpoint[1]);
+  // cout << "Point (curve): " << p1 << endl;
+
+  // success = (move_point_to_isocontour(surf, isoval, 1e-12, cpoint) == OK);
+  // cout << "Convergence: " << (success ? " Yes!" : " No!") << endl;
+  // surf.point(p1, cpoint[0], cpoint[1]);
+  // cout << "Point (iterated): " << p1 << " " << cpoint << endl;
+  
+  // const auto result = traceIsoval(surf, u, v, 1e-5, true);
+
+  // // plot 3D version of surface (for use with goview only).  LR surface is here
+  // // used as goview supports plotting of 1D LR surfaces, but not regular
+  // // SplineSurfaces.
+  // const LRSplineSurface lrs(&surf, double(1e-6));
+  // ofstream os("surf.g2");
+  // lrs.writeStandardHeader(os);
+  // lrs.write(os);
+  // os.close();
+
+  // ofstream os2("curve.g2");
+  // result.second->writeStandardHeader(os2);
+  // result.second->write(os2);
+  // os2.close();
+
+  // ofstream os3("points.g2");
+  // vector<Array<double, 3>> pts;
+  // vector<double> curve_points(result.second->coefs_begin(), result.second->coefs_end());
+  // PointCloud<3> pc(curve_points.begin(), result.second->numCoefs());
+  // pc.writeStandardHeader(os3);
+  // pc.write(os3);
+  // os3.close();
+  
+  // return 0;
 };
 
 
 namespace {
 
-// ----------------------------------------------------------------------------
-double value_at(const SplineSurface& s, const Point& par)
-// ----------------------------------------------------------------------------
-{
-  static Point tmp;
-  s.point(tmp, par[0], par[1]);
-  return tmp[0];
-}
-  
 // ----------------------------------------------------------------------------
 // inline Point tangent_at(const SplineSurface& surf, const Point& p)
 // // ----------------------------------------------------------------------------
@@ -268,17 +315,27 @@ Array4 get_derivs(const SplineSurface& surf, const Point& p, PointStatus& status
 }
 
 // ----------------------------------------------------------------------------
-double choose_steplength(const Array4& derivs)
+double choose_steplength(const Array4& derivs, const double patchsize)
 // ----------------------------------------------------------------------------
 {
   const double K = 3;         // @@ this factor might be adapted
-  const double maxlen = 0.2;  // @@ this factor should be adapted to patch size
+  const double maxlen = 0.3 * patchsize;  // @@ 
 
   const double d1 = max(fabs(derivs[0]), fabs(derivs[1]));
   const double d2 = max(fabs(derivs[2]), fabs(derivs[3]));
 
   const double dt = min(maxlen, 2 * d1 / (K * d2));
   return dt;
+}
+
+// ----------------------------------------------------------------------------
+void truncate_point_to_domain(const SplineSurface& surf, Point& uv)
+// ----------------------------------------------------------------------------
+{
+  uv[0] = uv[0] < surf.startparam_u() ? surf.startparam_u() :
+	  uv[0] > surf.endparam_u()   ? surf.endparam_u() : uv[0];
+  uv[1] = uv[1] < surf.startparam_v() ? surf.startparam_v() :
+	  uv[1] > surf.endparam_v()   ? surf.endparam_v() : uv[1];
 }
 
 // ----------------------------------------------------------------------------
@@ -300,6 +357,7 @@ PandDer extrapolate_point(const SplineSurface& surf, double dt, const PandDer& c
     new_point = cur_point;
     for (int i = 0; i != 2; ++i)
       new_point[i] += dt * derivs[i] + 0.5 * dt * dt * derivs[i+2];
+    truncate_point_to_domain(surf, new_point);
     
     // move estimated point to an actual isocontour position
     switch (move_point_to_isocontour(surf, isoval, tol, new_point)) {
@@ -475,10 +533,6 @@ inline bool in_between(const SplineSurface& surf, const PandDer& testpad,
   const Point end_dir   {endpad.second[0],   endpad.second[1]};
   const Point test_dir  {testpad.second[0],  testpad.second[1]};
 
-  // const Point start_dir = tangent_at(surf, startp);
-  // const Point end_dir   = tangent_at(surf, endp);
-  // const Point test_dir  = tangent_at(surf, testp);
-
   const double angle_diff_1 = signed_angle(start_dir, test_dir);
   const double angle_diff_2 = signed_angle(test_dir, end_dir);
 
@@ -514,7 +568,20 @@ int closed_cycle_check(const SplineSurface& surf, const vector<PandDer>& points,
   // no end-of-cycle found
   return 0; 
 }
-				  
+
+// ----------------------------------------------------------------------------
+double patchsize(const SplineSurface& surf, const Point& uv)
+// ----------------------------------------------------------------------------
+{
+  const double TOL = 1e-8;// @@ knot tolerance.  Reasonable value?
+
+  const double umin = surf.nextSegmentVal(0, uv[0], false, TOL);
+  const double umax = surf.nextSegmentVal(0, uv[0], true, TOL);
+  const double vmin = surf.nextSegmentVal(1, uv[1], false, TOL);
+  const double vmax = surf.nextSegmentVal(1, uv[1], true, TOL);
+  return min((umax-umin), (vmax-vmin));
+}
+
 // ----------------------------------------------------------------------------
 PointStatus find_next_point(const SplineSurface& surf, vector<PandDer>& prev_points,
 			    bool forward, double isoval, double tol)
@@ -525,7 +592,8 @@ PointStatus find_next_point(const SplineSurface& surf, vector<PandDer>& prev_poi
   // last point in the 'prev_points' vector.  At exit, 'derivs' will contain the
   // derivatives corresponding to the last point added.  The use of this
   // variable is for efficiency only.
-  const double dt = choose_steplength(prev_points.back().second);
+  const double dt = choose_steplength(prev_points.back().second,
+				      patchsize(surf, prev_points.back().first));
 
   // returned status here can be REGULAR, BOUNDARY or SINGULAR (CYCLIC_END will
   // be checked for later).  Since the current point is REGULAR, we should be
@@ -576,7 +644,7 @@ vector<PandDer> trace_unidir(const SplineSurface& surf, const Point& startpoint,
   
   // get curve tangent, second derivatives, and check the status of the
   // startpoint (REGULAR, BOUNDARY, etc.)
-  auto derivs = get_derivs(surf, startpoint, last_point_status); 
+  const Array4 derivs = get_derivs(surf, startpoint, last_point_status); 
 
   // Establishing the result vector
   vector<PandDer> result(1, PandDer {startpoint, derivs});
@@ -593,31 +661,38 @@ vector<PandDer> trace_unidir(const SplineSurface& surf, const Point& startpoint,
 }
 
 // ----------------------------------------------------------------------------
-CurvePtr curve_from_points(const SplineSurface& surf, const vector<PandDer>& pvec)
+pair<CurvePtr, CurvePtr> curve_from_points(const SplineSurface& surf,
+					   const vector<PandDer>& pvec,
+					   bool include_3D)
 // ----------------------------------------------------------------------------  
 {
+  if (pvec.size() < 2) {
+    cout << "Warning: degenerate curve (single point).  Returning empty curve." << endl;
+    return pair<CurvePtr, CurvePtr>();
+  }
+    
   // make a cubic hermite spline based on these points
 
   // compute the arc length for each interval
-  const int num_intervals = pvec.size() - 1;
+  const int num_intervals = (int)pvec.size() - 1;
   vector<double> alengths(num_intervals);
   transform(pvec.begin(), pvec.end()-1, pvec.begin()+1, alengths.begin(),
 	    [] (const PandDer& p1, const PandDer& p2) {
 	      return estimate_arclength(p1.first, p2.first,
 					Point {p1.second[0], p1.second[1]},
-					Point {p2.second[0], p2.second[1]})});
+					Point {p2.second[0], p2.second[1]});});
 
   // compute individual knot values
   vector<double> kvals(pvec.size(), 0); // first knotval will be zero.  Compute the rest
-  accumulate(alengths.begin(), alengths.end(), kvals.begin()+1);
+  partial_sum(alengths.begin(), alengths.end(), kvals.begin()+1);
 
   // Constructing knot vector (triple interior knots, quadruple knots at endpoints)
   vector<double> kvec(kvals.size() * 3 + 2, 0);
-  for (auto vals = kvals.begin(), target = kvals.begin() + 1; vals != kvals.end(); ++vals) {
+  for (auto vals = kvals.begin(), target = kvec.begin() + 1; vals != kvals.end(); ++vals) {
     for (int i = 0; i != 3; ++i)
       *target++ = *vals;
   }
-  kvec.back = kvec(kvec.size() - 2); // qudadruple last know
+  kvec.back() = kvec[kvec.size() - 2]; // quadruple last know
   
   // computing control point values
   const int dim = 2;
@@ -625,23 +700,62 @@ CurvePtr curve_from_points(const SplineSurface& surf, const vector<PandDer>& pve
 
   // filling in the control points lying on the curve
   for (size_t i = 0; i != pvec.size(); ++i) {
-    const int ix = dim * 3 * i;
+    const size_t ix = dim * 3 * i;
     coefs[ix]   = pvec[i].first[0];
     coefs[ix+1] = pvec[i].first[1];
   }
-    
 
-  // filling in the control points controlling tangent directions
+  // filling in the control points that specify tangent directions
+
+  // left tangent (nb: note the end criteron in the for loop)
+  for (size_t i = 0; i != pvec.size()-1; ++i) {
+    const size_t left_ix = dim * (3 * i + 1);
+    const double len = alengths[i]/3;
+    coefs[left_ix    ] = coefs[dim * (3 * i)    ] + len * pvec[i].second[0];
+    coefs[left_ix + 1] = coefs[dim * (3 * i) + 1] + len * pvec[i].second[1];
+  }
+
+  // right tangent (nb: note different range in the for loop)
+  for (size_t i = 1; i != pvec.size(); ++i) {
+    const size_t right_ix = dim * (3 * i - 1);
+    const double len = alengths[i-1]/3;
+    coefs[right_ix    ] = coefs[dim * (3 * i)    ] - len * pvec[i].second[0];
+    coefs[right_ix + 1] = coefs[dim * (3 * i) + 1] - len * pvec[i].second[1];
+  }
+
+  // Constructing the final spline curve in parameter space
+  const int num_pts = (int)coefs.size() / dim;    
+  const CurvePtr paramcurve {new SplineCurve(num_pts, 4, kvec.begin(), coefs.begin(), dim)};
   
+  // constructing 3D curve if requested
+  CurvePtr spacecurve;
+  if (include_3D) {
+    const double isoval = value_at(surf, pvec[0].first);
+    vector<double> coefs3D(num_pts * 3);
+    for (int i = 0; i != num_pts; ++i) {
+      coefs3D[3 * i    ] = coefs[2 * i];
+      coefs3D[3 * i + 1] = coefs[2 * i + 1];
+      coefs3D[3 * i + 2] = isoval;
+    }
+    spacecurve = CurvePtr{new SplineCurve(num_pts, 4, kvec.begin(), coefs3D.begin(), 3)};
+  }
   
-  // Constructing the final spline curve
-  
-  const int order = 4;
-  return CurvePtr {new SplineCurve((int)coefs.size()/dim, order, knots, coefs, dim)};
+  return pair<CurvePtr, CurvePtr> {paramcurve, spacecurve};
 }
 
+// ----------------------------------------------------------------------------
+template<typename T>
+vector<T> insert_back(const vector<T>& v, T elem)
+// ----------------------------------------------------------------------------
+{
+  vector<T> result(v);
+  result.push_back(elem);
+  return result;
+}
+  
 // ============================================================================
-CurvePtr traceIsoval(const SplineSurface& surf, double u, double v, double tol)
+pair<CurvePtr, CurvePtr>
+traceIsoval(const SplineSurface& surf, double u, double v, double tol, bool include_3D)
 // ============================================================================
 {
   assert(surf.dimension()==1);
@@ -650,21 +764,23 @@ CurvePtr traceIsoval(const SplineSurface& surf, double u, double v, double tol)
   // trace in the first direction
   const auto res1 = trace_unidir(surf, {u, v}, true, tol, ps);
 
-  // if we did not get back to where we began, trace in second direction also
+  // if we did not get back to where we began, trace in second direction also,
+  // otherwise, repeat initial point to create a closed loop
   const auto res =
     (ps == CYCLIC_END) ?
-    res1 : merge_vec(reverse_vec(trace_unidir(surf, {u, v}, false, tol, ps)), res1);
+    insert_back(res1, res1.front()) :
+    merge_vec(reverse_vec(trace_unidir(surf, {u, v}, false, tol, ps)), res1);
 
 
   // debug
-  cout << "Number of points: " << res1.size() << endl;
+  cout << "Number of points: " << res.size() << endl;
   ofstream os("krull.mat");
-  for (auto p : res1)
+  for (auto p : res)
     os << p.first[0] <<  " " << p.first[1] << '\n';
 
   os.close();
 
-  return curve_from_points(surf, res);
+  return curve_from_points(surf, res, include_3D);
   
 }
 

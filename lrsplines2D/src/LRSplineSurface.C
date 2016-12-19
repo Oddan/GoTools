@@ -306,12 +306,12 @@ void LRSplineSurface::write(ostream& os) const
 }
 
 //==============================================================================
-SplineSurface* LRSplineSurface::asSplineSurface() 
+SplineSurface* LRSplineSurface::asSplineSurface() const
 //==============================================================================
 {
   // Make full tensor product surface
   shared_ptr<LRSplineSurface> surf0;
-  LRSplineSurface *surf;
+  const LRSplineSurface *surf;
   if (isFullTensorProduct())
     surf = this;
   else

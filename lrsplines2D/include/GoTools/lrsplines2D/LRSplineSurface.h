@@ -223,7 +223,7 @@ namespace Go
     /// The user may get the spline surface lying in the (refined)
     /// regular grid by calling the function
     /// expandToFullTensorProduct().
-    virtual SplineSurface* asSplineSurface(); 
+    virtual SplineSurface* asSplineSurface() const;
 
   // inherited from GeomObject
   virtual BoundingBox boundingBox() const;
