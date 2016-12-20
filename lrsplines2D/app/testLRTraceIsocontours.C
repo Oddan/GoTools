@@ -26,27 +26,28 @@ int main(int varnum, char* vararg[])
   is.close();
 
   // Computing isocontours
-  
+
+  const double span = lrsurf.endparam_u() - lrsurf.startparam_u();
   const bool include_3D = true;
   const bool use_sisl_marching = atoi(vararg[1]);
-  const auto isovals = contour_vals(lrsurf, 200);
-  // const vector<CurveVec> curves = LRTraceIsocontours(lrsurf,
-  // 						     isovals,
-  //                                                 1e-6,
-  // 						     include_3D,
-  // 						     use_sisl_marching);
-
-  const auto ssurf = lrsurf.asSplineSurface();
-  const double span = ssurf->endparam_u() - ssurf->startparam_u();
-  cout << span << endl;
+  //const auto isovals = contour_vals(lrsurf, 100); // 200
+  const vector<double> isovals {1706.5506982121212}; // {1696.9642034646465};//{1562.75}; //{1752.57};
   auto t1 = chrono::high_resolution_clock::now();
-  const vector<CurveVec> curves = SSurfTraceIsocontours(*ssurf,
-							isovals,
-							1e-5 * span,
-							include_3D,
-							use_sisl_marching);
+  const vector<CurveVec> curves = LRTraceIsocontours(lrsurf,
+  						     isovals,
+						     1e-5 * span,
+  						     include_3D,
+  						     use_sisl_marching);
   auto t2 = chrono::high_resolution_clock::now();
   cout << "Curves found in " << chrono::duration_cast<chrono::milliseconds>(t2-t1).count() << " milliseconds." << endl;
+
+  // const auto ssurf = lrsurf.asSplineSurface();
+  // cout << span << endl;
+  // const vector<CurveVec> curves = SSurfTraceIsocontours(*ssurf,
+  // 							isovals,
+  // 							1e-5 * span,
+  // 							include_3D,
+  // 							use_sisl_marching);
 
   ofstream os("curves.g2");
   cout << "Number of curves found: " << endl;

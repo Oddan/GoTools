@@ -12,7 +12,11 @@ using namespace Go;
 
 namespace {
 enum PointStatus {REGULAR = 0, BOUNDARY=1, CYCLIC_END = 3, SINGULAR = 4};
-enum PointIterationOutcome {OK = 0, ITERATION_EXCEED = 1, SINGULARITY_ENCOUNTERED = 2};
+
+// OK: point could be iterated to convergence, ITERATION_EXCEED: could not
+// converge, FLAT_REGION_ENCOUNTERED: Either we are at a flat internal point, or
+// at the boundary with a "flat" tangent vector along the boundary.
+enum PointIterationOutcome {OK = 0, ITERATION_EXCEED = 1, FLAT_REGION_ENCOUNTERED = 2};
 using Array4   = array<double, 4>;
 using PandDer  = pair<Point, Array4>; // point with its derivatives
 
@@ -163,13 +167,24 @@ inline void truncate_derivs_to_domain(const SplineSurface& surf, const Point& uv
   dv = ((uv[1] > surf.startparam_v()) & (uv[1] < surf.endparam_v())) ? dv : 0;
 }
 
+// ----------------------------------------------------------------------------
+void truncate_point_to_domain(const SplineSurface& surf, Point& uv)
+// ----------------------------------------------------------------------------
+{
+  uv[0] = uv[0] < surf.startparam_u() ? surf.startparam_u() :
+	  uv[0] > surf.endparam_u()   ? surf.endparam_u() : uv[0];
+  uv[1] = uv[1] < surf.startparam_v() ? surf.startparam_v() :
+	  uv[1] > surf.endparam_v()   ? surf.endparam_v() : uv[1];
+}
+
+
 // ----------------------------------------------------------------------------  
 PointIterationOutcome move_point_to_isocontour(const SplineSurface& surf,
 					       const double isoval,
 					       const double tol, Point& uv)
 // ----------------------------------------------------------------------------  
 {
-  const double SING_TOL = 1e-9; // @@ passed as parameter?
+  const double SING_TOL = 1e-7; // @@ passed as parameter?
   const int MAX_ITER = 10;
   static vector<Point> cur_val(3);
   surf.point(cur_val, uv[0], uv[1], 1);
@@ -183,7 +198,7 @@ PointIterationOutcome move_point_to_isocontour(const SplineSurface& surf,
   double grad2 = s_du * s_du + s_dv * s_dv;
   if (grad2 < SING_TOL)
     // vanishing gradient.  Singularity encountered.
-    return SINGULARITY_ENCOUNTERED;
+    return FLAT_REGION_ENCOUNTERED;
 
   double err = s - isoval;
   int iter = 0;
@@ -194,12 +209,17 @@ PointIterationOutcome move_point_to_isocontour(const SplineSurface& surf,
     
     uv[0] = uv[0] - err * s_du * grad2_inv;
     uv[1] = uv[1] - err * s_dv * grad2_inv;
+    truncate_point_to_domain(surf, uv);
 
     surf.point(cur_val, uv[0], uv[1], 1);
     truncate_derivs_to_domain(surf, uv, cur_val[1][0], cur_val[2][0]);
     
     err = s - isoval;
     grad2 = s_du * s_du + s_dv * s_dv;
+
+    if (grad2 < SING_TOL)
+      // vanishing gradient.  Singularity encountered.
+      return FLAT_REGION_ENCOUNTERED;
 
     if (++iter > MAX_ITER)
       // did not converge within the allowed number of iterations
@@ -209,7 +229,16 @@ PointIterationOutcome move_point_to_isocontour(const SplineSurface& surf,
   //cout << "Iterations: " << iter << endl;
   return OK;
 }
-  
+
+// ----------------------------------------------------------------------------
+inline bool is_point_on_boundary(const SplineSurface& surf, const Point& uv)
+// ----------------------------------------------------------------------------
+{
+  return (uv[0] <= surf.startparam_u() || uv[0] >= surf.endparam_u()   ||
+	  uv[1] <= surf.startparam_v() || uv[1] >= surf.endparam_v());
+}
+
+
 // ----------------------------------------------------------------------------  
 Array4 get_derivs(const SplineSurface& surf, const Point& p, PointStatus& status)
 // ----------------------------------------------------------------------------
@@ -238,12 +267,9 @@ Array4 get_derivs(const SplineSurface& surf, const Point& p, PointStatus& status
     (d2s_dudv * (dsdu2 - dsdv2) + ds_du * ds_dv * (d2s_dv2 - d2s_du2));
 
   // determininng point status
-  status =
-    (n < SING_TOL)                                                    ? SINGULAR :
-    (((p[0] <= surf.startparam_u()) | (p[0] >= surf.endparam_u())) ||
-    ((p[1] <= surf.startparam_v()) | (p[1] >= surf.endparam_v())))    ? BOUNDARY :
-                                                                        REGULAR;
-
+  status = (n*n < SING_TOL)              ? SINGULAR :
+           is_point_on_boundary(surf, p) ? BOUNDARY :
+                                           REGULAR;
   return Array4
     { a * ds_dv,  // u-component of tangent
      -a * ds_du, // v-component of tangent
@@ -345,6 +371,36 @@ double estimate_arclength(const Point& p1, const Point& p2,
 }  
 
 // ----------------------------------------------------------------------------
+Point mirror_tangent(const Point& p1, const Point& p2, const Point& tan2)
+// ----------------------------------------------------------------------------
+{
+  // it is assumed that tan2 is of unit length
+  Point d = p2-p1; d.normalize();
+  const double sprod = tan2 * d;
+  const double beta = sqrt(1-sprod*sprod);
+  return Point {sprod * d[0] - beta * d[1],
+                sprod * d[1] + beta * d[0]};
+}
+
+// ----------------------------------------------------------------------------
+pair<Point, Point> identify_tangents(const PandDer& pstart, const PandDer& pend,
+				     const bool forward)
+// ----------------------------------------------------------------------------
+{
+  const int dir = forward ? 1 : -1;
+  Point der_start {pstart.second[0] * dir, pstart.second[1] * dir};
+  Point der_end   {pend.second[0]   * dir, pend.second[1]   * dir};
+
+  // If a tangent is missing (singular point), mirror it with the other
+  if (der_start.length2() == 0) 
+    der_start = mirror_tangent(pstart.first, pend.first, der_end);
+  else if (der_end.length2() == 0) 
+    der_end   = mirror_tangent(pend.first, pstart.first, der_start);
+
+  return {der_start, der_end};
+}
+
+// ----------------------------------------------------------------------------
 bool check_midpoint(const SplineSurface& surf, const PandDer& pstart, const PandDer& pend,
 		    const bool forward, const double isoval, const double tol,
 		    PandDer& midpoint, PointIterationOutcome& outcome)
@@ -353,20 +409,18 @@ bool check_midpoint(const SplineSurface& surf, const PandDer& pstart, const Pand
   // Function returns 'true' if midpoint is already OK
   outcome = OK; // this is the default case
   
-  // Computing tangents @@ could be passed along, for optimization purposes...
-  const int dir = forward ? 1 : -1;
-  const Point der_start {pstart.second[0] * dir, pstart.second[1] * dir};
-  const Point der_end   {pend.second[0]   * dir, pend.second[1]   * dir};
+  // Identifying tangents, and constructing one in case of degeneracy
+  const pair<Point, Point> tangents = identify_tangents(pstart, pend, forward);
+  const Point& der_start  = tangents.first;
+  const Point& der_end    = tangents. second;
   
-  // const Point der_start = tangent_at(surf, pstart) * (forward ? 1 : -1);
-  // const Point der_end   = tangent_at(surf, pend) * (forward ? 1 : -1);
-
   const double arclen = estimate_arclength(pstart.first, pend.first, der_start, der_end);
   
   // Estimating position of new point (assuming a cubic hermite spline with arc
   // length parameterization, tangent scaled by approximate arc length)
   midpoint.first = 0.5 * (pstart.first + pend.first) + 0.125 * (der_start - der_end) * arclen;
-
+  truncate_point_to_domain(surf, midpoint.first);
+  
   // Check whether the new point is close enough to the isoval
   vector<Point> tmp(3); surf.point(tmp, midpoint.first[0], midpoint.first[1], 1);
   const double err = tmp[0][0] - isoval;
@@ -456,17 +510,6 @@ double choose_steplength(const Array4& derivs, const double patchsize)
 }
 
 // ----------------------------------------------------------------------------
-void truncate_point_to_domain(const SplineSurface& surf, Point& uv)
-// ----------------------------------------------------------------------------
-{
-  uv[0] = uv[0] < surf.startparam_u() ? surf.startparam_u() :
-	  uv[0] > surf.endparam_u()   ? surf.endparam_u() : uv[0];
-  uv[1] = uv[1] < surf.startparam_v() ? surf.startparam_v() :
-	  uv[1] > surf.endparam_v()   ? surf.endparam_v() : uv[1];
-}
-
-
-// ----------------------------------------------------------------------------
 PandDer extrapolate_point(const SplineSurface& surf, double dt, const PandDer& cur_pander,
 			  const double isoval, double tol, PointStatus& status)
 // ----------------------------------------------------------------------------
@@ -500,10 +543,7 @@ PandDer extrapolate_point(const SplineSurface& surf, double dt, const PandDer& c
 	  dt = dt/2;
 	  break;
 	} else {
-	  status = (new_point[0] <= surf.startparam_u() ||
-		    new_point[0] >= surf.endparam_u()   ||
-		    new_point[1] <= surf.startparam_v() ||
-		    new_point[1] >= surf.endparam_v()) ? BOUNDARY : REGULAR;
+	  status =  is_point_on_boundary(surf, new_point) ? BOUNDARY : REGULAR;
 	  found = true;
 	}
       }
@@ -512,12 +552,11 @@ PandDer extrapolate_point(const SplineSurface& surf, double dt, const PandDer& c
       // Could not converge to new point.  Shorten steplength and try again
       dt = dt/2;
       break;
-    case SINGULARITY_ENCOUNTERED:
+    case FLAT_REGION_ENCOUNTERED:
       // check if singularity is on the curve.  If not, shorten timestep and try again
-      const double err = fabs(isoval - value_at(surf, new_point));
-      if (err < tol) {
+      if (fabs(dt) < tol) {  // @@ fabs!!
 	found = true;
-	status = SINGULAR;
+	status = is_point_on_boundary(surf, new_point) ? BOUNDARY : SINGULAR;
       } else {
 	dt = dt/2;
       }
@@ -533,14 +572,17 @@ PandDer extrapolate_point(const SplineSurface& surf, double dt, const PandDer& c
 			  // precise assessment of the status of this point
   return PandDer
     { new_point,
-      (status == SINGULAR) ? Array4 { 0, 0, 0, 0} :
-                             get_derivs(surf, new_point, tmp_status)
+      get_derivs(surf, new_point, tmp_status) // in case the last point is not
+	                                      // our original extrapolated
+					      // point, we have to do the
+					      // gradient calculation again
     };
 }
 
 // ----------------------------------------------------------------------------
 PointStatus find_next_point(const SplineSurface& surf, vector<PandDer>& prev_points,
-			    bool forward, double isoval, double tol)
+			    const bool forward, const double isoval,
+			    const double tol, const double fac)
 // ----------------------------------------------------------------------------
 {
   PointStatus status = REGULAR; // Will be changed in functions call below
@@ -548,8 +590,9 @@ PointStatus find_next_point(const SplineSurface& surf, vector<PandDer>& prev_poi
   // last point in the 'prev_points' vector.  At exit, 'derivs' will contain the
   // derivatives corresponding to the last point added.  The use of this
   // variable is for efficiency only.
-  const double dt = choose_steplength(prev_points.back().second,
-				      patchsize(surf, prev_points.back().first));
+  const double dt =
+    choose_steplength(prev_points.back().second,
+		      patchsize(surf, prev_points.back().first)) * fac;
 
   // returned status here can be REGULAR, BOUNDARY or SINGULAR (CYCLIC_END will
   // be checked for later).  Since the current point is REGULAR, we should be
@@ -569,9 +612,16 @@ PointStatus find_next_point(const SplineSurface& surf, vector<PandDer>& prev_poi
     intermediate_points(surf, prev_points.back(), new_pt, forward, isoval, tol, ok);
 
   prev_points.insert(prev_points.end(), ipoints.begin(), ipoints.end());
-  if (ok)
+
+  // Add the new point if no topology issue arose, and ascertain that at least
+  // one point has been added.
+  if (ok) 
     prev_points.emplace_back(new_pt);
-		     
+  else if (ipoints.empty() & (fabs(dt) > 2 * tol)) 
+    // no next point was ultimately added.  Unless step size limit is reached,
+    // call routine again, with smaller step size.
+    return find_next_point(surf, prev_points, forward, isoval, tol, fac/2);
+  
   // check for possibly closed cycle
   const int ix = closed_cycle_check(surf, prev_points, prev_size);
   if (ix > 0) {
@@ -627,7 +677,7 @@ vector<PandDer> trace_unidir(const SplineSurface& surf, const Point& startpoint,
   // we are at a regular point inside the domain, keep tracing
   while ((last_point_status == REGULAR) |
 	 ((last_point_status == BOUNDARY) & (moving_inwards(surf, forward, result.back()))))
-    last_point_status = find_next_point(surf, result, forward, isoval, tol);
+    last_point_status = find_next_point(surf, result, forward, isoval, tol, 1);
 
   // only include the startpoint itself if we have been tracing forward
   if (!forward)

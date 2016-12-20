@@ -20,9 +20,9 @@ namespace Go
 
   // ----------------------------------------------------------------------------
   // The following utility template function ought not to have any overhead in
-  // optimized mode, due to the 'move' semantics of STL vectors.
-  template<typename T, typename R>
-  std::vector<R> apply_transform(const std::vector<T>& input,
+  // optimized mode, due to the 'move' semantics of STL containers.
+  template<typename Container, typename R, typename T>
+  std::vector<R> apply_transform(const Container& input,
 				 const std::function<R(T)>& trans_fun) 
   // ----------------------------------------------------------------------------
   {
@@ -30,6 +30,8 @@ namespace Go
     std::transform(input.begin(), input.end(), tmp.begin(), trans_fun);
     return tmp;
   }
+
+
 
   // ----------------------------------------------------------------------------
   template<typename Iterator, typename Arg, typename Val>
@@ -69,8 +71,5 @@ namespace Go
     v1.insert(v1.end(), v2.begin(), v2.end()); return v1;
   }
 };
-
-
-
 
 #endif
