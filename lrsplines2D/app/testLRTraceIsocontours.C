@@ -29,7 +29,7 @@ int main(int varnum, char* vararg[])
   
   const bool include_3D = true;
   const bool use_sisl_marching = atoi(vararg[1]);
-  const auto isovals = contour_vals(lrsurf, 80);
+  const auto isovals = contour_vals(lrsurf, 200);
   // const vector<CurveVec> curves = LRTraceIsocontours(lrsurf,
   // 						     isovals,
   //                                                 1e-6,

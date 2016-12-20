@@ -526,8 +526,8 @@ PandDer extrapolate_point(const SplineSurface& surf, double dt, const PandDer& c
   }
   // If we have not been able to converge to a new point, flag it as singular.
   // @@ Validity of this should be tested
-  if (cur_point.dist2(new_point) < tol * tol)
-    status = SINGULAR;
+  // if (cur_point.dist2(new_point) < tol * tol)
+  //   status = SINGULAR;
 
   PointStatus tmp_status; // just a throwaway value - we already have a more
 			  // precise assessment of the status of this point
