@@ -31,6 +31,46 @@ namespace Go
     return tmp;
   }
 
+  // ----------------------------------------------------------------------------
+  template<typename Iterator, typename Arg, typename Val>
+  std::vector<Val> apply_transform(const Iterator& i1,
+				   const Iterator& i2, const std::function<Val(Arg)>& fun)
+    // ----------------------------------------------------------------------------
+  {
+    const size_t numel = size_t(i2-i1);
+    std::vector<Val> result(numel);
+    std::transform(i1, i2, result.begin(), fun);
+    return result;
+  }
+
+  // ----------------------------------------------------------------------------
+  template<typename T>
+  std::vector<T> insert_back(const std::vector<T>& v, T elem)
+  // ----------------------------------------------------------------------------
+  {
+    std::vector<T> result(v);
+    result.push_back(elem);
+    return result;
+  }
+
+  // ----------------------------------------------------------------------------
+  template<typename T>
+  std::vector<T> reverse_vec(std::vector<T> v)
+  // ----------------------------------------------------------------------------
+  {
+    reverse(v.begin(), v.end()); return v;
+  }
+
+  // ----------------------------------------------------------------------------
+  template<typename T>
+  std::vector<T> merge_vec(std::vector<T> v1, const std::vector<T>& v2)
+  // ----------------------------------------------------------------------------
+  {
+    v1.insert(v1.end(), v2.begin(), v2.end()); return v1;
+  }
 };
+
+
+
 
 #endif

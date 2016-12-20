@@ -771,15 +771,6 @@ traceIsoval(const SplineSurface& surf, double u, double v, double tol, bool incl
     insert_back(res1, res1.front()) :
     merge_vec(reverse_vec(trace_unidir(surf, {u, v}, false, tol, ps)), res1);
 
-
-  // debug
-  cout << "Number of points: " << res.size() << endl;
-  ofstream os("krull.mat");
-  for (auto p : res)
-    os << p.first[0] <<  " " << p.first[1] << '\n';
-
-  os.close();
-
   return curve_from_points(surf, res, include_3D);
   
 }

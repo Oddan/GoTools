@@ -27,6 +27,7 @@ namespace Go
 // ============================================================================
 vector<CurveVec> LRTraceIsocontours(const LRSplineSurface& lrs,
 				    const std::vector<double>& isovals,
+				    const double tol,
 				    const bool include_3D_curves,
 				    const bool use_sisl_marching)
 // ============================================================================
@@ -36,8 +37,8 @@ vector<CurveVec> LRTraceIsocontours(const LRSplineSurface& lrs,
 
   // Compute isocontours for each surface fragment
   const function<vector<CurveVec>(LRSurfPtr)> compute_isovals {
-    [&] (LRSurfPtr l){return SSurfTraceIsocontours(*as_spline_surf(l),
-						  isovals, include_3D_curves,
+    [&] (LRSurfPtr l){return SSurfTraceIsocontours(*as_spline_surf(l), isovals,
+						   tol, include_3D_curves,
 						   use_sisl_marching);}};
 
   // computing isocurves for each surface fragment (vector<vector<CurveVec>>)

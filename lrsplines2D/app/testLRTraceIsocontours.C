@@ -1,8 +1,10 @@
 #include <fstream>
 #include <iostream>
+#include <chrono>
 
 #include "GoTools/geometry/ObjectHeader.h"
 #include "GoTools/lrsplines2D/LRTraceIsocontours.h"
+#include "GoTools/lrsplines2D/SSurfTraceIsocontours.h"
 
 
 using namespace std;
@@ -13,8 +15,9 @@ namespace {
 }// end anonymous namespace
 
 
-int main()
+int main(int varnum, char* vararg[])
 {
+  
   // Establishing test LR spline surface
   ifstream is("data/64_lr_1d.g2");
   ObjectHeader header;
@@ -25,17 +28,36 @@ int main()
   // Computing isocontours
   
   const bool include_3D = true;
-  const bool use_sisl_marching = false;
-  const auto isovals = contour_vals(lrsurf, 4);
-  const vector<CurveVec> curves = LRTraceIsocontours(lrsurf,
-						     isovals,
-						     include_3D,
-						     use_sisl_marching);
+  const bool use_sisl_marching = atoi(vararg[1]);
+  const auto isovals = contour_vals(lrsurf, 80);
+  // const vector<CurveVec> curves = LRTraceIsocontours(lrsurf,
+  // 						     isovals,
+  //                                                 1e-6,
+  // 						     include_3D,
+  // 						     use_sisl_marching);
 
-  
+  const auto ssurf = lrsurf.asSplineSurface();
+  const double span = ssurf->endparam_u() - ssurf->startparam_u();
+  cout << span << endl;
+  auto t1 = chrono::high_resolution_clock::now();
+  const vector<CurveVec> curves = SSurfTraceIsocontours(*ssurf,
+							isovals,
+							1e-5 * span,
+							include_3D,
+							use_sisl_marching);
+  auto t2 = chrono::high_resolution_clock::now();
+  cout << "Curves found in " << chrono::duration_cast<chrono::milliseconds>(t2-t1).count() << " milliseconds." << endl;
+
+  ofstream os("curves.g2");
   cout << "Number of curves found: " << endl;
-  for (size_t i = 0; i != curves.size(); ++i) 
+  for (size_t i = 0; i != curves.size(); ++i) {
     cout << "At height " << isovals[i] << ": " << curves[i].size() << " curves." << endl;
+    for (auto cv : curves[i]) {
+      cv.second->writeStandardHeader(os);
+      cv.second->write(os);
+    }
+  }
+  os.close();
   
   return 0;
 }

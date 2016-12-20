@@ -24,6 +24,7 @@ namespace Go
   // is slower, but likely more robust.
   std::vector<CurveVec> SSurfTraceIsocontours(const SplineSurface& ss,
 					      const std::vector<double>& isovals,
+					      const double tol = 1e-6,
 					      const bool include_3D_curves = false,
 					      const bool use_sisl_marching = false);
 }; // end namespace Go;

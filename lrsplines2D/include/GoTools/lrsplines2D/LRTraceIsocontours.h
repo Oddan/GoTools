@@ -21,9 +21,10 @@ namespace Go
   // purposes in a 3D viewer.  By default, the function employs the function
   // 'traceIsovals' to march out the curves.  If desired, SISL routine s1314 can
   // be used instead by setting 'use_sisl_marching' to true.  The SISL routine
-  // is slower, but likely more robust.
+  // is slower, but likely more robust.  
   std::vector<CurveVec> LRTraceIsocontours(const LRSplineSurface& lrs,
 					   const std::vector<double>& isovals,
+					   const double tol = 1e-6, 
 					   const bool include_3D_curves = false,
 					   const bool use_sisl_marching = false);
 }; // end namespace Go;
