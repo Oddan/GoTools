@@ -63,8 +63,6 @@ int main(int varnum, char* vararg[])
   return 0;
 }
 
-
-
 namespace {
 
 
