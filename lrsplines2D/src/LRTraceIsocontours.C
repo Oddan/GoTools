@@ -52,22 +52,22 @@ vector<CurveVec> LRTraceIsocontours(const LRSplineSurface& lrs,
   // computing isocurves for each surface fragment (vector<vector<CurveVec>>)
   const auto curve_fragments = apply_transform(surf_fragments, compute_isovals);
 
-  // debug
-  ofstream os_surf("lrsurf.g2");
-  for (auto f : surf_fragments) {
-    f->writeStandardHeader(os_surf);
-    f->write(os_surf);
-  }
-  os_surf.close();
+  // // debug
+  // ofstream os_surf("lrsurf.g2");
+  // for (auto f : surf_fragments) {
+  //   f->writeStandardHeader(os_surf);
+  //   f->write(os_surf);
+  // }
+  // os_surf.close();
 
-  ofstream os_cv("curvefrags.g2");
-  for (auto frag : curve_fragments)
-    for (auto ival : frag)
-      for (auto c : ival) {
-	c.second->writeStandardHeader(os_cv);
-	c.second->write(os_cv);
-      }
-  os_cv.close();
+  // ofstream os_cv("curvefrags.g2");
+  // for (auto frag : curve_fragments)
+  //   for (auto ival : frag)
+  //     for (auto c : ival) {
+  // 	c.second->writeStandardHeader(os_cv);
+  // 	c.second->write(os_cv);
+  //     }
+  // os_cv.close();
   
   // merge isocontours across patches and returning result
   return merge_isocontours(curve_fragments, surf_fragments,  tol);
@@ -150,31 +150,30 @@ IsectCurve join_isectcurves(const IsectCurve& c1, const IsectCurve& c2,
 			    bool c1_at_start, bool c2_at_start)
 // ----------------------------------------------------------------------------
 {
-  SplineCurve pcurve1 = SplineCurve(*c1.first);
-  SplineCurve scurve1 = SplineCurve(*c1.second);
-  SplineCurve pcurve2 = SplineCurve(*c2.first);
-  SplineCurve scurve2 = SplineCurve(*c2.second);
+  shared_ptr<SplineCurve> pcurve1 = shared_ptr<SplineCurve>(c1.first->clone());
+  shared_ptr<SplineCurve> scurve1 = shared_ptr<SplineCurve>(c1.second->clone());
+  shared_ptr<SplineCurve> pcurve2 = shared_ptr<SplineCurve>(c2.first->clone());
+  shared_ptr<SplineCurve> scurve2 = shared_ptr<SplineCurve>(c2.second->clone());
 
   if (c1_at_start) {
-    pcurve1.reverseParameterDirection();
-    scurve1.reverseParameterDirection();
+    pcurve1->reverseParameterDirection();
+    scurve1->reverseParameterDirection();
   }
 
   if (!c2_at_start) {
-    pcurve2.reverseParameterDirection();
-    scurve2.reverseParameterDirection();
+    pcurve2->reverseParameterDirection();
+    scurve2->reverseParameterDirection();
   }
-
-  pcurve1.appendCurve(&pcurve2);
-  scurve1.appendCurve(&scurve2);
   
-  return IsectCurve { CurvePtr(pcurve1.clone()), CurvePtr(scurve1.clone())};
+  pcurve1->appendCurve(pcurve2.get());
+  scurve1->appendCurve(scurve2.get());
+  
+  return IsectCurve { pcurve1, scurve1 };
 }
 
 // ----------------------------------------------------------------------------
 void replace_segments(const IsectCurve& old1, const IsectCurve& old2,
-		      const IsectCurve& updated, map<double, CurveVec>& target,
-		      Direction2D d) //@@ d is here only for debugging.  Can be removed
+		      const IsectCurve& updated, map<double, CurveVec>& target)
 // ----------------------------------------------------------------------------
 {
   for (auto& it_map : target) 
@@ -192,15 +191,23 @@ pair<double, double> identify_truncated_endpoints(const IsectCurve& c, Direction
   Point startpoint, endpoint;
   c.first->point(startpoint, c.first->startparam());
   c.first->point(endpoint  , c.first->endparam());
-  if (d==YFIXED) {
-    swap(startpoint[0], startpoint[1]);
-    swap(endpoint[0], endpoint[1]);
-  }
+
+  const int ix = (d==YFIXED) ? 1 : 0;
   auto NaN = numeric_limits<double>::quiet_NaN();
   return pair<double, double> {
-    (fabs(startpoint[0] - pval) < tol ? startpoint[1] : NaN),
-    (fabs(endpoint[0] - pval) < tol ? endpoint[1] : NaN)
+    (fabs(startpoint[ix] - pval) < tol) ? startpoint[(ix+1)%2] : NaN,
+    (fabs(endpoint[ix] - pval) < tol) ? endpoint[(ix+1)%2] : NaN
   };
+  
+  // if (d==YFIXED) {
+  //   swap(startpoint[0], startpoint[1]);
+  //   swap(endpoint[0], endpoint[1]);
+  // }
+  // auto NaN = numeric_limits<double>::quiet_NaN();
+  // return pair<double, double> {
+  //   (fabs(startpoint[0] - pval) < tol ? startpoint[1] : NaN),
+  //   (fabs(endpoint[0] - pval) < tol ? endpoint[1] : NaN)
+  // };
 }
 
 
@@ -229,8 +236,10 @@ void merge_segments(map<double, CurveVec>& mergemap, // map whose segments shoul
 	  continue;
 	encountered.push_back(ic.first); // ensure we will only register the curve once
       }
-      if (!isnan(ends.first))  tp_vec.push_back({ends.first, ic, true});
-      if (!isnan(ends.second)) tp_vec.push_back({ends.second, ic, false});
+      if (!isnan(ends.first))
+	tp_vec.push_back({ends.first, ic, true});
+      if (!isnan(ends.second)) 
+	tp_vec.push_back({ends.second, ic, false});
     }
 
     assert(tp_vec.size() % 2 == 0);  // we suppose that for each curve going in, there is one going out
@@ -250,19 +259,17 @@ void merge_segments(map<double, CurveVec>& mergemap, // map whose segments shoul
 	auto new_curve = join_isectcurves(entry1.icurve, entry2.icurve, entry1.at_start, entry2.at_start);
 
 	// replace references to the old curves with references to new_curve throughout
-	replace_segments(entry1.icurve, entry2.icurve, new_curve, mergemap, d);
-	replace_segments(entry1.icurve, entry2.icurve, new_curve, othermap, flip(d));
+	replace_segments(entry1.icurve, entry2.icurve, new_curve, mergemap);
+	replace_segments(entry1.icurve, entry2.icurve, new_curve, othermap);
 
-	for (size_t j = i+2; j < tp_vec.size(); ++j) 
+	for (size_t j = i+2; j < tp_vec.size(); ++j) {
 	  if ((tp_vec[j].icurve.first == entry1.icurve.first) |
 	      (tp_vec[j].icurve.first == entry2.icurve.first)) {
 	    tp_vec[j].icurve = new_curve;
-	    const auto ends = identify_truncated_endpoints(new_curve, d, it.first, tol);
-	    tp_vec[j].at_start = (!isnan(ends.first));
-	    // if ends.second is also truncated by this line (i.e. !isnan(ends.second)), we
-	    // have just closed a loop.  It will be picked up in one of the upcoming
-	    // iterations.
+	    tp_vec[j].at_start =
+	      *(new_curve.first->coefs_begin() + (d==XFIXED ? 1 : 0)) == tp_vec[j].pval;
 	  }
+	}
 
 	// updating boundary curve pointers if necessary
 	transform(bcurves.begin(), bcurves.end(), bcurves.begin(), [&](const IsectCurve& c) {

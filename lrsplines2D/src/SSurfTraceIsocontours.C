@@ -496,16 +496,40 @@ double patchsize(const SplineSurface& surf, const Point& uv)
 }
 
 // ----------------------------------------------------------------------------
-double choose_steplength(const Array4& derivs, const double patchsize)
+inline double boundary_distance(const SplineSurface& surf, const PandDer& p,
+				const bool v_dir, const bool forward)
 // ----------------------------------------------------------------------------
 {
-  const double K = 3;         // @@ this factor might be adapted
-  const double maxlen = 0.5 * patchsize; //0.3 * patchsize;  // @@ 
+  const double HUGEVAL = 1e100; // @@ something more elegant here?
+  const int ix = v_dir ? 1 : 0;
+  const double dir_component = p.second[ix] * (forward ? 1 : -1);
+  const double boundary_comp_val =
+    v_dir ? ((dir_component < 0) ? surf.startparam_v() : surf.endparam_v()) :
+            ((dir_component < 0) ? surf.startparam_u() : surf.endparam_u());
 
+  const double min_dist = fabs(p.first[ix] - boundary_comp_val);
+  const double travel_dist = (dir_component == 0) ? HUGEVAL : min_dist/fabs(dir_component);
+
+  return travel_dist;
+}
+
+// ----------------------------------------------------------------------------
+double choose_steplength(const SplineSurface& surf, const PandDer& p,
+			 const bool forward, const double tol)
+// ----------------------------------------------------------------------------
+{
+  const double psize = patchsize(surf, p.first);
+  const double K = 3;         // @@ this factor might be adapted
+  const double maxlen = 0.2 * psize; 
+  const Array4& derivs = p.second;
+  const double bd_u = boundary_distance(surf, p, false, forward);
+  const double bd_v = boundary_distance(surf, p, true,  forward);
+    
   const double d1 = max(fabs(derivs[0]), fabs(derivs[1]));
   const double d2 = max(fabs(derivs[2]), fabs(derivs[3]));
 
-  const double dt = min(maxlen, 2 * d1 / (K * d2));
+  const double dt = min({bd_u+tol, bd_v+tol, maxlen, 2 * d1 / (K * d2)});
+
   return dt;
 }
 
@@ -554,7 +578,7 @@ PandDer extrapolate_point(const SplineSurface& surf, double dt, const PandDer& c
       break;
     case FLAT_REGION_ENCOUNTERED:
       // check if singularity is on the curve.  If not, shorten timestep and try again
-      if (fabs(dt) < tol) {  // @@ fabs!!
+      if (fabs(dt) < tol) {  
 	found = true;
 	status = is_point_on_boundary(surf, new_point) ? BOUNDARY : SINGULAR;
       } else {
@@ -591,8 +615,7 @@ PointStatus find_next_point(const SplineSurface& surf, vector<PandDer>& prev_poi
   // derivatives corresponding to the last point added.  The use of this
   // variable is for efficiency only.
   const double dt =
-    choose_steplength(prev_points.back().second,
-		      patchsize(surf, prev_points.back().first)) * fac;
+    choose_steplength(surf, prev_points.back(), forward, tol) * fac;
 
   // returned status here can be REGULAR, BOUNDARY or SINGULAR (CYCLIC_END will
   // be checked for later).  Since the current point is REGULAR, we should be
@@ -836,7 +859,7 @@ CurveVec compute_levelset(const SplineSurface& ss,
 			  const bool use_sisl_marching)
 // ----------------------------------------------------------------------------
 {
-  cout << "Now computing level set for " << isoval << endl;
+  //cout << "Now computing level set for " << isoval << endl;
   //compute topology
   const pair<SISLIntcurve**, int> topo_pts = compute_topology(ss_sisl, isoval);
 
