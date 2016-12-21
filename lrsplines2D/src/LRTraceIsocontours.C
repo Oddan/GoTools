@@ -52,22 +52,22 @@ vector<CurveVec> LRTraceIsocontours(const LRSplineSurface& lrs,
   // computing isocurves for each surface fragment (vector<vector<CurveVec>>)
   const auto curve_fragments = apply_transform(surf_fragments, compute_isovals);
 
-  // debug
-  ofstream os_surf("lrsurf.g2");
-  for (auto f : surf_fragments) {
-    f->writeStandardHeader(os_surf);
-    f->write(os_surf);
-  }
-  os_surf.close();
+  // // debug
+  // ofstream os_surf("lrsurf.g2");
+  // for (auto f : surf_fragments) {
+  //   f->writeStandardHeader(os_surf);
+  //   f->write(os_surf);
+  // }
+  // os_surf.close();
 
-  ofstream os_cv("curvefrags.g2");
-  for (auto frag : curve_fragments)
-    for (auto ival : frag)
-      for (auto c : ival) {
-  	c.second->writeStandardHeader(os_cv);
-  	c.second->write(os_cv);
-      }
-  os_cv.close();
+  // ofstream os_cv("curvefrags.g2");
+  // for (auto frag : curve_fragments)
+  //   for (auto ival : frag)
+  //     for (auto c : ival) {
+  // 	c.second->writeStandardHeader(os_cv);
+  // 	c.second->write(os_cv);
+  //     }
+  // os_cv.close();
   
   // merge isocontours across patches and returning result
   return merge_isocontours(curve_fragments, surf_fragments,  tol);
