@@ -150,7 +150,7 @@ pair<SISLIntcurve**, int> compute_topology(SISLSurf* ss_sisl, double isoval)
     
   // express intersections on output format (SISL)
   if (qintdat)
-    hp_s1880 (qo1, qo1, kdeg, 2, 0, qintdat, &jpt, &gpar, &spar, &pretop,
+    hp_s1880 (qo1, qo2, kdeg, 2, 0, qintdat, &jpt, &gpar, &spar, &pretop,
 	      &jcrv, &wcurve, &jsurf, &wsurf, &kstat);
   
   freeall(true);
