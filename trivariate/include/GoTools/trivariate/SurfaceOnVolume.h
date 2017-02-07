@@ -54,6 +54,9 @@ namespace Go
   class SurfaceOnVolume : public ParamSurface
   {
   public:
+    /// Empty constructor
+    SurfaceOnVolume();
+
     /// Constructor given associated volue, the surface in the parameter
     /// plane of this volume and the corresponding surface in geometry space.
     /// One surface representation may be a dummy. In that case the parameter
@@ -389,6 +392,13 @@ namespace Go
     /// Swaps the two parameter directions
     virtual void swapParameterDirection();
 
+    /// set the parameter domain to a given rectangle
+    /// \param u1 new min. value of first parameter span
+    /// \param u2 new max. value of first parameter span
+    /// \param v1 new min. value of second parameter span
+    /// \param v2 new max. value of second parameter span
+    virtual void setParameterDomain(double u1, double u2, double v1, double v2);
+
     /// Compute the total area of this surface up to some tolerance
     /// \param tol the relative tolerance when approximating the area, i.e.
     ///            stop iteration when error becomes smaller than
@@ -445,6 +455,12 @@ namespace Go
       {
 	return volume_;
       }
+
+    /// Set/replace volume. NB! Use care
+    void setVolume(shared_ptr<ParamVolume> volume)
+    {
+      volume_ = volume;
+    }
 
     /// Get parameter surface
     shared_ptr<const ParamSurface> parameterSurface() const

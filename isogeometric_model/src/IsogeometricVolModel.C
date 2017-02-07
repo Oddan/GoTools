@@ -38,6 +38,7 @@
  */
 
 #include "GoTools/isogeometric_model/IsogeometricVolModel.h"
+#include "GoTools/isogeometric_model/TrimVolBlock.h"
 #include "GoTools/trivariate/SurfaceOnVolume.h"
 #include <assert.h>
 
@@ -63,8 +64,8 @@ namespace Go
 
     if (!volmodel->allSplines())
       {
-	cerr << "Not all volumes in volume model are splines" << endl;
-	throw std::exception();
+    	cerr << "Not all volumes in volume model are splines" << endl;
+    	throw std::exception();
       }
 
     if (!volmodel->isCornerToCorner())
@@ -80,9 +81,20 @@ namespace Go
     int nmb_blocks = volmodel->nmbEntities();
     vol_blocks_.resize(nmb_blocks);
     for (int i = 0; i < nmb_blocks; ++i)
-      vol_blocks_[i] = shared_ptr<IsogeometricVolBlock>
-	(new IsogeometricVolBlock(this, volmodel->getSplineVolume(i),
-				  solution_space_dimension, i));
+      {
+	shared_ptr<ftVolume> topvol = volmodel->getBody(i);
+	if (topvol->isBoundaryTrimmed())
+	  {
+	    vol_blocks_[i] = shared_ptr<IsogeometricVolBlock>
+	      (new IsogeometricVolBlock(this, volmodel->getSplineVolume(i),
+					solution_space_dimension, i));
+	  }
+	else
+	  {
+	    vol_blocks_[i] = shared_ptr<IsogeometricVolBlock>
+	      (new TrimVolBlock(this, topvol, solution_space_dimension, i));
+	  }
+      }
 
     // Fetch adjacency information
     for (int i = 0; i < nmb_blocks; ++i)
@@ -913,12 +925,12 @@ namespace Go
 	      }
 
 	    int face_orient = vol_blocks_[vol_idx]->getFaceOrientation(surface, tol);
-	    if (face_orient == -1)
-	      {
-	    	cerr << "Could not determine face position on underlying surface of boundary " <<
-	    	  i << ", segment " << j << endl;
-	    	throw std::exception();
-	      }
+	    // if (face_orient == -1)
+	    //   {
+	    // 	cerr << "Could not determine face position on underlying surface of boundary " <<
+	    // 	  i << ", segment " << j << endl;
+	    // 	throw std::exception();
+	    //   }
 
 	    boundary_surface_block_[i][j] = vol_idx;
 	    boundary_surface_pos_[i][j] = face_orient;

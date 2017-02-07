@@ -51,7 +51,17 @@ namespace Go
 			   double eps, int max_iter,
 			   shared_ptr<LRSplineSurface>& surf,
 			   double& maxdist, double& avdist, 
-			   double& avdist_out, int& nmb_out);
+			   double& avdist_out, int& nmb_out,
+			   int mba=0, int initmba=1, int tomba=5);
+
+    void pointCloud2Spline(std::vector<double>& points, 
+			   shared_ptr<LRSplineSurface>& init_surf,
+			   std::vector<double>& extent,	    
+			   double eps, int max_iter,
+			   shared_ptr<LRSplineSurface>& surf,
+			   double& maxdist, double& avdist, 
+			   double& avdist_out, int& nmb_out,
+			   int mba=1, int tomba=0);
 
     void computeDistPointSpline(std::vector<double>& points,
 				shared_ptr<LRSplineSurface>& surf,

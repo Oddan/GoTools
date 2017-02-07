@@ -45,10 +45,12 @@
 #include "GoTools/compositemodel/Path.h"
 //#include "GoTools/topology/tpTopologyTable.h"
 #include "GoTools/geometry/SurfaceTools.h"
+#include "GoTools/geometry/SplineCurve.h"
+#include "GoTools/geometry/Curvature.h"
 #include <fstream>
 #include <cstdlib>
 
-//#define DEBUG_REG;
+#define DEBUG_REG
 
 using std::vector;
 using std::set;
@@ -155,7 +157,8 @@ shared_ptr<SurfaceModel> RegularizeFaceSet::getRegularModel(bool reverse_sequenc
   remaining_faces.insert(remaining_faces.end(), faces.begin(), faces.end());
 
   // Set face correspondance
-  computeFaceCorrespondance(faces);
+  if (corr_faces_.size() == 0)
+    computeFaceCorrespondance(faces);
 
   // Prioritize division of faces to avoid premature decisions
   vector<int> perm(nmb_faces);
@@ -165,6 +168,9 @@ shared_ptr<SurfaceModel> RegularizeFaceSet::getRegularModel(bool reverse_sequenc
 
   // Perform sorting
   prioritizeFaces(faces, perm);
+
+  // Special case treatment providing prioritized vertices for split
+  defineSplitVx(faces, perm);
 
   if (reverse_sequence)
     {
@@ -252,6 +258,15 @@ shared_ptr<SurfaceModel> RegularizeFaceSet::getRegularModel(bool reverse_sequenc
 	}
       regularize.setNonTjointFaces(remaining_faces);
 
+      // Look for prioritized vertices
+      vector<shared_ptr<Vertex> > vx_pri;
+      for (size_t kh=0; kh<vx_pri_.size(); ++kh)
+	if (vx_pri_[kh].second == perm[kj])
+	  vx_pri.push_back(vx_pri_[kh].first);
+
+      if (vx_pri.size() > 0)
+	regularize.setPriVx(vx_pri);
+      
       vector<shared_ptr<ftSurface> > faces2 = 
 	regularize.getRegularFaces();
 
@@ -2010,6 +2025,138 @@ RegularizeFaceSet::computeFaceCorrespondance(vector<shared_ptr<ftSurface> >& fac
 	    }
 	}
     } 
+}
+
+//==========================================================================
+void
+RegularizeFaceSet::defineSplitVx(vector<shared_ptr<ftSurface> >& faces,
+				   vector<int>& perm)
+//==========================================================================
+{
+  // Special case treatment
+  // 7 faces, 6 are defined as opposite faces, the 7th is three sided and
+  // trims away one corner
+  if (faces.size() == 7 && corr_faces_.size() == 3)
+    {
+      // Fetch the face not included in an opposite face relation
+      shared_ptr<ftSurface> curr_face;
+      for (int ki=0; ki<(int)faces.size(); ++ki)
+	{
+	  size_t kj;
+	  for (kj=0; kj<corr_faces_.size(); ++kj)
+	    {
+	      if (ki == corr_faces_[kj].first || ki == corr_faces_[kj].second)
+		{
+		  break;
+		}
+	    }
+	  if (kj == corr_faces_.size())
+	    {
+	      curr_face = faces[ki];
+	      break;
+	    }
+	}
+      
+      vector<shared_ptr<ftEdge> > edgs = curr_face->getAllEdges();
+      if (edgs.size() == 3 && curr_face->nmbBoundaryLoops() == 1)
+	{
+	  // Special case found. Define new vertex to guide splitting
+	  // Select edge and associated face
+	  // First check if any face is four sided
+	  vector<ftSurface*> cand_faces;
+	  for (size_t kj=0; kj<edgs.size();)
+	    {
+	      ftEdge* other_edge = edgs[kj]->twin()->geomEdge();
+	      if (other_edge != NULL)
+		{
+		  ftSurface* other_face = other_edge->face()->asFtSurface();
+		  if (other_face && other_face->nmbEdges() != 4)
+		    {
+		      cand_faces.push_back(other_face);
+		      kj++;
+		    }
+		  else
+		    {
+		      edgs.erase(edgs.begin()+kj);
+		    }
+		}
+	      else
+		{
+		  edgs.erase(edgs.begin()+kj);
+		}
+	    }
+
+	  // For each candidate face, compute angles between edges in edge vertices and edge length
+	  vector<double> ang(edgs.size());
+	  vector<double> len(edgs.size());
+	  for (size_t kj=0; kj<edgs.size(); ++kj)
+	    {
+	      ftEdgeBase *twin = edgs[kj]->twin();
+	      Point tan1 = twin->tangent(twin->tMax());
+	      Point tan2 = twin->next()->tangent(twin->next()->tMin());
+	      Point tan3 = twin->tangent(twin->tMin());
+	      Point tan4 = twin->prev()->tangent(twin->prev()->tMax());
+	      double ang1 = tan1.angle(tan2);
+	      ang1 = fabs(0.5*M_PI - ang1);
+	      double ang2 = tan3.angle(tan4);
+	      ang2 = fabs(0.5*M_PI - ang2);
+	      ang[kj] = std::max(ang1, ang2);
+	      len[kj] = edgs[kj]->estimatedCurveLength();
+ 	    }
+	  
+	  // Select a long edge where the tangent at an end vertex is less perpendicular to
+	  // the tangent of the adjacent edge
+	  double bend = model_->getTolerances().bend;
+	  double tol = model_->getTolerances().neighbour;
+	  double minlen = 10.0*tol;
+	  int ix = 0;
+	  for (size_t kj=1; kj<edgs.size(); ++kj)
+	    {
+	      if (len[ix] < minlen && len[kj] >= minlen)
+		ix = (int)kj;
+	      else if (ang[kj] > bend && ang[kj] < ang[ix])
+		ix = (int)kj;
+	      else if (len[kj] > len[ix])
+		ix = (int)kj;
+	    }
+
+	  // The edge to split is identified, select position
+	  double t1 = edgs[ix]->tMin();
+	  double t2 = edgs[ix]->tMax();
+	  double tpar;
+	  shared_ptr<SplineCurve> cv(edgs[ix]->geomCurve()->geometryCurve());
+	  if (cv.get())
+	    {
+	      // Choose point with highest curvature, provided it is not too close to
+	      // and end vertex
+	      // Analyse only the part of the curve belonging to the edge
+	      shared_ptr<SplineCurve> cv2(cv->subCurve(t1, t2));
+	      double mincur;
+	      Curvature::minimalCurvatureRadius(*cv2, mincur, tpar);
+	      tpar = std::max(tpar, t1 + 0.1*(t2-t1));
+	      tpar = std::min(tpar, t2 - 0.1*(t2-t1));
+	    }
+	  else
+	    tpar = 0.5*(t1 + t2);   // Choose mid point
+
+	  // Split selected edge
+	  shared_ptr<ftEdge> newedge = edgs[ix]->split2(tpar);
+
+	  // Prioritize associated face
+	  for (int ki=0; ki<(int)perm.size(); ++ki)
+	    {
+	      if (cand_faces[ix] == faces[perm[ki]].get() && ki > 0)
+		{
+		  perm.insert(perm.begin(), perm[ki]);
+		  perm.erase(perm.begin()+ki+1);
+		}
+	    }
+	  
+	  // Store information
+	  shared_ptr<Vertex> vx = edgs[ix]->getCommonVertex(newedge.get());
+	  vx_pri_.push_back(make_pair(vx, perm[0]));
+	}
+    }
 }
 
 }  // namespace Go

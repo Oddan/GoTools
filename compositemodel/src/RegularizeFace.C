@@ -56,7 +56,7 @@
 #include <fstream>
 #include <cstdlib>
 
-//#define DEBUG_REG
+#define DEBUG_REG
 
 using std::vector;
 using std::set;
@@ -793,6 +793,25 @@ void RegularizeFace::faceWithHoles(vector<vector<ftEdge*> >& half_holes)
 	  regularize.setCandSplit(cand_split_);
 	  regularize.setSplitMode(split_mode_);
 	  regularize.unsetTopLevel();
+	  if (vx_pri_.size() > 0)
+	    {
+	      vector<shared_ptr<Vertex> > vxpri;
+	      vector<shared_ptr<Vertex> > vx = faces[kj]->vertices();
+	      for (size_t kr=0; kr<vx_pri_.size(); ++kr)
+		{
+		  size_t kh;
+		  for (kh=0; kh<vx.size(); ++kh)
+		    {
+		      double dist = vx_pri_[kr]->getDist(vx[kh]);
+		      if (dist < epsge_)
+			break;
+		    }
+		  if (kh < vx.size())
+		    vxpri.push_back(vx[kh]);
+		}
+	      if (vxpri.size() > 0)
+		regularize.setPriVx(vxpri);
+	    }
 	  vector<shared_ptr<ftSurface> > faces2 = 
 	    regularize.getRegularFaces();
 
@@ -1229,6 +1248,26 @@ void RegularizeFace::faceOneHole(vector<vector<ftEdge*> >& half_holes)
 	  regularize.unsetTopLevel();
 	  if (cand_split_.size() >  0)
 	    regularize.setCandSplit(cand_split_);
+
+	  if (vx_pri_.size() > 0)
+	    {
+	      vector<shared_ptr<Vertex> > vxpri;
+		  vector<shared_ptr<Vertex> > vx = faces[ki]->vertices();
+	      for (size_t kj=0; kj<vx_pri_.size(); ++kj)
+		{
+		  size_t kh;
+		  for (kh=0; kh<vx.size(); ++kh)
+		    {
+		      double dist = vx_pri_[kj]->getDist(vx[kh]);
+		      if (dist < epsge_)
+			break;
+		    }
+		  if (kh < vx.size())
+		    vxpri.push_back(vx[kh]);
+		}
+	      if (vxpri.size() > 0)
+		regularize.setPriVx(vxpri);
+	    }
 
 	  vector<shared_ptr<ftSurface> > faces2 = 
 	    regularize.getRegularFaces();
@@ -1789,6 +1828,26 @@ void RegularizeFace::faceOneHole2()
 		      if (cand_split_.size() >  0)
 			regularize.setCandSplit(cand_split_);
 		  
+		      if (vx_pri_.size() > 0)
+			{
+			  vector<shared_ptr<Vertex> > vxpri;
+			  vector<shared_ptr<Vertex> > vx = faces[ki]->vertices();
+			  for (size_t kj=0; kj<vx_pri_.size(); ++kj)
+			    {
+			      size_t kh;
+			      for (kh=0; kh<vx.size(); ++kh)
+				{
+				  double dist = vx_pri_[kj]->getDist(vx[kh]);
+				  if (dist < epsge_)
+				    break;
+				}
+			      if (kh < vx.size())
+				vxpri.push_back(vx[kh]);
+			    }
+			  if (vxpri.size() > 0)
+			    regularize.setPriVx(vxpri);
+			}
+
 		      vector<shared_ptr<ftSurface> > faces2 = 
 			regularize.getRegularFaces();
 		  
@@ -1925,6 +1984,9 @@ RegularizeFace::faceOuterBdFaces(vector<vector<ftEdge*> >& half_holes)
    // Prioritize corners according to opening angle
    vector<shared_ptr<Vertex> > sorted_corners = prioritizeCornerVx(corners);
 
+   if (vx_pri_.size() > 0)
+     sorted_corners.insert(sorted_corners.begin(), vx_pri_.begin(), vx_pri_.end());
+
   vector<shared_ptr<CurveOnSurface> > trim_segments;
   shared_ptr<BoundedSurface> bd_sf;
   for (ki=0; ki<sorted_corners.size(); ++ki)
@@ -2056,6 +2118,27 @@ void RegularizeFace::faceOuterBd(vector<vector<ftEdge*> >& half_holes)
 	  regularize.setCandSplit(cand_split_);
 	  regularize.setSplitMode(split_mode_);
 	  regularize.unsetTopLevel();
+
+	  if (vx_pri_.size() > 0)
+	    {
+	      vector<shared_ptr<Vertex> > vxpri;
+	      vector<shared_ptr<Vertex> > vx = subfaces[ki]->vertices();
+	      for (size_t kj=0; kj<vx_pri_.size(); ++kj)
+		{
+		  size_t kh;
+		  for (kh=0; kh<vx.size(); ++kh)
+		    {
+		      double dist = vx_pri_[kj]->getDist(vx[kh]);
+		      if (dist < epsge_)
+			break;
+		    }
+		  if (kh < vx.size())
+		    vxpri.push_back(vx[kh]);
+		}
+	      if (vxpri.size() > 0)
+		regularize.setPriVx(vxpri);
+	    }
+
 	  vector<shared_ptr<ftSurface> > faces = 
 	    regularize.getRegularFaces();
 
@@ -2258,7 +2341,11 @@ RegularizeFace::getSignificantVertex(vector<shared_ptr<Vertex> > cand_vx)
 //==========================================================================
 {
   vector<shared_ptr<Vertex> > cand_vx2;
-  if (cand_split_.size() > 0)
+
+  // Look for context information
+  if (vx_pri_.size() > 0)
+    cand_vx2.insert(cand_vx2.end(), vx_pri_.begin(), vx_pri_.end());
+  else if (cand_split_.size() > 0)
     {
       // Compute minimum distance between candidate vertices
       size_t ki, kj;
@@ -7721,6 +7808,26 @@ RegularizeFace::splitWithPatternLoop()
 	      regularize.unsetTopLevel();
 	      if (cand_split_.size() >  0)
 		regularize.setCandSplit(cand_split_);
+
+	      if (vx_pri_.size() > 0)
+		{
+		  vector<shared_ptr<Vertex> > vxpri;
+		  vector<shared_ptr<Vertex> > vx = faces[kj]->vertices();
+		  for (size_t kr=0; kr<vx_pri_.size(); ++kr)
+		    {
+		      size_t kh;
+		      for (kh=0; kh<vx.size(); ++kh)
+			{
+			  double dist = vx_pri_[kr]->getDist(vx[kh]);
+			  if (dist < epsge_)
+			    break;
+			}
+		      if (kh < vx.size())
+			vxpri.push_back(vx[kh]);
+		    }
+		  if (vxpri.size() > 0)
+		    regularize.setPriVx(vxpri);
+		}
 
 	      vector<shared_ptr<ftSurface> > faces2 = 
 		regularize.getRegularFaces();

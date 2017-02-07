@@ -37,28 +37,32 @@
  * written agreement between you and SINTEF ICT. 
  */
 
-#ifndef __POINTSETAPP_H
-#define __POINTSETAPP_H
+#include "GoTools/compositemodel/SurfaceModel.h"
+#include "GoTools/compositemodel/CompositeModelFileHandler.h"
+#include <fstream>
 
-#include "GoTools/compositemodel/ftPointSet.h"
+using namespace Go;
 
-namespace Go
+int main( int argc, char* argv[] )
 {
-  /// Point set and triangulation applicitions
-  namespace PointSetApp
-  {
-    /// Parameterize triangulated point set
-    void parameterizeTriang(const double *xyz_points, int nmbp, 
-			    const int *triangles, int nmbt,
-			    std::vector<double>& uv_pars);
-
-    /// Service functionality for parameterizeTriang
-    bool recognizeBoundary(shared_ptr<ftPointSet>& triang,
-			   std::vector<int>& corner_ix);
-    bool recognizeCornerNodes(const shared_ptr<ftPointSet>& triang,
-			      const std::vector<int>& bd_nodes,
-			      std::vector<int>& corner_ix);
+  if (argc != 2) {
+    std::cout << "Input parameters : Input file on g22 format," << std::endl;
+    exit(-1);
   }
-}
 
-#endif // __POINTSETAPP_H
+  // Read input arguments
+  std::string file1(argv[1]);
+
+  CompositeModelFileHandler filehandler;
+  SurfaceModel sfmod = filehandler.readSurfModel(file1.c_str());
+  shared_ptr<Body> body = filehandler.readBody(file1.c_str());
+  
+  tpTolerances toptol = sfmod.getTolerances();
+  std::cout << "Gap: " << toptol.gap << std::endl;
+  std::cout << "Neighbour: " << toptol.neighbour << std::endl;
+  std::cout << "Kink: " << toptol.kink << std::endl;
+  std::cout << "Bend: " << toptol.bend << std::endl;
+  std::cout << "Material: " << body->getMaterial() << std::endl;
+}
+ 
+

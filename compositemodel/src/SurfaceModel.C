@@ -68,7 +68,7 @@
 #include "GoTools/topology/FaceConnectivityUtils.h"
 
 //#define DEBUG
-//#define DEBUG_REG
+#define DEBUG_REG
 
 using std::vector;
 using std::make_pair;
@@ -79,8 +79,7 @@ using std::ofstream;
 namespace Go
 {
 
-
-  //===========================================================================
+//===========================================================================
   SurfaceModel::SurfaceModel(std::vector<shared_ptr<ftSurface> >& faces,
 			     double space_epsilon,
 			     double kink,  // Kink between adjacent surfaces 
@@ -1372,6 +1371,8 @@ void SurfaceModel::swapFaces(int idx1, int idx2)
 	
 	// Handle neighbours to neighbour
 	shared_ptr<ftSurface> curr_face = fetchAsSharedPtr(neighbours[ki]);
+	if (!curr_face.get())
+	  continue;
 	getCurrConnectedModel(curr_face, curr_set, all_sets);
       }
   }

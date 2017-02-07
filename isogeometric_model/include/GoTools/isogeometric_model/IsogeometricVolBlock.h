@@ -231,7 +231,7 @@ namespace Go
 
     bool sameDirOrder(int face_nmb) const;
 
-  private:
+  protected:
 
     // The volume describing the geometry
     shared_ptr<SplineVolume> volume_;

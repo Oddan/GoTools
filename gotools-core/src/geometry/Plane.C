@@ -853,4 +853,28 @@ bool Plane::isLinear(Point& dir1, Point& dir2, double tol)
   return true;
 }
 
+//===========================================================================
+  void Plane::enlarge(double len1, double len2, double len3, double len4)
+//===========================================================================
+{
+  // Distances are given in geometry space, but for planes, this is the
+  // same as parameter space
+  double u1, u2, v1, v2;
+  if (isSwapped())
+    {
+      u1 = domain_.vmin() - len1;
+      u2 = domain_.vmax() + len2;
+      v1 = domain_.umin() - len3;
+      v2 = domain_.umax() + len4;
+    }
+  else
+    {
+      u1 = domain_.umin() - len1;
+      u2 = domain_.umax() + len2;
+      v1 = domain_.vmin() - len3;
+      v2 = domain_.vmax() + len4;
+    }
+  setParameterBounds(u1, v1, u2, v2);
+}
+
 } // namespace Go

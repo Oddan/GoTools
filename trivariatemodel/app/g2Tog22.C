@@ -9,11 +9,6 @@
  *
  * This file is part of GoTools.
  *
- * GoTools is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Affero General Public License as
- * published by the Free Software Foundation, either version 3 of the
- * License, or (at your option) any later version. 
- *
  * GoTools is distributed in the hope that it will be useful,        
  * but WITHOUT ANY WARRANTY; without even the implied warranty of         
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the          
@@ -37,52 +32,63 @@
  * written agreement between you and SINTEF ICT. 
  */
 
-#include "GoTools/compositemodel/PointSetApp.h"
+#include <iostream>
 #include <fstream>
-#include <stdlib.h> // For atof()
 
-using namespace std;
+#include "GoTools/geometry/Utils.h"
+#include "GoTools/geometry/ObjectHeader.h"
+#include "GoTools/trivariate/SplineVolume.h"
+#include "GoTools/trivariatemodel/ftVolume.h"
+#include "GoTools/trivariatemodel/VolumeModel.h"
+#include "GoTools/trivariatemodel/VolumeModelFileHandler.h"
+
 using namespace Go;
+using std::vector;
 
 int main( int argc, char* argv[] )
 {
   if (argc != 3) {
-    std::cout << "Input parameters : Input file, Output file"  << std::endl;
+    std::cout << "Input parameters : Input file(.g2), output file(.g22)" << std::endl;
     exit(-1);
   }
 
   // Read input arguments
-  std::ifstream is(argv[1]);
-  ALWAYS_ERROR_IF(is.bad(), "Input file not found or file corrupt");
-  std::ofstream os(argv[2]);
+  std::ifstream file1(argv[1]); // Volumes.
+  ALWAYS_ERROR_IF(file1.bad(), "Input file not found or file corrupt");
 
-  // Read input file
-  int numpnts = 0;
-  int numtrs = 0;
-  is >> numpnts;
-  is >> numtrs;
-   
-  vector<double> xyz(3*numpnts);
-  vector<int> tri(3*numtrs);
+  std::ofstream out_file(argv[2]);
 
-  int ki;
-  for (ki=0; ki<numpnts; ++ki)
-    is >> xyz[3*ki] >> xyz[3*ki+1] >> xyz[3*ki+2];
-  for (ki=0; ki<numtrs; ++ki)
-    is >> tri[3*ki] >> tri[3*ki+1] >> tri[3*ki+2];
+  vector<shared_ptr<ftVolume> > volumes;
 
-  // Parameterize
-  vector<double> param;
-  PointSetApp::parameterizeTriang(&xyz[0], numpnts, &tri[0], numtrs,
-				  param);
-
-  streamsize prev = os.precision(15);
-  os << numpnts << std::endl;
-  for (ki=0; ki<numpnts; ++ki)
+  while (!file1.eof())
     {
-      os << param[2*ki] << " " << param[2*ki+1] << " ";
-      os << xyz[3*ki] << " " << xyz[3*ki+1] << " " << xyz[3*ki+2];
-      os << std::endl;
-    }
-}
+      // Read volume from file
+      ObjectHeader head;
+      file1 >> head;
+      shared_ptr<SplineVolume> vol2;
+      vol2 = shared_ptr<SplineVolume>(new SplineVolume());
+      vol2->read(file1);
 
+      shared_ptr<ParamVolume> pvol
+          = dynamic_pointer_cast<ParamVolume, SplineVolume>(vol2);
+      volumes.push_back(shared_ptr<ftVolume>(new ftVolume(pvol)));
+      // volumes.push_back(shared_ptr<ftVolume>(new ftVolume(vol2)));
+
+      Utils::eatwhite(file1);
+    }
+
+  double gap = 0.001;
+  double neighbour = 0.01;
+  double kink = 0.01;
+  double bend = 0.05;
+  // double approxtol = 0.01;
+  shared_ptr<VolumeModel> volmodel =
+    shared_ptr<VolumeModel>(new VolumeModel(volumes, gap, neighbour, 
+					    kink, bend));
+
+  VolumeModelFileHandler filehandler;
+  filehandler.writeStart(out_file);
+  filehandler.writeHeader("Converted from g2", out_file);
+  filehandler.writeVolumeModel(*volmodel, out_file);
+  filehandler.writeEnd(out_file);
+}

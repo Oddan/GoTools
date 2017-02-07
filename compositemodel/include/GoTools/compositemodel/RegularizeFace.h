@@ -96,6 +96,12 @@ class RegularizeFace
     nonTjoint_faces_ = faces;
   }
 
+  /// Set vertices prioritized for split
+  void setPriVx(std::vector<shared_ptr<Vertex> > vx_pri)
+  {
+    vx_pri_ = vx_pri;
+  }
+
   void setSplitMode(int split_mode)
   {
     split_mode_ = split_mode;
@@ -179,6 +185,9 @@ class RegularizeFace
   std::vector<std::pair<Point,Point> > corr_vx_pts_;
 
   std::vector<shared_ptr<ftSurface> > nonTjoint_faces_;
+
+  // Vertices prioritized for split
+  std::vector<shared_ptr<Vertex> > vx_pri_;
 
     // Perform division
   void divide();

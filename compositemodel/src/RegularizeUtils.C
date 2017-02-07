@@ -37,7 +37,7 @@
  * written agreement between you and SINTEF ICT. 
  */
 
-//#define DEBUG_REG
+#define DEBUG_REG
 
 #include "GoTools/compositemodel/RegularizeUtils.h"
 #include "GoTools/geometry/BoundedUtils.h"
@@ -259,7 +259,7 @@ RegularizeUtils::findVertexSplit(shared_ptr<ftSurface> face,
       std::ofstream ofvx4("edge_vx2.g2");
       ofvx4 << "400 1 0 4 155 0 100 255" << std::endl;
       ofvx4 << "1" << std::endl;
-      ofvx4 << cand_edge->point(0.5*(cand_edge->tMin()+cand_edge->tMax()));
+      ofvx4 << cand_edge->point(0.5*(cand_edge->tMin()+cand_edge->tMax())) << std::endl;
      }
 #endif
 
@@ -735,7 +735,8 @@ RegularizeUtils::createFaces(vector<shared_ptr<BoundedSurface> >& sub_sfs,
 
   // Theoretically a face can have an equal number of edges meeting in 
   // a given vertex. Assume two, and use the two first edges
-  ASSERT(edges.size() >= 2);
+  if (edges.size() < 2)
+    THROW("getDivisionPlane: edges.size() < 2");
 
   // Define plane
   pnt = face->point(param[0], param[1]);

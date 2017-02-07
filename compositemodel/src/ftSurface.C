@@ -59,6 +59,7 @@
 #include "GoTools/tesselator/RegularMesh.h"
 #include "GoTools/tesselator/GenericTriMesh.h"
 #include "GoTools/creators/CoonsPatchGen.h"
+#include "GoTools/topology/FaceConnectivity.h"
 
 #include "GoTools/geometry/LineCloud.h"
 #include <fstream>
@@ -74,14 +75,16 @@ namespace Go
 
 //---------------------------------------------------------------------------
 ftSurface::ftSurface(shared_ptr<ParamSurface> sf, int id)
-  : ftFaceBase(id), surf_(sf), prio_type_(ftNoType), twin_(0), body_(0)
+  : ftFaceBase(id), surf_(sf), prio_type_(ftNoType), twin_(0), body_(0),
+    boundary_cond_type_(-1), boundary_cond_(-1)
 //---------------------------------------------------------------------------
 {
 }
 
 //---------------------------------------------------------------------------
 ftSurface::ftSurface(shared_ptr<ParamSurface> sf, shared_ptr<Loop> loop, int id)
-  : ftFaceBase(id), surf_(sf), prio_type_(ftNoType), twin_(0), body_(0)
+  : ftFaceBase(id), surf_(sf), prio_type_(ftNoType), twin_(0), body_(0),
+    boundary_cond_type_(-1), boundary_cond_(-1)
 //---------------------------------------------------------------------------
 {
     addOuterBoundaryLoop(loop);
@@ -2001,6 +2004,31 @@ vector<shared_ptr<Vertex> > ftSurface::getCommonVertices(ftSurface *other) const
 	  }
       }
   return vx3;
+}
+
+//===========================================================================
+  bool ftSurface::isAdjacent(ftSurface *other, bool& smooth) const
+//===========================================================================
+{
+  smooth = true;  // Initial assumption
+  vector<shared_ptr<ftEdge> > edgs = getCommonEdges(other);
+  for (size_t ki=0; ki<edgs.size(); ++ki)
+    {
+      if (edgs[ki]->hasConnectivityInfo())
+	{
+	  int status = edgs[ki]->getConnectivityInfo()->WorstStatus();
+	  if (status > 1)
+	    smooth = false;
+	}
+      else
+	{
+	  smooth = false;  // Information unexpectedly not computed
+	}
+    }
+  if (edgs.size() == 0)
+    smooth = false;
+
+  return (edgs.size() > 0);
 }
 
 //===========================================================================

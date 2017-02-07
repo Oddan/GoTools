@@ -668,6 +668,20 @@ class GO_API SplineSurface : public ParamSurface
     int numCoefs_v() const
     { return basis_v_.numCoefs(); }
 
+    /// Query the number of elements in the SplineSurface
+    int numElem() const
+    {
+      return basis_u_.numElem()*basis_v_.numElem();
+    }
+
+    /// Query the number of elements in one parameter direction of 
+    /// the SplineSurface
+    int numElem(int pardir) const
+    {
+      return (pardir == 0) ? basis_u_.numElem() :
+	basis_v_.numElem();
+    }
+
     /// Query the order of the BsplineBasis for the first parameter
     /// \return  the order of the BsplineBasis for the first parameter
     int order_u() const
@@ -1283,6 +1297,12 @@ class GO_API SplineSurface : public ParamSurface
     /// checkElementarySurface().
     shared_ptr<ElementarySurface> getElementarySurface();
 
+    /// Return associated elementary surface, if any
+    virtual ElementarySurface* elementarySurface()
+    {
+      return elementary_surface_.get();
+    }
+      
     /// Set shared pointer to the ElementarySurface that is
     /// represented by \c this.
     ///

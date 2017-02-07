@@ -75,6 +75,9 @@ int main( int argc, char* argv[] )
 
   if (sfmodel)
   {
+    BoundingBox box = sfmodel->boundingBox();
+    std::cout << "Bounding box, low: " << box.low() << std::endl;
+    std::cout << "high: " << box.high() << std::endl;
       std::ofstream out_file("iges.g2");
       int nmb = sfmodel->nmbEntities();
       for (int ki=0; ki<nmb; ki++)

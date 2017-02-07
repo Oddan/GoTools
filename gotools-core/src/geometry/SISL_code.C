@@ -42663,6 +42663,11 @@ void s1310(SISLSurf *psurf1,SISLSurf *psurf2,SISLIntcurve *pinter,
   double tltan1=DZERO;     /* Length of tangents                        */
   double tltan2=DZERO;     /* Length of tangents                        */
   double tang1,tang2;      /* Angles                                    */
+  double tdang1,tdang2,tdang3,tdang4;   /* Angles between intersection
+					 curve tangent and partial derivative */
+  double tdminang;         /* Minimum angle between intersection point on 
+			      boundary and boundary tangent             */
+  double *sdminang=SISL_NULL;  /* Remember minimum angles               */
   int knb1=0;              /* Remember number of points after marching
 			      in first marching direction               */
   int kgd1=0;              /* Remeber last guide point used in first
@@ -42890,6 +42895,10 @@ void s1310(SISLSurf *psurf1,SISLSurf *psurf2,SISLIntcurve *pinter,
   sgd2 = newarray(21*kpoint,DOUBLE);
   if (sgd2==SISL_NULL) goto err101;
 
+  sdminang = newarray(kpoint,DOUBLE);
+  if (sdminang==SISL_NULL) 
+    goto err101;
+
   kpos = 5;
 
   /* Initiate kstart to point at no point */
@@ -42945,6 +42954,22 @@ void s1310(SISLSurf *psurf1,SISLSurf *psurf2,SISLIntcurve *pinter,
 
 	  tlnorm = s6length(sdum1,kdim,&kstat);
 
+	  /* Compute angle between tangent and partial derivatives */
+	  tdang1 = s6ang(sdum1, sgd1+kl+3, kdim);
+	  tdang2 = s6ang(sdum1, sgd1+kl+6, kdim);
+	  tdang3 = s6ang(sdum1, sgd2+kl+3, kdim);
+	  tdang4 = s6ang(sdum1, sgd2+kl+6, kdim);
+	  tdminang = HUGE;
+	  if (sgpar1[kj] == sval1[0] || sgpar1[kj] == sval1[1])
+	    tdminang = min(tdminang, tdang2);
+	  if (sgpar1[kj+1] == sval2[0] || sgpar1[kj+1] == sval2[1])
+	    tdminang = min(tdminang, tdang1);
+	  if (sgpar2[kj] == sval3[0] || sgpar2[kj] == sval3[1])
+	    tdminang = min(tdminang, tdang4);
+	  if (sgpar2[kj+1] == sval4[0] || sval4[1])
+	    tdminang = min(tdminang, tdang2);
+	  sdminang[ki] = (tlnorm != DZERO) ? tdminang : 0.0;
+
 	  /* Remember if start, internal or end point */
 
 	  if (tlnorm != DZERO)
@@ -42959,6 +42984,37 @@ void s1310(SISLSurf *psurf1,SISLSurf *psurf2,SISLIntcurve *pinter,
         }
     }
 
+  /* If necessary, modify start point to avoid an intersection curve that 
+     is tangential to the boundary of a surface */
+  if (sdminang[kstart-1] < 5.0*ANGULAR_TOLERANCE)
+    {
+      /* Check internal points */
+      for (ki=kfirst; ki<klast-1; ++ki)
+	{
+	  if (sdminang[ki] >= 5.0*ANGULAR_TOLERANCE)
+	    {
+	      kstart = ki+1;
+	      break;
+	    }
+	}
+
+      if (sdminang[kstart-1] < 5.0*ANGULAR_TOLERANCE)
+	{
+	  /* Check endpoints */
+	  if (sdminang[kfirst-1] >= 5.0*ANGULAR_TOLERANCE)
+	    kstart = kfirst;
+	  else if (sdminang[klast-1] >= 5.0*ANGULAR_TOLERANCE)
+	    kstart = klast;
+	  else
+	    {
+	      /* Maximalize the minimum angle */
+	      kstart = kfirst;
+	      for (ki=kfirst; ki<klast; ++ki)
+		if (sdminang[ki] > sdminang[kstart-1])
+		  kstart = ki + 1;
+	    }
+	}
+    }
 
   /* Check if only degenerate points or singularities exist on the
      intersection curve */
@@ -50166,12 +50222,14 @@ void s1330(double epar11[],double epar12[],double epar21[],double epar22[],
   if (eval11[0] <= epar11[0] && epar11[0] <= eval11[1] &&
       eval12[0] <= epar11[1] && epar11[1] <= eval12[1] &&
       eval21[0] <= epar12[0] && epar12[0] <= eval21[1] &&
-      eval22[0] <= epar12[1] && epar12[1] <= eval22[1]) kins1 = 1;
+      eval22[0] <= epar12[1] && epar12[1] <= eval22[1]) 
+    kins1 = 1;
   
   if (eval11[0] <= epar21[0] && epar21[0] <= eval11[1] &&
       eval12[0] <= epar21[1] && epar21[1] <= eval12[1] &&
       eval21[0] <= epar22[0] && epar22[0] <= eval21[1] &&
-      eval22[0] <= epar22[1] && epar22[1] <= eval22[1]) kins2 = 1;
+      eval22[0] <= epar22[1] && epar22[1] <= eval22[1]) 
+    kins2 = 1;
   
   
   /* Test if we step from the boundary and out */
@@ -50183,9 +50241,11 @@ void s1330(double epar11[],double epar12[],double epar21[],double epar22[],
       (eval21[0] == epar12[0] && epar22[0] < eval21[0]) ||
       (epar12[0] == eval21[1] && eval21[1] < epar22[0]) ||
       (eval22[0] == epar12[1] && epar22[1] < eval22[0]) ||
-      (epar12[1] == eval22[1] && eval22[1] < epar22[1])) goto war04;
+      (epar12[1] == eval22[1] && eval22[1] < epar22[1])) 
+    goto war04;
   
-  if (kins1==1 && kins2==1) goto war01;
+  if (kins1==1 && kins2==1) 
+    goto war01;
   
   /* Test if both ends are to the left, right, below or above */
   
@@ -50196,7 +50256,8 @@ void s1330(double epar11[],double epar12[],double epar21[],double epar22[],
       (epar12[0]  < eval21[0] && epar22[0]  < eval21[0]) ||
       (eval21[1] < epar12[0]  && eval21[1] < epar22[0] ) ||
       (epar12[1]  < eval22[0] && epar22[1]  < eval22[0]) ||
-      (eval22[1] < epar12[1]  && eval22[1] < epar22[1] )   ) goto war00;
+      (eval22[1] < epar12[1]  && eval22[1] < epar22[1] )   ) 
+    goto war00;
   
   
   
@@ -50646,15 +50707,15 @@ void s1310_s9constline(SISLSurf *ps1,SISLSurf *ps2,SISLIntcurve *pintcr,
   int kdir2;
   int knbpnt;              /* Number of points on constant parameter line */
   int kleft1=0,kleft2=0;   /* Pointers into knot vectors                */
-  //int kstop;               /* Stop value in loop                        */
+  int kstop;               /* Stop value in loop                        */
   double *sp=SISL_NULL;         /* Array for storage of points in
 			      parameter plane */
   double *sv=SISL_NULL;         /* Array for storage of tangents in
 			      parameter plane*/
   double *spar=SISL_NULL;       /* Array for storage of parameter values     */
   double *stp,*stv,*stpar; /* Pointers to sp,sv and spar                */
-  //double tdistp,tdistc;    /* Distances between points                  */
-  //double tfak;             /* Scaling factor                            */
+  double tdistp,tdistc;    /* Distances between points                  */
+  double tfak;             /* Scaling factor                            */
   double sstart[4];        /* Lower boundary of parameter intervals     */
   double send[4];          /* Upper bounadry of parameter intervals     */
   double snext[3];         /* Existing iteration point on  surface      */
@@ -50989,8 +51050,10 @@ void s1310_s9constline(SISLSurf *ps1,SISLSurf *ps2,SISLIntcurve *pintcr,
 
 	      tdist = s6dist(sders,sderc,3);
 
-	      if (DNEQUAL(tdist+tmax,tmax))
+	      if (tdist > aepsge)
 		break;
+	      // if (DNEQUAL(tdist+tmax,tmax))
+	      // 	break;
 		//goto war00;
 
 	      /* Distance within tolerance, check that the angle between surface
@@ -51063,24 +51126,21 @@ void s1310_s9constline(SISLSurf *ps1,SISLSurf *ps2,SISLIntcurve *pintcr,
 	     remember that first and second points are equal and that first point
 	     is not used futher on */
 
-	  // @@@ VSK, June 2012. This scaling seems already to be done in
-	  // s1379. Double scaling creates an overshoot in the computation
-	  // of coefficients
-	  // tdistp = s6dist(sp+2,sp+4,2);
-	  // *(sv+2) *= tdistp;
-	  // *(sv+3) *= tdistp;
+	  tdistp = s6dist(sp+2,sp+4,2);
+	  *(sv+2) *= tdistp;
+	  *(sv+3) *= tdistp;
 
-	  // for (ki=2,stp=sp+4,stv=sv+4,kstop=kn+kn-1 ; ki < kstop ;
-	  // 	   ki++,stp+=2,stv+=2)
-	  // 	{
-	  // 	  tdistc = s6dist(stp,stp+2,2);
-	  // 	  tfak = (tdistp+tdistc)/(double)2.0;
-	  // 	  *stv     *= tfak,
-	  // 	  *(stv+1) *= tfak;
-	  // 	  tdistp = tdistc;
-	  // 	}
-	  // *stv     *= tdistp;
-	  // *(stv+1) *= tdistp;
+	  for (ki=2,stp=sp+4,stv=sv+4,kstop=kn+kn-1 ; ki < kstop ;
+	  	   ki++,stp+=2,stv+=2)
+	  	{
+	  	  tdistc = s6dist(stp,stp+2,2);
+	  	  tfak = (tdistp+tdistc)/(double)2.0;
+	  	  *stv     *= tfak,
+	  	  *(stv+1) *= tfak;
+	  	  tdistp = tdistc;
+	  	}
+	  *stv     *= tdistp;
+	  *(stv+1) *= tdistp;
 
 
 	  /* The first parameter pair is doubly represented */

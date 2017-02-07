@@ -1057,17 +1057,17 @@ bool VolumeTools::getVolBdCoefEnumeration(shared_ptr<SplineVolume> vol, int bd,
     // bd_sfs[1]->swapParameterDirection();
     // bd_sfs[2]->swapParameterDirection();
     // bd_sfs[5]->swapParameterDirection();
-    if (true)//lefthanded)
+    if (lefthanded)
       {
 	bd_sfs[1]->swapParameterDirection();
-	bd_sfs[3]->swapParameterDirection();
-	bd_sfs[4]->swapParameterDirection();
+	bd_sfs[2]->swapParameterDirection();
+	bd_sfs[5]->swapParameterDirection();
       }
     else
       {
 	bd_sfs[0]->swapParameterDirection();
-	bd_sfs[2]->swapParameterDirection();
-	bd_sfs[5]->swapParameterDirection();
+	bd_sfs[3]->swapParameterDirection();
+	bd_sfs[4]->swapParameterDirection();
       }
 
 

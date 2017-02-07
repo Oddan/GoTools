@@ -59,6 +59,7 @@ enum IteratorType
 
  class CurveLoop; // forward declaration
  class SplineSurface;
+ class ElementarySurface;
 
   /** Base class for parametric surfaces in Go
    *
@@ -80,6 +81,12 @@ public:
       return 0;  // Default behaviour
     }
 
+    /// Return associated elementary surface, if any
+    virtual ElementarySurface* elementarySurface()
+    {
+      return 0;
+    }
+      
     /// Return the parameter domain of the surface.  This may be a simple
     /// rectangular domain (\ref RectDomain) or any other subclass of
     /// \ref Domain (such as GoCurveBoundedDomain, found in the

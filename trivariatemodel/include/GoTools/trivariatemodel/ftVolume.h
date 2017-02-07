@@ -41,13 +41,14 @@
 #define _FTVOLUME_H
 
 #include "GoTools/trivariate/ParamVolume.h"
+#include "GoTools/trivariate/SurfaceOnVolume.h"
+#include "GoTools/trivariate/CurveOnVolume.h"
 #include "GoTools/compositemodel/SurfaceModel.h"
 #include "GoTools/compositemodel/Body.h"
 
 namespace Go
 {
 
-  class SurfaceOnVolume;
   class ParamCurve;
 
   /// Struct to store information about adjacency relations between two bodies
@@ -329,6 +330,9 @@ namespace Go
     /// Modify a regularized, possibly trimmed volume to become non-trimmed
     bool untrimRegular(int degree);
 
+    /// Approximate parameter volume by a non-trimmed spline volume
+    shared_ptr<ParamVolume> getRegParVol(int degree);
+
 /*     /// Split this and the corresponding volume with regard to the */
 /*     /// intersections between the boundary surfaces corresponding to */
 /*     /// these two volumes */
@@ -353,6 +357,10 @@ namespace Go
     /// while maintaining topology information
     void 
       updateBoundaryInfo();
+
+    void splitElementByTrimSfs(int elem_ix, double eps,
+			       std::vector<shared_ptr<ftVolume> >& sub_elem,
+			       std::vector<int>& is_inside);
 
     /// Debug
     bool checkBodyTopology();
@@ -485,20 +493,61 @@ namespace Go
 
     void simplifyOuterBdShell(int degree);
 
-    int mergeSituation(ftSurface* face1, ftSurface* face2,
-		       shared_ptr<Vertex> vx1, shared_ptr<Vertex> vx2,
-		       int& dir1, double& val1, bool& atstart1, 
-		       int& dir2, double& val2, bool& atstart2, 
-		       std::pair<Point, Point>& co_par1, 
-		       std::pair<Point, Point>& co_par2);
+   /*  int mergeSituation(ftSurface* face1, ftSurface* face2, */
+   /* 		       shared_ptr<Vertex> vx1, shared_ptr<Vertex> vx2, */
+   /* 		       int& dir1, double& val1, bool& atstart1,  */
+   /* 		       int& dir2, double& val2, bool& atstart2,  */
+   /* 		       std::pair<Point, Point>& co_par1,  */
+   /* 		       std::pair<Point, Point>& co_par2); */
 
-   std::vector<ftSurface*> getMergeCandFaces(shared_ptr<ftSurface> curr,
-					     std::vector<std::pair<shared_ptr<Vertex>,
-					      shared_ptr<Vertex> > >& common_vxs);
+   /* std::vector<ftSurface*> getMergeCandFaces(shared_ptr<ftSurface> curr, */
+   /* 					     std::vector<std::pair<shared_ptr<Vertex>, */
+   /* 					      shared_ptr<Vertex> > >& common_vxs); */
 
-   void estMergedSfSize(ftSurface* face1, ftSurface* face2,
-			shared_ptr<Vertex> vx1,shared_ptr<Vertex> vx2,
-			double& len_frac, double& other_frac, double& sf_reg);
+   /* void estMergedSfSize(ftSurface* face1, ftSurface* face2, */
+   /* 			shared_ptr<Vertex> vx1,shared_ptr<Vertex> vx2, */
+   /* 			double& len_frac, double& other_frac, double& sf_reg); */
+
+   void setParameterVolAdjacency(std::vector<shared_ptr<ParamSurface> >& sfs1,
+				 std::vector<shared_ptr<ftSurface> >& face2) const;
+
+   // This class inherits SurfaceOnVolume and overrules the point evaluator
+   // to return the volume parameter value corresponding to a point on
+   // the surface
+   // Make private inside this class to control the use
+   class ParameterSurfaceOnVolume : public SurfaceOnVolume
+   {
+   public:
+     ParameterSurfaceOnVolume(shared_ptr<ParamVolume> vol,
+			      shared_ptr<ParamSurface> spacesurf);
+
+     virtual void point(Point& pt, double upar, double vpar) const;
+
+     virtual std::vector<shared_ptr<ParamCurve> >
+       constParamCurves(double parameter, bool pardir_is_u) const;
+   };
+
+   class ParameterCurveOnVolume : public CurveOnVolume
+   {
+   public:
+     ParameterCurveOnVolume(shared_ptr<ParamVolume> vol,
+			    shared_ptr<ParamCurve> spacecrv);
+
+     ParameterCurveOnVolume(shared_ptr<ParamVolume> vol,
+			    shared_ptr<ParamCurve> pcrv,
+			    shared_ptr<ParamCurve> spacecrv);
+
+     virtual void point(Point& pt, double par) const;
+
+     virtual void point(std::vector<Point>& pts, 
+			double tpar,
+			int derivs, bool from_right = true) const;
+
+     virtual ParameterCurveOnVolume* subCurve(double from_par, double to_par,
+					     double fuzzy =
+					     DEFAULT_PARAMETER_EPSILON) const;
+   };
+
   };
 
 

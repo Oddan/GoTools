@@ -116,6 +116,9 @@ class RegularizeFaceSet
 
   std::vector<std::pair<Point,Point> > corr_vx_pts_;
 
+  // Vertices prioritized for splitting
+  std::vector<std::pair<shared_ptr<Vertex>,int> > vx_pri_;
+
   // Information about adjacent surface models that are
   // updated during the regularization of the current model
   std::vector<SurfaceModel*> modified_models_;
@@ -189,6 +192,8 @@ void prioritizeFaces(std::vector<shared_ptr<ftSurface> >& faces,
 void
   computeFaceCorrespondance(std::vector<shared_ptr<ftSurface> >& faces);
 
+void defineSplitVx(std::vector<shared_ptr<ftSurface> >& faces,
+		   std::vector<int>& perm);
 };
 
 }  // namespace Go

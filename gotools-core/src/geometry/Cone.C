@@ -799,6 +799,11 @@ void Cone::setParameterBounds(double from_upar, double from_vpar,
 
     // NOTE: If parameters are swapped, from_upar and from_vpar are swapped.
     // Ditto for to_upar/to_vpar.
+    double tol = 1.0e-13;
+    if (from_upar > -2.0 * M_PI - tol && from_upar < -2.0 * M_PI)
+      from_upar = -2.0 * M_PI;
+    if (to_upar < 2.0 * M_PI + tol && to_upar >2.0 * M_PI)
+      to_upar = 2.0 * M_PI;
     if (from_upar < -2.0 * M_PI || to_upar > 2.0 * M_PI)
         THROW("u-parameters must be in [-2pi, 2pi].");
     if (to_upar - from_upar > 2.0 * M_PI)
@@ -820,6 +825,11 @@ void Cone::setParamBoundsU(double from_upar, double to_upar)
     getOrientedParameters(from_upar, from_vpar);
     getOrientedParameters(to_upar, to_vpar);
 
+    double tol = 1.0e-13;
+    if (from_upar > -2.0 * M_PI - tol && from_upar < -2.0 * M_PI)
+      from_upar = -2.0 * M_PI;
+    if (to_upar < 2.0 * M_PI + tol && to_upar >2.0 * M_PI)
+      to_upar = 2.0 * M_PI;
     if (from_upar >= to_upar )
         THROW("First u-parameter must be strictly less than second.");
     if (from_upar < -2.0 * M_PI || to_upar > 2.0 * M_PI)
@@ -1172,6 +1182,67 @@ bool Cone::isAxisRotational(Point& centre, Point& axis, Point& vec,
   angle = domain_.umax() - domain_.umin();
 
   return true;
+}
+
+//===========================================================================
+double Cone::radius(double u, double v) const
+//===========================================================================
+{
+    getOrientedParameters(u, v); // In case of swapped
+    double rad = radius_ + v * tan(cone_angle_);
+    return rad;
+}
+
+//===========================================================================
+  void Cone::enlarge(double len1, double len2, double len3, double len4)
+//===========================================================================
+{
+  // Distances are given in geometry space, compute corresponding parameter
+  // distance in the rotational direction
+  double u1, u2, v1, v2;
+  double h = radius_/tan(cone_angle_);
+  if (isSwapped())
+    {
+      double alpha1 = len3/radius_;
+      double alpha2 = len4/radius_;
+      double p1 = len1*cos(cone_angle_);
+      double p2 = len2*cos(cone_angle_);
+      u1 = domain_.vmin() - p1;
+      u2 = domain_.vmax() + p2;
+      v1 = std::max(domain_.umin() - alpha1, 
+		    std::max(-2.0*M_PI, domain_.umax()-2.0*M_PI));
+      v2 = std::min(domain_.umax() + alpha2, 
+		    std::min(2.0*M_PI, domain_.umin()+2.0*M_PI));
+      
+      u1 = std::max(u1, -h);
+      if (v2 - v1 > 2.0*M_PI)
+	{
+	  double vdel = v2 - v1 - 2.0*M_PI;
+	  v2 -= 0.5*vdel;
+	  v1 += 0.5*vdel;
+	}
+     }
+  else
+    {
+      double alpha1 = len1/radius_;
+      double alpha2 = len2/radius_;
+      double p1 = len3*cos(cone_angle_);
+      double p2 = len4*cos(cone_angle_);
+      u1 = std::max(domain_.umin() - alpha1, 
+		    std::max(-2.0*M_PI, domain_.umax()-2.0*M_PI));
+      u2 = std::min(domain_.umax() + alpha2, 
+		    std::min(2.0*M_PI, domain_.umin()+2.0*M_PI));
+      v1 = domain_.vmin() - p1;
+      v2 = domain_.vmax() + p2;
+      if (u2 - u1 > 2.0*M_PI)
+	{
+	  double udel = u2 - u1 - 2.0*M_PI;
+	  u2 -= 0.5*udel;
+	  u1 += 0.5*udel;
+	}
+      v1 = std::max(v1, -h);
+    }
+  setParameterBounds(u1, v1, u2, v2);
 }
 
 } // namespace Go

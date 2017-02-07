@@ -43,6 +43,11 @@
 #include "GoTools/compositemodel/CompositeModelFactory.h"
 #include "GoTools/compositemodel/SurfaceModel.h"
 #include "GoTools/compositemodel/RegularizeFaceSet.h"
+#include "GoTools/trivariatemodel/VolumeModelFileHandler.h"
+#include "GoTools/trivariate/CurveOnVolume.h"
+#include "GoTools/trivariate/SurfaceOnVolume.h"
+#include "GoTools/geometry/Factory.h"
+#include "GoTools/geometry/GoTools.h"
 
 using namespace Go;
 using std::cout;
@@ -53,68 +58,74 @@ using std::vector;
 
 int main(int argc, char* argv[] )
 {
-  if (argc != 4)
+  if (argc != 4 && argc != 5)
     {
-      cout << "Usage: " << "<infile> <outfile> <block structuring mode (1,2,3)>" << endl;
+      cout << "Usage: " << "<infile> <outfile> <block structuring mode (1,2,3)> (<file type, 2 for g22>)" << endl;
       exit(-1);
     }
 
-  ifstream infile(argv[1]);
-  ALWAYS_ERROR_IF(infile.bad(), "Bad or no input filename");
+  std::string infile(argv[1]);
 
   ofstream outfile(argv[2]);
   int split_mode = atoi(argv[3]);
   if (split_mode < 1 || split_mode > 3)
     split_mode = 1;  // Default
 
-  // The tolerances must be set according to the properties of the model.
-  // The neighbour tolerance must be smaller than the smallest entity in the
-  // model, but larger than the largest gap.
-  // The gap tolerance must be smaller than the neighbour tolerance
+  int file_type = 1;
+  if (argc == 5)
+    file_type = atoi(argv[4]);
+
   double gap = 0.001; //0.001;
   double neighbour = 0.01; //0.01;
   double kink = 0.01;
   double approxtol = 0.001;
   int degree = 3;
 
-  CompositeModelFactory factory(approxtol, gap, neighbour, kink, 10.0*kink);
-
-  CompositeModel *model = factory.createFromG2(infile);
-
-  shared_ptr<SurfaceModel> sfmodel = 
-    shared_ptr<SurfaceModel>(dynamic_cast<SurfaceModel*>(model));
-  if (!sfmodel.get())
+  shared_ptr<ftVolume> ftvol;
+  if (file_type == 2)
     {
-      std::cout << "No input model read" << std::endl;
-      exit(-1);
+      VolumeModelFileHandler fileread;
+      ftvol = fileread.readVolume(infile.c_str());
+      tpTolerances top = ftvol->getTolerances();
+      gap = top.gap;
+      neighbour = top.neighbour;
+      kink = top.kink;
     }
+  else
+    {
+      GoTools::init();
+      Registrator<SurfaceOnVolume> r211;
+      Registrator<CurveOnVolume> r111;
+
+      // The tolerances must be set according to the properties of the model.
+      // The neighbour tolerance must be smaller than the smallest entity in the
+      // model, but larger than the largest gap.
+      // The gap tolerance must be smaller than the neighbour tolerance
+      CompositeModelFactory factory(approxtol, gap, neighbour, kink, 10.0*kink);
+
+      std::ifstream is(infile);
+      CompositeModel *model = factory.createFromG2(is);
+      shared_ptr<SurfaceModel> sfmodel = 
+	shared_ptr<SurfaceModel>(dynamic_cast<SurfaceModel*>(model));
+
+      if (!sfmodel.get())
+	{
+	  std::cout << "No input model read" << std::endl;
+	  exit(-1);
+	}
  
-  if (sfmodel->nmbBoundaries() > 0)
-    {
-      std::cout << "Not a brep solid. Consider increasing the neighbour tolerance" << std::endl;
-      exit(-1);
-    }
+      if (sfmodel->nmbBoundaries() > 0)
+	{
+	  std::cout << "Not a brep solid. Consider increasing the neighbour tolerance" << std::endl;
+	  exit(-1);
+	}
       
-  bool isOK = sfmodel->checkShellTopology();
-  std::cout << "Shell topology: " << isOK << std::endl;
+      bool isOK = sfmodel->checkShellTopology();
+      std::cout << "Shell topology: " << isOK << std::endl;
 
-  // RegularizeFaceSet regularize(sfmodel);
-  // shared_ptr<SurfaceModel> sfmodel2 = regularize.getRegularModel();
-  
-  // std::ofstream of6_1("bd_split.g2");
-  // int nmb = sfmodel2->nmbEntities();
-  // int ki;
-  // for (ki=0; ki<nmb; ++ki)
-  //   {
-  //     shared_ptr<ParamSurface> sf = sfmodel2->getSurface(ki);
-  //     sf->writeStandardHeader(of6_1);
-  //     sf->write(of6_1);
-  //   }
 
-  // shared_ptr<ftVolume> ftvol = 
-  //   shared_ptr<ftVolume>(new ftVolume(sfmodel2));
-  shared_ptr<ftVolume> ftvol = 
-    shared_ptr<ftVolume>(new ftVolume(sfmodel));
+      ftvol = shared_ptr<ftVolume>(new ftVolume(sfmodel));
+    }
 
   int nmb;
   int ki;
@@ -187,7 +198,33 @@ int main(int argc, char* argv[] )
 
 
   std::cout << "Number of volumes: " << volmod->nmbEntities() << std::endl;
+  int nmb_vols0 = volmod->nmbEntities();
+  for (int kr=0; kr<nmb_vols0; ++kr)
+    {
+      shared_ptr<ftVolume> curr_vol = volmod->getBody(kr);
+      bool bd_trim = curr_vol->isBoundaryTrimmed();
+      bool iso_trim = curr_vol->isIsoTrimmed();
+      bool reg = curr_vol->isRegularized();
+
+      vector<ftVolume*> ng0;
+      curr_vol->getAdjacentBodies(ng0);
+
+      std::cout << "Volume nr " << kr << ": " << bd_trim;
+      std::cout << " " << iso_trim << " " << reg;
+      std::cout << ", no of neighbours: " << ng0.size() << std::endl;
+    }
 	  
+  // std::ofstream out_file("volmodel3.g22");
+  // VolumeModelFileHandler filehandler;
+  // filehandler.writeStart(out_file);
+  // filehandler.writeHeader("Test VolumeModel", out_file);
+  // filehandler.writeVolumeModel(*volmod, out_file);
+  // filehandler.writeEnd(out_file);
+
+  // VolumeModelFileHandler filehandler2;
+  // shared_ptr<VolumeModel> volmod2 = filehandler2.readVolumeModel("volmodel3.g22");
+  // std::cout << "Number of volumes: " << volmod2->nmbEntities() << std::endl;
+
   std::ofstream of6("output_volumes.g2");
   int nmb_vols = volmod->nmbEntities();
   for (int kr=0; kr<nmb_vols; ++kr)
@@ -197,11 +234,17 @@ int main(int argc, char* argv[] )
       bool iso_trim = curr_vol->isIsoTrimmed();
       bool reg = curr_vol->isRegularized();
 
+      vector<ftVolume*> ng0;
+      curr_vol->getAdjacentBodies(ng0);
+
       std::cout << "Volume nr " << kr << ": " << bd_trim;
-      std::cout << " " << iso_trim << " " << reg << std::endl;
+      std::cout << " " << iso_trim << " " << reg;
+      std::cout << ", no of neighbours: " << ng0.size() << std::endl;
 
       std::ofstream of7("Curr_vol.g2");
       shared_ptr<SurfaceModel> mod = curr_vol->getOuterShell();
+      vector<shared_ptr<Vertex> > vxs;
+      mod->getAllVertices(vxs);
       nmb = mod->nmbEntities();
       for (ki=0; ki<nmb; ++ki)
 	{
@@ -209,6 +252,10 @@ int main(int argc, char* argv[] )
 	  sf->writeStandardHeader(of7);
 	  sf->write(of7);
 	}
+      of7 << std::endl << "400 1 0 4 255 0 0 255" << std::endl;
+      of7 << vxs.size() << std::endl;
+      for (ki=0; ki<(int)vxs.size(); ++ki)
+	of7 << vxs[ki]->getVertexPoint() << std::endl;
 
       if (reg)
 	{

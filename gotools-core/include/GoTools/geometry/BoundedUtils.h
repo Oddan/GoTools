@@ -183,6 +183,12 @@ namespace BoundedUtils {
 			   const std::vector<shared_ptr<ParamSurface> >& sfs2, double epsge);
 
 
+    std::vector<shared_ptr<BoundedSurface> > 
+	trimSurfWithSurfs(shared_ptr<ParamSurface>&  sf,
+			  const std::vector<shared_ptr<ParamSurface> >& sfs2, 
+			  double epsge);
+
+
     /// If surf already is a BoundedSurface, return clone. If SplineSurface,
     /// convert. Otherwise, Error. Return surface is created inside function.
 
@@ -194,6 +200,9 @@ namespace BoundedUtils {
     ///         The user assumes ownership of the object.
     BoundedSurface* convertToBoundedSurface(const SplineSurface& surf,
 					      double space_epsilon);
+
+    shared_ptr<BoundedSurface> convertToBoundedSurface(shared_ptr<ParamSurface> surf,
+						       double space_epsilon);
 
     /// Given input of partial boundary curves, extract parts of boundary making it a
     /// boundary loop (or more). Input segments expected to be ordered, going in the same direction.

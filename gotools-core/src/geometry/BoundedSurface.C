@@ -477,10 +477,8 @@ void BoundedSurface::write(std::ostream& os) const
 //===========================================================================
 {
     streamsize prev = os.precision(15);
-    if (surface_->instanceType() == Class_SurfaceOnVolume)
-        os << "200" << std::endl;
-    else
-        os << surface_->instanceType() << std::endl;
+
+    os << surface_->instanceType() << std::endl;
     surface_->write(os);
     os << endl
         << boundary_loops_.size() << std::endl;
@@ -1011,6 +1009,9 @@ BoundedSurface::constParamCurves(double parameter, bool pardir_is_u) const
 //===========================================================================
 {
     // We first create a parametric cv to intersect with the sf.
+    double epsgeo = getEpsGeo();
+    vector<shared_ptr<ParamCurve> > dummy;
+
     RectDomain rect_dom = containingDomain();
     Point from_pt(2);
     Point to_pt(2);
@@ -1024,12 +1025,14 @@ BoundedSurface::constParamCurves(double parameter, bool pardir_is_u) const
 	endpar = to_pt[0] = rect_dom.umax();
 	from_pt[1] = to_pt[1] = parameter;
     }
+    if (endpar - startpar < epsgeo)
+      return dummy;
+
     shared_ptr<SplineCurve> par_iso_cv(new SplineCurve(from_pt, startpar,
 						       to_pt, endpar));
     shared_ptr<CurveOnSurface> iso_cv_on_sf
 	(new CurveOnSurface(surface_, par_iso_cv, true));
 
-    double epsgeo = getEpsGeo();
     // We now intersect with the trimmed sf.
     // @@sbr Suspecting that this may cause trouble for intersection analysis ...
     BoundedSurface bd_sf(*this); // @@sbr To keep function const ...
@@ -2534,7 +2537,7 @@ BoundedSurface::orderBoundaryLoops(bool analyze, double degenerate_epsilon)
     std::ofstream debug("tmp/debug.g2");
     surface_->writeStandardHeader(debug);
     surface_->write(debug);
-    for (size_t ki = 0; ki < boundary_loops_.size(); ++ki)
+    for (size_t ki = 0; ki < (int)boundary_loops_.size(); ++ki)
 	for (size_t kj = 0; kj < boundary_loops_[ki]->size(); ++kj) {
 	    shared_ptr<ParamCurve> cv = (*boundary_loops_[ki])[kj];
 	    if (cv->instanceType() == Class_CurveOnSurface) {
@@ -3411,3 +3414,23 @@ bool BoundedSurface::isAxisRotational(Point& centre, Point& axis, Point& vec,
   return true;
 }
 
+//===========================================================================
+void BoundedSurface:: replaceSurf(shared_ptr<ParamSurface> sf)
+//===========================================================================
+{
+  // Update pointers to surface 
+  for (size_t ki=0; ki<boundary_loops_.size(); ++ki)
+    {
+      int nmb = boundary_loops_[ki]->size();
+      for (int kr=0; kr<nmb; ++kr)
+	{
+	  shared_ptr<ParamCurve> cv = (*boundary_loops_[ki])[kr];
+	  shared_ptr<CurveOnSurface> sf_cv = 
+	    dynamic_pointer_cast<CurveOnSurface, ParamCurve>(cv);
+	  if (sf_cv.get())
+	    sf_cv->setUnderlyingSurface(sf);
+	}
+    }
+
+  surface_ = sf;
+}

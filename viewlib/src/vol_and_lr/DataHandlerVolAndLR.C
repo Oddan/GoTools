@@ -168,6 +168,8 @@ void DataHandlerVolAndLR::create(shared_ptr<GeomObject> obj,
 		
 	    }
 	}
+	// We want to continue to DefaultDataHandler::create(), which will handle the
+	// BoundedSurface tesselation etc, hence we do not 'break'.
     }
     default:
 	DefaultDataHandler::create(obj, col, id);

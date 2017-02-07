@@ -670,6 +670,12 @@ public:
     /// Check if the surface is linear in one or both parameter directions
     virtual bool isLinear(Point& dir1, Point& dir2, double tol);
 
+    /// Return associated elementary surface, if any
+    virtual ElementarySurface* elementarySurface()
+    {
+      return surface_->elementarySurface();
+    }
+
     /// Run through the boundary loops, returning the smallest epsgeo.
     double getEpsGeo() const;
 
@@ -705,10 +711,15 @@ public:
     /// curve is seen as an intersection
     virtual int ElementBoundaryStatus(int elem_ix, double eps);
 
+    void replaceSurf(shared_ptr<ParamSurface> sf);
+
     friend void 
       GeometryTools::setParameterDomain(std::vector<shared_ptr<BoundedSurface> >& sfs,
-				       double u1, double u2, 
-				       double v1, double v2);
+					double u1, double u2, 
+					
+					double v1, double v2);
+
+
 private:
     /// The underlying surface
     shared_ptr<ParamSurface> surface_;

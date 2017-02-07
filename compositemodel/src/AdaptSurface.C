@@ -353,7 +353,7 @@ namespace Go
 					 bool consider_joint, int nmb)
 //===========================================================================
   {
-    int nmb_sample = (nmb <= 0) ? 50 : nmb; //20; //10;// Number of pts to sample in one direction.    
+    int nmb_sample = (nmb <= 0) ? 10 : nmb; //50 20; //10;// Number of pts to sample in one direction.    
     getBoundaryData(surf, dom, nmb_sample, points, corner);
  
 #ifdef DEBUG_ADAPT

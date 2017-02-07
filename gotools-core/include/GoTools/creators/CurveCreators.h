@@ -154,7 +154,7 @@ namespace CurveCreators
     /// approximation tolerance is tol
     std::vector<shared_ptr<SplineCurve> > 
       curveApprox(shared_ptr<ParamCurve> cvs[], int nmb_cvs,
-		  double tol, double degree=3);
+		  double tol, int degree=3);
 
     /// Project the space_cv into parameter domain given by surf.
     /// start_par_pt (& end*_ not needed, but useful to ensure correct evaluation.

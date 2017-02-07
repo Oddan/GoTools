@@ -65,11 +65,11 @@
 #include <iterator>
 #endif
 
-#ifndef NDEBUG
-#ifndef DEBUG
-#define DEBUG
-#endif // DEBUG
-#endif // NDEBUG
+// #ifndef NDEBUG
+// #ifndef DEBUG
+// #define DEBUG
+// #endif // DEBUG
+// #endif // NDEBUG
 
 #include "GoTools/geometry/Plane.h"
 
@@ -461,7 +461,7 @@ CurveCreators::projectCurve(shared_ptr<ParamCurve>& space_cv,
 //===========================================================================
   vector<shared_ptr<SplineCurve> > 
   CurveCreators::curveApprox(shared_ptr<ParamCurve> cvs[], int nmb_cvs,
-			     double tol, double degree)
+			     double tol, int degree)
 //===========================================================================
   {
     vector<shared_ptr<SplineCurve> > result;
@@ -625,7 +625,7 @@ CurveCreators::projectSpaceCurve(shared_ptr<ParamCurve>& space_cv,
     {
 		MESSAGE("Inconsistent input to curve approximation: max_dist = "
 		<< std::max(dist1, dist2) << ", epsge = " << epsge);
-                return NULL;
+                //return NULL;
     }
 #ifdef DEBUG
       std::ofstream out("project.g2");

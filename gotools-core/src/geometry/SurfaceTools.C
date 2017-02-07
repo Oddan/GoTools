@@ -773,7 +773,6 @@ Point SurfaceTools::getParEpsilon(const ParamSurface& sf, double epsgeo)
     const double scaling = 0.5;
 
     double sf_length_u, sf_length_v; // Average values, sampled.
-    const int num_samples = 20;
     // For a cylinder the size is infinite. We assume that such cases
     // are curve length parametrized in that direction.
     if (sf.instanceType() == Class_Cylinder)
@@ -811,6 +810,11 @@ Point SurfaceTools::getParEpsilon(const ParamSurface& sf, double epsgeo)
     }
     else
     {
+      // Set number of sampling points based on surface size
+      BoundingBox bbox = sf.boundingBox();
+      double len = bbox.low().dist(bbox.high());
+      double fac = 10000.0;
+      int num_samples = (len/epsgeo < fac) ? 5 : 10;
 	sf.estimateSfSize(sf_length_u, sf_length_v, num_samples, num_samples);
 
 	RectDomain rect_dom = sf.containingDomain();
