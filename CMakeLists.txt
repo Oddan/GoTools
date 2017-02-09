@@ -201,6 +201,13 @@ IF(GoTools_COMPILE_MODULE_viewlib)
 ADD_SUBDIRECTORY(viewlib)
 ENDIF(GoTools_COMPILE_MODULE_viewlib)
 
+OPTION(GoTools_COMPILE_MODULE_tesselation
+  "Compile the GoTools module tesselation?" ON)
+IF(GoTools_COMPILE_MODULE_tesselation)
+ADD_SUBDIRECTORY(tesselation)
+ENDIF(GoTools_COMPILE_MODULE_tesselation
+)
+
 # CPack stuff
 SET(CPACK_PACKAGE_NAME "libgotools")
 SET(CPACK_SOURCE_PACKAGE_FILE_NAME "GoTools-${GoTools_VERSION}")
