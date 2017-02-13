@@ -12,8 +12,9 @@ using namespace Eigen;
 int main()
 {
   //vector<double> v {1, 2, 3, 4, 5, 6, 7, 8, 9};
-  Matrix<double, 3, 3> m(&(vector<double> { 1, 2, 3, 4, 5, 6, 7, 8, 9})[0]);
+  Matrix<double, 3, 3> m(&(vector<double> { -1, -2, 3, 4, 5, 6, 7, 8, -9})[0]);
   std::cout << m << std::endl;
+  std::cout << m.cwiseAbs().maxCoeff() << std::endl;
 
   return 0;
 };

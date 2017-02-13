@@ -1,5 +1,5 @@
 #ifndef _FINDROOT_H
-#include _FINDROOT_H
+#define _FINDROOT_H
 
 #include <vector>
 #include <functional>
@@ -23,10 +23,21 @@ typedef std::function<ValAndJac(const double* const, unsigned int)> RnToRnFuncti
 
 // ----------------------------------------------------------------------------
 
+// Function used internally to update search point
+// First argument: old point (values will be updated)
+// Second argument: proposed update
+// Third argument: number of components (dimension of point)
+typedef std::function<void(double*, const double* const)> UpdateFun;
+  
 // Function searching for root
-std::vector<double> FindRoot(const RnToRnFunction& fun,
-			     const double* const start,
-			     unsigned int dim);
+std::vector<double>
+find_root(const RnToRnFunction& fun,
+	  const double* const start,
+	  unsigned int dim,
+	  const UpdateFun& ufun,
+	  double tol = 1e-9,
+	  unsigned int max_iter = 12);
+
   
 }; //end namespace Go
 
