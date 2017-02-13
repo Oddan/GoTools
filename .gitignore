@@ -2,3 +2,10 @@ gotools-core/include/GoTools/geometry/GoTools_version.h
 doc
 gpl/generate_gpl_headers
 *~
+*.cmake
+/compile_commands.json
+Makefile
+CMakeFiles
+moc_*
+TAGS
+/CMakeCache.txt
