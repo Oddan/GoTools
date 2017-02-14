@@ -66,22 +66,28 @@ int main(int varnum, char* vararg[])
 
   // search for optimum
   UpdateFun updater = [&] (double* x, const double* const dx) {
+
+    const double MAX_STEP = (c.endparam() - c.startparam())/20;
+    const double dx_max = max( *max_element(dx, dx + num_int_points),
+			      -*min_element(dx, dx + num_int_points));
+    cout << dx_max << endl;
+    const double fac = (dx_max < MAX_STEP) ? 1 : MAX_STEP/dx_max;
     
     for (size_t i = 0; i != num_int_points; ++i) {
-      x[i] += dx[i];
+      x[i] += fac * dx[i];
       x[i] = max(x[i], c.startparam());
       x[i] = min(x[i], c.endparam());
     }
 
-    for (size_t i = 1; i != num_int_points; ++i) {
-      x[i] = max(x[i], x[i-1]);
-    }
+    // for (size_t i = 1; i != num_int_points; ++i) {
+    //   x[i] = max(x[i], x[i-1]);
+    // }
     for (size_t i = 0; i != num_int_points-1; ++i) {
       x[i] = min(x[i], x[i+1]);
     }
   };
 
-  const vector<double> new_pars = find_root(get<1>(fun), &pars[1], num_int_points, updater);
+  const vector<double> new_pars = find_root(get<1>(fun), &pars[1], num_int_points, updater, 1e-9, 20);
 
   // Text reporting
   cout << "Original vector: \n";
