@@ -7,6 +7,8 @@
 #include "GoTools/geometry/SplineSurface.h"
 #include "GoTools/geometry/SplineCurve.h"
 
+#include "tesselate_debug.h"
+
 using namespace std;
 using namespace Go;
 
@@ -47,11 +49,11 @@ int main(int varnum, char* vararg[]) {
     auto krull = c->geometryCurve();
     krull->writeStandardHeader(os);
     krull->write(os);
-    tesselate_curve(*(c->geometryCurve()), 20);
+    vector<double> pvec = tesselate_curve(*(c->geometryCurve()), 20);
+
+    store_points_and_curve(*krull, &pvec[0], pvec.size(), "dill.g2");
   }
   os.close();
-  
-
   
   return 0;
 }
