@@ -47,9 +47,10 @@ int main(int varnum, char* vararg[]) {
 
   shared_ptr<CurveOnSurface> cos1(new CurveOnSurface(ss, sc1, true));
 
+  // line segment 2 (outer curve)
   shared_ptr<SplineCurve>
-    sc2(new SplineCurve(7, 2,
-			&(vector<double> {0, 0, 1/6.0, 2/6.0, 3/6.0, 4/6.0, 5/6.0, 6/6.0, 6/6.0})[0],
+    sc2(new SplineCurve(7, 3,
+			&(vector<double> {0, 0, 0, 1/5.0, 2/5.0, 3/5.0, 4/5.0, 5/5.0, 5/5.0, 5/5.0})[0],
 			&(vector<double> {4/5.0, 4.5/5.0,
 			      2/5.0,   4.5/5.0,
 			      0.5/5.0, 4.5/5.0,
@@ -58,22 +59,59 @@ int main(int varnum, char* vararg[]) {
 			      2/5.0,   0.5/5.0,
 			      4/5.0,   0.5/5.0})[0],
 			2));
-			
-  shared_ptr<CurveOnSurface> cos2(new CurveOnSurface(ss, sc2,true));
+  shared_ptr<CurveOnSurface> cos2(new CurveOnSurface(ss, sc2, true));
+
+  // straight line segment 3
+  shared_ptr<SplineCurve>
+    sc3(new SplineCurve(2, 2, // # of coefs, and order
+			&(vector<double> {0, 0, 1, 1})[0],   // knots
+			&(vector<double> {4/5.0, 0.5/5.0, 4/5.0, 2/5.0})[0], // coefs
+			2)); // dimension (parameter domain has dim 2)
+  shared_ptr<CurveOnSurface> cos3(new CurveOnSurface(ss, sc3, true));
+
+  // line segment 4 (inner curve)
+  shared_ptr<SplineCurve>
+    sc4(new SplineCurve(7, 3,
+		&(vector<double> {0, 0, 0, 1/5.0, 2/5.0, 3/5.0, 4/5.0, 5/5.0, 5/5.0, 5/5.0})[0],
+		&(vector<double> {4/5.0, 2/5.0,
+		      3/5.0,   2/5.0,
+		      2.5/5.0, 2/5.0,
+		      2.5/5.0, 2.5/5.0,
+		      2.5/5.0, 3/5.0,
+		      3/5.0,   3/5.0,
+		      4/5.0,   3/5.0})[0],
+		2));
+  shared_ptr<CurveOnSurface> cos4(new CurveOnSurface(ss, sc4, true));
+
+  // ----------------------------- Making curve loop -----------------------------
+
+  vector<shared_ptr<CurveOnSurface>> curve_loop {cos1, cos2, cos3, cos4};
   
-  shared_ptr<SplineCurve> tmp(cos1->geometryCurve());
-  shared_ptr<SplineCurve> tmp2(cos2->geometryCurve());
-  
+  // -------------------------- Making bounded surface --------------------------
+
+  BoundedSurface bs {ss, curve_loop, 1e-5};
   
   // ------------------------------- Write result -------------------------------
+
+  ofstream os1("curve_and_surface.g2");
   
+  ss->writeStandardHeader(os1);
+  ss->write(os1);
+  cos1->writeStandardHeader(os1);
+  cos1->write(os1);
+  cos2->writeStandardHeader(os1);
+  cos2->write(os1);
+  cos3->writeStandardHeader(os1);
+  cos3->write(os1);
+  cos4->writeStandardHeader(os1);
+  cos4->write(os1);
+
   ofstream os("bsurf.g2");
-  ss->writeStandardHeader(os);
-  ss->write(os);
-  cos1->writeStandardHeader(os);
-  cos1->write(os);
-  cos2->writeStandardHeader(os);
-  cos2->write(os);
+  bs.writeStandardHeader(os);
+  bs.write(os);
+
+  os.close();
+
   
   return 0;
 };

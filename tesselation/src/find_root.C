@@ -28,13 +28,14 @@ find_root(const RnToRnFunction& fun,
   copy(start, start+dim, v.data());
 
   for (size_t i = 0; i != max_iter; ++i) {
-
+    cout << i << endl;
     // compute new values and jacobian
     const ValAndJac val = fun(v.data(), dim);
     copy(val.value.begin(), val.value.end(), d.data());
     copy(val.jacobian.begin(), val.jacobian.end(), jacobian.data());
 
     // check if we are at a root.  If not, do an update
+    cout << "Error: " << d.cwiseAbs().maxCoeff() << endl;
     if (d.cwiseAbs().maxCoeff() < tol) {
       cout << "Converged in " << i << " iterations." << endl;
       break;
