@@ -18,6 +18,7 @@ INCLUDE_DIRECTORIES(
 
 SET(DEPLIBS
   GoToolsCore
+  ttl
   )
 
 # Make the GoTesselation library
