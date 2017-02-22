@@ -16,6 +16,17 @@ namespace {
   void read_away_header(ifstream& is) {
     for (int i=0, tmp=0;i != 4; is >> tmp, ++i); // read away header  
   }
+
+  const vector<Point> construct_gridpoints(double minx, double maxx, size_t samples_x,
+					   double miny, double maxy, size_t samples_y)
+  {
+    vector<Point> result;
+    for (size_t iy = 0; iy != samples_y; ++iy)
+      for (size_t ix = 0; ix != samples_x; ++ix)
+	result.push_back(Point {minx + (maxx - minx)/double(samples_x - 1) * ix,
+	                        miny + (maxy - miny)/double(samples_y - 1) * iy});
+    return result;
+  }
   
 }; // anonymous namespace 
 
@@ -44,16 +55,42 @@ int main(int varnum, char* vararg[]) {
 
   // ----------------------------- tesselate curves -----------------------------
 
-  ofstream os("krull2.g2");
+  vector<Point> param_points; // points describing the closed curve polygon in
+			      // parameter space
+  ofstream os("parampoints.dat");
   for (auto c : curve_loop) {
-    auto krull = c->geometryCurve();
-    krull->writeStandardHeader(os);
-    krull->write(os);
+    //auto krull = c->geometryCurve();
     vector<double> pvec = tesselate_curve(*(c->geometryCurve()), 20);
 
-    store_points_and_curve(*krull, &pvec[0], pvec.size(), "dill.g2");
+    // computing points
+    Point pt;
+    c->point(pt, c->startparam());
+    param_points.push_back(pt);
+    for (auto p = pvec.begin(); p != pvec.end(); ++p) {
+      c->point(pt, *p);
+      param_points.push_back(pt);
+    }
+    //store_points_and_curve(*krull, &pvec[0], pvec.size(), "dill.g2");
   }
+  for (auto p : param_points)
+    os << p[0] << " " << p[1] << endl;
+  
   os.close();
+
+  // ----- choose interior sample locations and clip against bounding curve -----
+
+  const size_t SAMPLES = 50;
+  const vector<Point> gridpoints = construct_gridpoints(0, 1, SAMPLES, 0, 1, SAMPLES);
+  const CurveBoundedDomain domain = construct_curve_bounded_domain(param_points);
+  vector<Point> kept_points;
+  for (p : gridpoints)
+    if (domain.isInDomain(p, 1e-6))
+      kept_points.push_back(p);
+
+  ofstream os2("intpoints.dat");
+  for (auto p : kept_points)
+    os2 >> p[0] << " " << p[1] << endl;
+    
   
   return 0;
 }
