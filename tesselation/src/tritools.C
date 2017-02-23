@@ -174,6 +174,63 @@ export_triangles(const Triangulation& tri)
   }
   return result;
 }
+
+// ----------------------------------------------------------------------------
+inline bool inside_box(const array<double, 4>& box, const Point& p)
+// ----------------------------------------------------------------------------
+{
+  return (p[0] > box[0] && p[0] < box[1] &&
+	  p[1] > box[2] && p[1] < box[3]);
+}
+
+// ----------------------------------------------------------------------------
+inline bool segment_close(const Point& p1, const Point& p2,
+			  const Point& p, double margin)
+// ----------------------------------------------------------------------------
+{
+  // testing against endpoints
+  if (min(p1.dist2(p), p2.dist2(p)) < margin*margin)
+    return true;
+
+  // testing against segment
+  return ( ( (p2-p1) * (p-p1) > 0 ) &&
+	   ( (p1-p2) * (p-p2) > 0 ) &&
+	   ( abs(signed_distance(TriTools::normalized_line_equation(p1,p2), p)) < margin));
+}
+
+// ----------------------------------------------------------------------------
+void remove_points_close_to_segment(const Point& p1, const Point& p2,
+				    const double margin,
+				    const vector<Point>& points,
+				    vector<int>& result)
+// ----------------------------------------------------------------------------
+{
+  // compute bounding box
+  array<double, 4> bbox {min(p1[0], p2[0])-margin, // xmin
+                         max(p1[0], p2[0])+margin, // xmax
+                         min(p1[1], p2[1])-margin, // xmin
+                         max(p1[1], p2[1])+margin}; // xmax
+  for (size_t i = 0; i != points.size(); ++i) 
+    if (result[i] && inside_box(bbox, points[i]))
+      if (segment_close(p1, p2, points[i], margin))
+	result[i] = 0;
+}
+  
+// ----------------------------------------------------------------------------
+void remove_points_close_to_boundaries(const vector<vector<Point>>& loops,
+				       const double margin,
+				       const vector<Point>& points,
+				       vector<int>& result)
+// ----------------------------------------------------------------------------
+{
+  for (auto l : loops) 
+    for (size_t pt_ix = 0; pt_ix != l.size(); ++pt_ix) {
+      const Point& p1 = l[pt_ix];
+      const Point& p2 = l[((pt_ix+1) != l.size() ? pt_ix+1 : 0)];
+      remove_points_close_to_segment(p1, p2, margin, points, result);
+    }
+}
+
   
 }; // end anonymous namespace 
 
@@ -225,13 +282,15 @@ vector<int> points_inside_loops(const vector<vector<Point>>& loops,
     auto cur_inside = points_inside_triangle(tri.first[0],
 					     tri.first[1],
 					     tri.first[2],
-					     points,
-					     {(tri.second[0] ? margin : 0),
-					      (tri.second[1] ? margin : 0),
-					      (tri.second[2] ? margin : 0)});
+					     points, {0l, 0l, 0l});
     transform(result.begin(), result.end(), cur_inside.begin(), result.begin(),
 	      [](int a, int b) {return int(a || b);});
   }
+
+  // removing points that are too close to the boundary
+  if (margin > 0)
+    remove_points_close_to_boundaries(loops, margin, points, result);
+
   return result;
 }
 
