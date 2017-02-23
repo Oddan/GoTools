@@ -1,30 +1,42 @@
+#include <map>
+#include <list>
+#include <set>
 #include <algorithm>
 #include "tritools.h"
 
 #include "ttl/ttl.h"
-#include <ttl/halfedge/HeDart.h>
-#include <ttl/halfedge/HeTraits.h>
+#include "ttl/halfedge/HeDart.h"
+#include "ttl/halfedge/HeTraits.h"
+#include "ttl/halfedge/HeTriang.h"
+
 
 
 using namespace Go;
 using namespace std;
 using namespace ttl;
+using namespace hed;
 
 namespace {
 
+// ----------------------------------------------------------------------------
 inline double cross_value (const Point& p1, const Point& p2)
+// ----------------------------------------------------------------------------  
 {
   return p1[0]*p2[1] - p2[0] * p1[1];
-}  
-
+}
+  
+// ----------------------------------------------------------------------------
 // this function assumes that the line equation is on normalized form, i.e. a^2 + b^2 = 1,
 // where a = line_equation[0] and b = line_equation[1].
 inline double signed_distance(const array<double, 3>& line_equation, const Point& p)
+// ----------------------------------------------------------------------------  
 {
   return line_equation[0] * p[0] + line_equation[1] * p[1] + line_equation[2];
 }
 
+// ----------------------------------------------------------------------------  
 inline array<double, 4> get_tribox(const Point& p1, const Point& p2, const Point& p3)
+// ----------------------------------------------------------------------------  
 {
   return
     { min(min(p1[0], p2[0]), p3[0]),  // xmin
@@ -32,6 +44,135 @@ inline array<double, 4> get_tribox(const Point& p1, const Point& p2, const Point
       min(min(p1[1], p2[1]), p3[1]),  // ymin 
       max(max(p1[1], p2[1]), p3[1])   // ymax
     }; 
+}
+
+// ----------------------------------------------------------------------------  
+Triangulation create_delaunay_from_loops(const vector<vector<Point>>& loops)
+// ----------------------------------------------------------------------------
+{
+  vector<Node*> nodes;
+  for (const auto vec : loops) // loop over loops
+    for (const auto pt : vec) // loop over points in loop
+      nodes.emplace_back(new Node {pt[0], pt[1]});
+  sort(nodes.begin(), nodes.end(), [](const Node* n1, const Node* n2) {
+      return (n1->x() < n2->x() || (n1->x() == n2->x() && n1->y() < n2->y()));
+    });
+  Triangulation result;
+  result.createDelaunay(nodes.begin(), nodes.end());
+  return result;
+}
+
+// ----------------------------------------------------------------------------
+Edge* get_leading_edge(Edge* e) {
+// ----------------------------------------------------------------------------
+  if (!e) {
+    return NULL;
+  } else if (e->isLeadingEdge()) {
+    return e;
+  } else if (e->getNextEdgeInFace()->isLeadingEdge()) {
+    return e->getNextEdgeInFace();
+  }
+  assert(e->getNextEdgeInFace()->getNextEdgeInFace()->isLeadingEdge());
+  return e->getNextEdgeInFace()->getNextEdgeInFace();
+}
+  
+// ----------------------------------------------------------------------------
+void recursively_find_triangles(Edge* const e, set<Edge*>& result)
+// ----------------------------------------------------------------------------
+{
+  result.insert(get_leading_edge(e));
+  
+  array<Edge*, 3> neighs;
+  neighs[0] = get_leading_edge(e->getTwinEdge());
+  neighs[1] = get_leading_edge(e->getNextEdgeInFace()->getTwinEdge());
+  neighs[2] = get_leading_edge(e->getNextEdgeInFace()->getNextEdgeInFace()->getTwinEdge());
+
+  for (auto n : neighs)
+    if (bool(n) & (result.find(n) == result.end()))
+	recursively_find_triangles(n, result);
+}
+  
+// ----------------------------------------------------------------------------
+template<typename PointIterator>
+void impose_boundary(Triangulation& tri,
+		     PointIterator pts_begin,
+		     PointIterator pts_end)
+// ----------------------------------------------------------------------------
+{
+  // mapping coordinates of existing nodes to representative edges in triangulation
+  map<Point, Edge*> point_to_edge;
+  const list<Edge*>* const edges = tri.getEdges();
+  for (const auto e : *edges) {
+    const Node* const n = e->getSourceNode();
+    point_to_edge[Point(n->x(), n->y())] = e;
+  }
+
+  // insert missing points
+  for (auto pt = pts_begin; pt != pts_end; ++pt)
+    if (point_to_edge.find(*pt) == point_to_edge.end()) {
+      // the point is not already present, so we should insert it
+      auto d = tri.createDart();
+      insertNode<TTLtraits>(d, *new Node((*pt)[0], (*pt)[1]));
+      point_to_edge[*pt] = d.getEdge();
+    }
+
+  // set constraints here
+  vector<Edge*> outside_edges;
+  for (auto cur = pts_begin; cur != pts_end; ++cur) {
+    Edge* e1 = point_to_edge[*cur];
+    Edge* e2 = point_to_edge[ (cur+1 != pts_end) ? *(cur+1) : *pts_begin];
+    Dart d1(e1), d2(e2);
+    auto dart = insertConstraint<TTLtraits>(d1, d2, true);
+    dart.getEdge()->setConstrained();
+
+    // if the constriant is an interior edge, make it a boundary edge
+    if (!isBoundaryEdge(dart)) 
+      outside_edges.push_back(dart.getEdge());
+  }
+
+  // setting interior constrained edges to boundary edges
+  for (auto e : outside_edges)
+    if (e) {
+      auto twin_edge = e->getTwinEdge();
+      e->setTwinEdge(NULL);
+      twin_edge->setTwinEdge(NULL);
+    }
+  
+  // identify all triangles outside the introduced boundary
+  set<Edge*> triangles_found;
+  for (auto e : outside_edges)
+    if (e)
+      recursively_find_triangles(e, triangles_found);
+
+  // delete triangles
+  for (auto t : triangles_found)
+    tri.removeTriangle(*t);
+    
+}
+
+// ----------------------------------------------------------------------------  
+vector<pair<array<Point, 3>, array<bool, 3>>>
+export_triangles(const Triangulation& tri)
+// ----------------------------------------------------------------------------
+{
+  vector<pair<array<Point, 3>, array<bool, 3>>> result;
+  for (auto edge : tri.getLeadingEdges()) {
+    const auto e1 = edge;
+    const auto e2 = e1->getNextEdgeInFace();
+    const auto e3 = e2->getNextEdgeInFace();
+    const Node* const n1 = e1->getSourceNode();
+    const Node* const n2 = e2->getSourceNode();
+    const Node* const n3 = e3->getSourceNode();
+
+    result.emplace_back(pair<array<Point, 3>, array<bool, 3>>
+			{{Point(n1->x(), n1->y()),
+	                  Point(n2->x(), n2->y()),
+	                  Point(n3->x(), n3->y())},
+	                 {e1->isConstrained(),
+			  e2->isConstrained(),
+			  e3->isConstrained()}});
+  }
+  return result;
 }
   
 }; // end anonymous namespace 
@@ -76,7 +217,7 @@ vector<int> points_inside_loops(const vector<vector<Point>>& loops,
 				const double margin)
 // ----------------------------------------------------------------------------
 {
-  const vector<pair<array<Point, 3>, array<bool, 3>> triangles =
+  const vector<pair<array<Point, 3>, array<bool, 3>>> triangles =
 	       triangulate_boundary(loops);
 
   vector<int> result(points.size(), 0); // we initially consider all points outside
@@ -95,15 +236,19 @@ vector<int> points_inside_loops(const vector<vector<Point>>& loops,
 }
 
 // ----------------------------------------------------------------------------
-std::vector<std::pair<std::array<Go::Point, 3>, std::array<bool, 3>>>
-triangulate_boundary(const std::vector<std::vector<Go::Point>>& loops)
+vector<pair<array<Point, 3>, array<bool, 3>>>
+triangulate_boundary(const vector<vector<Point>>& loops)
 // ----------------------------------------------------------------------------
 {
   // Create delauney triangulation containing all boundary points
   Triangulation triang = create_delaunay_from_loops(loops);
 
+  // auto nodes = *triang.getNodes();
+  // for (n : nodes)
+  //   cout << "Node is: " << n->x() << " " << n->y() << '\n';
+  
   // constrain boundary edges
-  for (l : loops)
+  for (auto l : loops)
     impose_boundary(triang, l.begin(), l.end());
 
   // generate triangles of the result

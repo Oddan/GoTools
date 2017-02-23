@@ -42,7 +42,7 @@ namespace TriTools {
   // and ones.  Entries with a one represent points located within the triangle.
   // The margins should all be positive, and represent the buffer between the
   // line and the interior.
-  std::vector<int> points_inside_loops(const std::vector<std::vector<Point>>& loops,
+  std::vector<int> points_inside_loops(const std::vector<std::vector<Go::Point>>& loops,
 				       const std::vector<Go::Point>& points,
 				       const double margin);
 
