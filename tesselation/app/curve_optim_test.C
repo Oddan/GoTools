@@ -14,7 +14,7 @@
 
 #include "GoTools/geometry/SplineCurve.h"
 #include "GoTools/geometry/PointCloud.h"
-#include "make_curve_spacing_fun.h"
+#include "make_spacing_funs.h"
 #include "find_root.h"
 
 using namespace std;

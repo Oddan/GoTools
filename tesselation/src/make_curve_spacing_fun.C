@@ -1,4 +1,4 @@
-#include "make_curve_spacing_fun.h"
+#include "make_spacing_funs.h"
 #include "GoTools/utils/Point.h"
 
 using namespace std;

@@ -1,5 +1,5 @@
 #include "tesselate_curve.h"
-#include "make_curve_spacing_fun.h"
+#include "make_spacing_funs.h"
 #include "find_root.h"
 #include "GoTools/utils/GeneralFunctionMinimizer.h"
 
