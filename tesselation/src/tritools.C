@@ -15,6 +15,7 @@ using namespace Go;
 using namespace std;
 using namespace ttl;
 using namespace hed;
+using namespace TriTools;
 
 namespace {
 
@@ -231,6 +232,63 @@ void remove_points_close_to_boundaries(const vector<vector<Point>>& loops,
     }
 }
 
+// ----------------------------------------------------------------------------
+pair<vector<Node*>, vector<Node*>>
+get_interior_and_boundary_nodes(const Triangulation& tri)
+// ----------------------------------------------------------------------------
+{
+  const list<Edge*> all_edges = *(tri.getEdges());
+  vector<Node*> boundary_nodes, interior_nodes;
+  for (auto e : all_edges)
+    if (ttl::isBoundaryEdge(Dart(e)))
+      boundary_nodes.push_back(e->getSourceNode());
+    else
+      interior_nodes.push_back(e->getSourceNode());
+
+  sort(interior_nodes.begin(), interior_nodes.end());
+  auto last = unique(interior_nodes.begin(), interior_nodes.end());
+  interior_nodes.erase(last, interior_nodes.end());
+
+  return {interior_nodes, boundary_nodes};
+}
+
+// ----------------------------------------------------------------------------
+SurfaceTriangulation convert_to_surface_triangulation(const Triangulation& tri)
+// ----------------------------------------------------------------------------
+{
+  // making mapping from nodes to indices, and converting nodes to vector of
+  // Go::Points.
+  const auto int_and_bnd_nodes = get_interior_and_boundary_nodes(tri);
+  
+  map<const Node*, int> node_to_ix;
+  vector<Point> points;
+  int counter = 0;
+  // indexing interior and boundary nodes
+  const vector<Node*>& int_nodes = int_and_bnd_nodes.first;
+  const vector<Node*>& bnd_nodes = int_and_bnd_nodes.second;
+  for (auto it : int_nodes) {
+    points.push_back({ it->x(), it->y()});
+    node_to_ix[it] = counter++;
+  }
+  for (auto it : bnd_nodes) {
+    points.push_back({ it->x(), it->y()});
+    node_to_ix[it] = counter++;
+  }
+  
+  // constructing topology
+  vector<array<int, 3>> triangles;
+  const list<Edge*>& leading_edges = tri.getLeadingEdges();
+  for (auto e = leading_edges.begin(); e != leading_edges.end(); ++e) {
+    const Node* n1 = (*e)->getSourceNode();
+    const Node* n2 = (*e)->getNextEdgeInFace()->getSourceNode();
+    const Node* n3 = (*e)->getNextEdgeInFace()->getNextEdgeInFace()->getSourceNode();
+    triangles.push_back({node_to_ix[n1], node_to_ix[n2], node_to_ix[n3]});
+  }
+  
+  // returning result
+  return {points, triangles, int_nodes.size()};
+}
+
   
 }; // end anonymous namespace 
 
@@ -313,6 +371,29 @@ triangulate_boundary(const vector<vector<Point>>& loops)
   // generate triangles of the result
   return export_triangles(triang);
   
+}
+
+// ----------------------------------------------------------------------------
+// @@ This function may be made more efficient
+SurfaceTriangulation
+triangulate_with_boundaries(const vector<Point>& points,
+			    const vector<vector<Point>>& loops)
+// ----------------------------------------------------------------------------
+{
+  // Create initial delauney triangulation from boundary points
+  Triangulation triang = create_delaunay_from_loops(loops);
+
+  // Constrain boundary edges
+  for (auto l : loops)
+    impose_boundary(triang, l.begin(), l.end());
+
+  // Add the rest of the points (assuming they are all inside the valid region)
+  Dart d = triang.createDart();
+  for (auto p : points) {
+    Node* nd = new Node(p[0], p[1]);
+    insertNode<TTLtraits>(d, *nd);
+  }
+  return convert_to_surface_triangulation(triang);
 }
 
   

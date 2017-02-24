@@ -7,6 +7,15 @@
 
 namespace TriTools {
 
+  // Parametric points specified by 2D Go::Points 
+  // Triangles are specified as 3-tuple of ndoe indices.
+  struct SurfaceTriangulation
+  {
+    std::vector<Go::Point> uv;
+    std::vector<std::array<int, 3>> triangles;
+    size_t num_interior_nodes;
+  };
+  
   // Return the coefficients [a, b, c] of the implicit equation ax + by + c = 0
   // that describes the line on which the points pt_first and pt_second lie.
   // The coefficients are normalized so that a^2 + b^2 = 1.  With this
@@ -57,6 +66,11 @@ namespace TriTools {
   // external boundary.
   std::vector<std::pair<std::array<Go::Point, 3>, std::array<bool, 3>>>
   triangulate_boundary(const std::vector<std::vector<Go::Point>>& loops);
+
+  SurfaceTriangulation
+  triangulate_with_boundaries(const std::vector<Go::Point>& points,
+			      const std::vector<std::vector<Go::Point>>& loops);
+
   
 }; // end namespace TriTools
 

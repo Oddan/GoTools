@@ -58,7 +58,8 @@ namespace {
 
     // If points were equidistant, we estimate the constant distance to be the mean of current
     // distances
-    const double edist = accumulate(distances.begin(), distances.end(), 0.0)/(double)distances.size();
+    const double edist = accumulate(distances.begin(), distances.end(),
+				    0.0)/(double)distances.size();
 
     // recompute internal parameter values based on point distances
     size_t int_ix = 0; // interval in which we search for current point
@@ -96,12 +97,8 @@ namespace {
       auto val_and_jac = get<1>(fun_)(arg, dim_);
       copy(val_and_jac.value.begin(), val_and_jac.value.end(), grad);
     }
-    double minPar(int n) const {
-      return minpar_;
-    }
-    double maxPar(int n) const {
-      return maxpar_;
-    }
+    double minPar(int n) const { return minpar_; }
+    double maxPar(int n) const { return maxpar_; }
     
   private:
     const tuple<RnToRFunction, RnToRnFunction> fun_;
@@ -116,11 +113,44 @@ namespace {
 namespace Go {
 
 // ----------------------------------------------------------------------------  
-vector<double> tesselate_curve(const ParamCurve& pc, unsigned int num_internal_points)
+double estimate_curve_length(const ParamCurve& pc, const unsigned int num_samples)
+// ----------------------------------------------------------------------------
+{
+  const vector<double> par =
+    adjust_parameters_to_geometry(pc, define_parvec(pc.startparam(),
+						    pc.endparam(),
+						    num_samples-2));
+  Point p, pnew;
+  double accum = 0;
+  pc.point(p, par[0]);
+  for (size_t i = 1; i != par.size(); ++i) {
+    pc.point(pnew, par[i]);
+    accum += pnew.dist(p);
+    p.swap(pnew);
+  }
+  return accum;
+}
+
+// ----------------------------------------------------------------------------  
+vector<double> tesselate_curve(const ParamCurve& pc,
+			       const double target_spacing)
 // ----------------------------------------------------------------------------  
 {
-  const double TOL = 1e-9;
-  const int ITER = 10000;
+  const double curve_len = estimate_curve_length(pc);
+  const unsigned int internal_pts = (unsigned int) (curve_len / target_spacing) - 1;
+  cout << "internal points: " << internal_pts << endl;
+  
+  return (internal_pts > 0) ? tesselate_curve(pc, internal_pts) : vector<double>();
+}
+  
+// ----------------------------------------------------------------------------  
+vector<double> tesselate_curve(const ParamCurve& pc, const unsigned int num_internal_points)
+// ----------------------------------------------------------------------------  
+{
+  const double TOL = 2*sqrt(numeric_limits<double>::epsilon()); // lowest accetable tol for
+                                                              // the conjugated gradient
+                                                              // fallback algorithm.
+  const int ITER = 100;
   // define a parameter vector with regularly spaced parameters in the domain
   vector<double> p = define_parvec(pc.startparam(), pc.endparam(), num_internal_points);
 

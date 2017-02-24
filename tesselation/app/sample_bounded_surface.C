@@ -2,31 +2,34 @@
 #include <iostream>
 #include <string>
 #include "tesselate_curve.h"
+#include "tesselate_surface.h"
 #include "GoTools/geometry/GoTools.h"
 #include "GoTools/geometry/BoundedSurface.h"
 #include "GoTools/geometry/SplineSurface.h"
 #include "GoTools/geometry/SplineCurve.h"
 
 #include "tesselate_debug.h"
+#include "tritools.h"
 
 using namespace std;
 using namespace Go;
+using namespace TriTools;
 
 namespace {
   void read_away_header(ifstream& is) {
     for (int i=0, tmp=0;i != 4; is >> tmp, ++i); // read away header  
   }
 
-  const vector<Point> construct_gridpoints(double minx, double maxx, size_t samples_x,
-					   double miny, double maxy, size_t samples_y)
-  {
-    vector<Point> result;
-    for (size_t iy = 0; iy != samples_y; ++iy)
-      for (size_t ix = 0; ix != samples_x; ++ix)
-	result.push_back(Point {minx + (maxx - minx)/double(samples_x - 1) * ix,
-	                        miny + (maxy - miny)/double(samples_y - 1) * iy});
-    return result;
-  }
+  // const vector<Point> construct_gridpoints(double minx, double maxx, size_t samples_x,
+  // 					   double miny, double maxy, size_t samples_y)
+  // {
+  //   vector<Point> result;
+  //   for (size_t iy = 0; iy != samples_y; ++iy)
+  //     for (size_t ix = 0; ix != samples_x; ++ix)
+  // 	result.push_back(Point {minx + (maxx - minx)/double(samples_x - 1) * double(ix),
+  // 	                        miny + (maxy - miny)/double(samples_y - 1) * double(iy)});
+  //   return result;
+  // }
   
 }; // anonymous namespace 
 
@@ -60,14 +63,15 @@ int main(int varnum, char* vararg[]) {
   ofstream os("parampoints.dat");
   for (auto c : curve_loop) {
     //auto krull = c->geometryCurve();
-    vector<double> pvec = tesselate_curve(*(c->geometryCurve()), 20);
-
+    //vector<double> pvec = tesselate_curve(*(c->geometryCurve()), (unsigned int)20);
+    vector<double> pvec = tesselate_curve(*(c->geometryCurve()), 0.1);
+    
     // computing points
     Point pt;
-    c->point(pt, c->startparam());
+    c->parameterCurve()->point(pt, c->startparam());
     param_points.push_back(pt);
     for (auto p = pvec.begin(); p != pvec.end(); ++p) {
-      c->point(pt, *p);
+      c->parameterCurve()->point(pt, *p);
       param_points.push_back(pt);
     }
     //store_points_and_curve(*krull, &pvec[0], pvec.size(), "dill.g2");
@@ -79,17 +83,28 @@ int main(int varnum, char* vararg[]) {
 
   // ----- choose interior sample locations and clip against bounding curve -----
 
-  const size_t SAMPLES = 50;
-  const vector<Point> gridpoints = construct_gridpoints(0, 1, SAMPLES, 0, 1, SAMPLES);
-  const CurveBoundedDomain domain = construct_curve_bounded_domain(param_points);
-  vector<Point> kept_points;
-  for (p : gridpoints)
-    if (domain.isInDomain(p, 1e-6))
-      kept_points.push_back(p);
+  vector<vector<Point>> loops;
+  loops.push_back(param_points);
+  SurfaceTriangulation tri = tesselate_surface(*ss, 25, 25, 0.1, loops);
+  
+  // const size_t SAMPLES = 50;
+  // const vector<Point> gridpoints = construct_gridpoints(0, 1, SAMPLES, 0, 1, SAMPLES);
+  // const CurveBoundedDomain domain = construct_curve_bounded_domain(param_points);
+  // vector<Point> kept_points;
+  // for (p : gridpoints)
+  //   if (domain.isInDomain(p, 1e-6))
+  //     kept_points.push_back(p);
 
-  ofstream os2("intpoints.dat");
-  for (auto p : kept_points)
-    os2 >> p[0] << " " << p[1] << endl;
+  // ofstream os2("intpoints.dat");
+  // for (auto p : kept_points)
+  //   os2 >> p[0] << " " << p[1] << endl;
+
+  ofstream os3("triangles.dat");
+  for (auto t : tri.triangles) {
+    os3 << tri.uv[t[0]][0] << " " << tri.uv[t[0]][1] << " ";
+    os3 << tri.uv[t[1]][0] << " " << tri.uv[t[1]][1] << " ";
+    os3 << tri.uv[t[2]][0] << " " << tri.uv[t[2]][1] << "\n";
+  }
     
   
   return 0;
