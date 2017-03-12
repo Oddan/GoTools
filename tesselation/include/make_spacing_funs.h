@@ -23,7 +23,7 @@ make_curve_spacing_fun(const Go::ParamCurve& c);
 
 // ----------------------------------------------------------------------------  
 std::tuple<RnToRFunction, RnToRnFunction>
-make_triang_spacing_fun(const SurfaceTriangulation& tri);
+make_triang_spacing_fun(const TriTools::SurfaceTriangulation& tri);
 // ----------------------------------------------------------------------------
 };
 

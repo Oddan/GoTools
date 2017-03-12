@@ -1,6 +1,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <iterator>
 #include "tesselate_curve.h"
 #include "tesselate_surface.h"
 #include "GoTools/geometry/GoTools.h"
@@ -10,6 +11,7 @@
 
 #include "tesselate_debug.h"
 #include "tritools.h"
+#include "make_spacing_funs.h"
 
 using namespace std;
 using namespace Go;
@@ -105,8 +107,29 @@ int main(int varnum, char* vararg[]) {
     os3 << tri.uv[t[1]][0] << " " << tri.uv[t[1]][1] << " ";
     os3 << tri.uv[t[2]][0] << " " << tri.uv[t[2]][1] << "\n";
   }
-    
+
+
+  vector<double> par(tri.num_interior_nodes * 2, 0l);
+  for (size_t i = 0; i != tri.num_interior_nodes; ++i) {
+    par[2*i]   = tri.uv[i][0];
+    par[2*i+1] = tri.uv[i][1];
+  }
   
+  // vector<Point> krullpoints {Point {1.0, 1.0}, {0.0,0.0}, {2.0,0.0}, {2.0, 2.0}, {0.0, 2.0}};
+  // vector<array<int,3>> krulltris {{0,1,2}, {0,2,3}, {0,3,4}, {0,4,1}};
+  // SurfaceTriangulation krull {krullpoints, krulltris, (size_t)1};
+  // vector<double> krullpar {1.1, 1.1};
+
+  // auto tsfun = make_triang_spacing_fun(krull);
+  // auto funval = get<0>(tsfun)(&krullpar[0], 0);
+  // auto dfunval = get<1>(tsfun)(&krullpar[0], 0);
+  auto tsfun = make_triang_spacing_fun(tri);
+  auto funval = get<0>(tsfun)(&par[0], 0);
+  auto dfunval = get<1>(tsfun)(&par[0], 0);
+  ofstream dfun1("gradient.dat");
+  ofstream dfun2("jacobian.dat");
+  copy(dfunval.value.begin(), dfunval.value.end(), ostream_iterator<double>(dfun1, " "));
+  copy(dfunval.jacobian.begin(), dfunval.jacobian.end(), ostream_iterator<double>(dfun2, " "));
   return 0;
 }
   

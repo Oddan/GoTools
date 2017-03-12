@@ -52,7 +52,7 @@ int main(int varnum, char* vararg[]) {
   }
   
   //tesselate_curve(flat_curves[1], 20);
-  tesselate_curve(flat_curves[3], 10);
+  tesselate_curve(flat_curves[3], (unsigned int)10);
 
 
 
