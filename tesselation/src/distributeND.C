@@ -35,20 +35,37 @@ double total_length_1D(const pair<double, double>& bounds,
 			double* const jac, double eps=0)
 // ----------------------------------------------------------------------------  
 {
-  const double dist_eps = dist + eps;
-  const double dist_eps_3 = dist_eps * dist_eps * dist_eps;
-  const double dist_eps_4 = dist_eps * dist_eps_3;
-  const double res_sqrt = (dist > radius) ? 0 : (radius - dist) / dist_eps;
+  const double t = radius - dist;
+  const double result = t < 0 ? 0 : t*t;
 
   if (grad) 
-    *grad = (dist > radius) ? 0 : (-2 * (radius+eps) * (radius - dist) / dist_eps_3);
+    *grad = (t<0) ? 0 : -2*t;
 
   if (jac)
-    *jac = (dist > radius) ? 0 :  2 * (radius+eps) / dist_eps_3 +
-                                  6 * (radius - dist) * (radius + eps) / dist_eps_4;
+    *jac = (t<0) ? 0 : 2;
+           
 
-  return res_sqrt * res_sqrt;
+  return result;
 }
+// // ----------------------------------------------------------------------------
+//   double dist_energy_1D(const double dist, const double radius, double* const grad,
+// 			double* const jac, double eps=0)
+// // ----------------------------------------------------------------------------  
+// {
+//   const double dist_eps = dist + eps;
+//   const double dist_eps_3 = dist_eps * dist_eps * dist_eps;
+//   const double dist_eps_4 = dist_eps * dist_eps_3;
+//   const double res_sqrt = (dist > radius) ? 0 : (radius - dist) / dist_eps;
+
+//   if (grad) 
+//     *grad = (dist > radius) ? 0 : (-2 * (radius+eps) * (radius - dist) / dist_eps_3);
+
+//   if (jac)
+//     *jac = (dist > radius) ? 0 :  2 * (radius+eps) / dist_eps_3 +
+//                                   6 * (radius - dist) * (radius + eps) / dist_eps_4;
+
+//   return res_sqrt * res_sqrt;
+// }
 
   
 // ----------------------------------------------------------------------------
@@ -102,7 +119,7 @@ vector<double> distribute_points_1D(const double* const pts,
 // ============================================================================  
 {
   assert(bounds.first < bounds.second);
-
+  
   // sort points, and cull away those outside specified bounds
   vector<double> cur_points;
   cur_points.reserve(num_points);
@@ -258,7 +275,9 @@ void minimise_newton(Functor1D functor, vector<double>& points)
   
   auto update_fun = [&functor] (double* val, const double* const update) {
     double max_step = 1;
-    for (unsigned int i = 0; i != functor.dim(); ++i) {
+    const unsigned int dim = functor.dim();
+    const double fval_before = functor(val);
+    for (unsigned int i = 0; i != dim; ++i) {
       if ((update[i] > 0)  && val[i] + update[i] > functor.maxPar(i))
 	max_step = min(max_step, (functor.maxPar(i) - val[i]) / update[i]);
       else if ((update[i] < 0) && val[i] + update[i] < functor.minPar(i))
@@ -268,10 +287,45 @@ void minimise_newton(Functor1D functor, vector<double>& points)
     if (max_step < 1)
       max_step = max_step * 0.9; // avoid sending parameters all away to the boundary
 
-    cout << "max_step " << max_step << endl;
+    const int MAX_IT_COUNT = 3;
+    double fval_after = fval_before;
+    vector<double>tmp(val, val+dim);
+    double fac = 1;
+    int i;
+    for (i = 0; i < MAX_IT_COUNT; ++i, fac *= 0.33) {
+      transform(val, val+dim, update, tmp.begin(), [&](double x, double y) {return x+(max_step*fac*y);});
+      fval_after = functor(&tmp[0]);
+      if (fval_after < 2 * fval_before) 
+	break;
+    }
+    if (fac < 1)
+      cout << "fac: " << fac << endl;
+    copy(tmp.begin(), tmp.end(), val);
     
-    for (unsigned int i = 0; i != functor.dim(); ++i)
-      val[i] += max_step * update[i];
+    // if (fval_after >  fval_before) {
+    //   cout << "using linmin" << endl;
+    //   // newton did not work.  Do line minimization instead
+      
+    //   for (unsigned int i = 0; i != dim; ++i)
+    // 	val[i] -= max_step * update[i]; // undo the last update
+
+    //   auto fmin = FunctionMinimizer<Functor1D>(dim, functor, val);
+    //   vector<double> grad(dim);
+    //   functor.grad(val, &grad[0]);
+    //   //for_each(grad.begin(), grad.end(), [](double* d) {*d *=-1;});
+    //   bool hit_edge = false;
+    //   fmin.minimize(Point(grad.begin(), grad.end()), hit_edge);
+    //   copy(fmin.getPar(), fmin.getPar() + dim, val);
+
+    //   if (hit_edge) {
+    // 	  const double minpar = functor.minPar(0);
+    // 	  const double maxpar = functor.maxPar(0);// doesn't matter which index, so 0
+    // 	  assert(dim>1);
+    // 	  val[0] = (val[0] <= minpar) ? (minpar + val[1]) / 2 : val[0];
+    // 	  val[dim-1] = (val[dim-1] >= maxpar) ? (val[dim-2] + maxpar)/2 : val[dim-1];
+    // 	}
+      
+    // }
   };
 
   auto update_fun_2 = [&functor] (double* val, const double* const update) {
@@ -280,27 +334,31 @@ void minimise_newton(Functor1D functor, vector<double>& points)
     for (unsigned int i = 0; i != functor.dim(); ++i) {
       val[i] += update[i];
       if ((val[i] < functor.minPar(i)) || (val[i] > functor.maxPar(i))) {
-	outside_ixs.push_back(i);
+  	outside_ixs.push_back(i);
       }
     }
     // move outside points back in again, where there is room
     vector<double> tmp(val, val+functor.dim());
+    tmp.push_back(0);
+    tmp.push_back(1);
 
-    for (int i = outside_ixs.size()-1; i >= 0; --i) 
+    for (int i = (int)outside_ixs.size()-1; i >= 0; --i) 
       tmp.erase(tmp.begin() + outside_ixs[i]);
     sort(tmp.begin(), tmp.end());
 
-    for (int i = 0; i != outside_ixs.size(); ++i) {
-      const int ix = outside_ixs[i];
+    for (int i = 0; i != (int)outside_ixs.size(); ++i) {
       vector<double> diff;
-      for (int i = 1; i != tmp.size(); ++i) {
-	diff.push_back(tmp[i] - tmp[i-1]);
+      for (int i = 1; i != (int)tmp.size(); ++i) {
+  	diff.push_back(tmp[i] - tmp[i-1]);
       }
-      int it = (max_element(diff.begin(), diff.end()) - diff.begin());
+      int it = int(max_element(diff.begin(), diff.end()) - diff.begin());
       double new_val = (tmp[it] + tmp[it+1])/2;
       tmp.push_back(new_val);
+      val[outside_ixs[i]] = new_val;
+      sort(tmp.begin(), tmp.end());
     }
-    assert(tmp.size() == functor.dim());
+    //sort(val, val+functor.dim());
+    //copy(tmp.begin(), tmp.end(), val);
     
   };
   

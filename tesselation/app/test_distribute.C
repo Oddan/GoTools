@@ -46,9 +46,16 @@ void test_spline_curve(int varnum, char* vararg[])
 			                0.75, 0, 2,
 			                1, 0, 0}))[0], 3);
 
-  const vector<double> input_points {0.1, 0.2, 0.3, 0.11, 0.111, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.9, 0.91, 0.92, 0.93, 0.933};
+  //const vector<double> input_points {0.1, 0.2, 0.3, 0.11, 0.111, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.9, 0.91, 0.92, 0.93, 0.933};
+  //const vector<double> input_points {0.1, 0.2, 0.3, 0.35, 0.4, 0.45, 0.50, 0.55, 0.60, 0.66, 0.7, 0.75, 0.80, 0.85, 0.90, 0.93, 0.95, 0.15};
 
-  const vector<double> result =
+  vector<double> input_points; 
+  for (int i = 0; i != 100; ++i) {
+    double tmp = 0.5 + i*0.001;
+    input_points.push_back(tmp*tmp*tmp);
+  }
+  
+  vector<double> result =
     distribute_points_1D(&input_points[0], (int)input_points.size(),
 			 {c.startparam(), c.endparam()},
 			 [&c] (const double* p1,
@@ -58,6 +65,7 @@ void test_spline_curve(int varnum, char* vararg[])
 			   return parcurve_distfun(p1, p2, grad, jac, c);
 			 });			 
   cout << "Result: " << endl;
+  sort(result.begin(), result.end());
   copy(result.begin(), result.end(), ostream_iterator<double>(cout, ", "));
   cout << endl << endl;
 
@@ -129,7 +137,7 @@ double parcurve_distfun(const double* p1, const double* p2, double* grad,
   c.point(pts2, *p2, 2);
 
   const Point d = pts2[0] - pts1[0];
-  const double dist = d.length();
+  const double dist = d.length() > 0 ? d.length() : 1;
   const double dist3 = dist * dist * dist;
   const double d_dp1 = d * pts1[1];
   const double d_dp2 = d * pts2[1];

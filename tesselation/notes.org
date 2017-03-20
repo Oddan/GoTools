@@ -9,3 +9,6 @@
 * triangulate_points_2D
 - [ ] implement
 * Introduce use of sparse matrices
+* Questions
+- why does it matter that points are sorted according to size in the update function?
+- why does the second update function not perform better?
