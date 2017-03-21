@@ -54,6 +54,13 @@ int main(int varnum, char* vararg[]) {
     store_points_and_curve(*krull, &pvec[0], pvec.size(), "dill.g2");
   }
   os.close();
+
+  // ----------------------------- tesselate surface -----------------------------
+
+  // UNIFORM SAMPLING OF UNDERLYING SURFACE
+  // CLIPPING SAMPLES AGAINST BOUNDARY POLYGON(S)
+  // TRIANGULATING RESULTING POINT SET
+  // OPTIMIZING POSITION OF INTERIOR POINTS
   
   return 0;
 }
