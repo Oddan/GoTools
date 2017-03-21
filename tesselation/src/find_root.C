@@ -7,7 +7,7 @@
 #include <Eigen/Core>
 #include "reenable_warnings.h"
 
-#include "make_curve_spacing_fun.h"
+#include "make_spacing_funs.h"
 
 using namespace std;
 using namespace Go;
