@@ -1,4 +1,35 @@
-function [val, der, der2] = energy(radius, points, boundary_points) 
+function [val, der, der2] = energy(radius, points, boundary_points)
+
+   % computing inter-point energies
+   [ival, ider, ider2] = interpoint_energy(radius, points, boundary_points);
+   
+   %ival = 0; ider = 0; ider2 = 0;
+   % adding boundary energies
+   [bval, bder, bder2] = boundary_energy(radius, points);
+   
+   val  = ival  + 1 * bval;
+   der  = ider  + 1 * bder;
+   der2 = ider2 + 1 * bder2;
+   
+end
+
+function [val, der, der2] = boundary_energy(radius, points)
+
+   [ex1, dex1, ddex1] = dist_energy_2D(2 * points(:,1)      , radius);
+   [ex2, dex2, ddex2] = dist_energy_2D(2 * (1 - points(:,1)), radius);
+   [ey1, dey1, ddey1] = dist_energy_2D(2 * points(:,2)      , radius);
+   [ey2, dey2, ddey2] = dist_energy_2D(2 * (1 - points(:,2)), radius);
+   
+   val = sum(ex1 + ex2 + ey1 + ey2);
+   
+   der = 2 * [dex1 - dex2; dey1 - dey2];
+   
+   der2 = diag(4 * [ddex1 + ddex2; ddey1 + ddey2]);
+   
+end
+   
+   
+function [val, der, der2] = interpoint_energy(radius, points, boundary_points) 
 
    N = size(points, 1); % number of interior points
    all_points = [points; boundary_points]; 
@@ -41,8 +72,20 @@ end
 
 function [val, der, der2] = dist_energy_2D(dist, radius)
 
+   %@@ Test: using a two times as long radius for boundary points
+   % radius = dist*0+radius; % matrix of size 'dist'
+   % radius(N+1:end, :) = 2 * radius(1,1);
+   % radius(:, N+1:end) = 2 * radius(1,1);
+   
    r = radius - dist;
-   r(logical(eye(size(r)))) = 0; % no energy associated with a point and itself
+   
+   if size(r,1) == size(r,2)
+      % square matrix : we are use the function to compute point distances
+      r(logical(eye(size(r)))) = 0; % no energy associated with a point and
+                                    % itself
+   else
+      % do nothing.  We are computing distance to boundary
+   end
    
    val  = r.*r;
    der  = -2 * r;
