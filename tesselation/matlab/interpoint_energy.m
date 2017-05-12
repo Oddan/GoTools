@@ -39,6 +39,6 @@ function [E, dE] = interpoint_energy(points1, points2, dfun, efun, varargin)
    dE_dx = fac * sum(lx .* de, 2);
    dE_dy = fac * sum(ly .* de, 2);
    
-   dE = [dE_dx, dE_dy];
+   dE = [dE_dx; dE_dy];
       
 end

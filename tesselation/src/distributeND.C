@@ -51,7 +51,7 @@ double total_length_1D(const pair<double, double>& bounds,
 //   double dist_energy_1D(const double dist, const double radius, double* const grad,
 // 			double* const jac, double eps=0)
 // // ----------------------------------------------------------------------------  
-// {
+// { @@ GRADIENT 'grad' APPEARS TO HAVE THE WRONG FORMULA HERE
 //   const double dist_eps = dist + eps;
 //   const double dist_eps_3 = dist_eps * dist_eps * dist_eps;
 //   const double dist_eps_4 = dist_eps * dist_eps_3;
