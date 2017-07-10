@@ -5,6 +5,8 @@ polygon = [0.5, -0.5; 1.5, 0.5; 1.5, 1.5; 0.5, 1.5; -0.5, 0.5]; % rotated house
 
 
 points = [0.5, 0.5];
+points = [0.1, 0.1; 0.5, 0.5];
+          
 
 % Really, the radius should be chosen by dividing total polygon area by
 % number of points, computing the equivalent radius (divide by pi and take
@@ -13,7 +15,8 @@ points = [0.5, 0.5];
 % neighborhood.
 % A larger value of the radius will require more computational time, and
 % force points closer to boundary.
-efun = energy_function_factory('simple', 0.15); 
+R = sqrt(polygon_area(polygon) / (numel(points)/2)/pi) * 5;
+efun = energy_function_factory('simple', R); 
 %efun = energy_function_factory('steep', 1);
 dfun = @euclidian_distance;
 
