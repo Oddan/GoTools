@@ -1,4 +1,5 @@
-function [E, dE] = polygon_energy(poly, points, dfun, efun)
+function [E, dE] = polygon_energy(poly, points, dfun, efun, R)
+% @@ Assuming counterclockwise oriented polygon
 % @@ assuming convex polygon, for now
 
    %% counting points and edges
@@ -23,10 +24,21 @@ function [E, dE] = polygon_energy(poly, points, dfun, efun)
    for i = 1:K
       cur_segment = segments(i:i+1,:);
   
-      mpoints = mirror_points(cur_segment, points);
-      [ME, dME] = interpoint_energy(points, mpoints, dfun, efun);
+      ind = segment_neighbor_points(cur_segment, points, R/2);
+
+      p_ix = find(ind);
+      p_ix_iy = [p_ix; p_ix + size(points, 1)];
+
+      mpoints = mirror_points(cur_segment, points(ind,:));
+      [ME, dME] = interpoint_energy(points(ind,:), mpoints, dfun, efun);
       
       E = E + ME;
-      dE = dE + dME;
+      dE(p_ix_iy) = dE(p_ix_iy) + dME;
+      
+      % mpoints = mirror_points(cur_segment, points);
+      % [ME, dME] = interpoint_energy(points, mpoints, dfun, efun);
+      
+      % E = E + ME;
+      % dE = dE + dME;
    end
 end

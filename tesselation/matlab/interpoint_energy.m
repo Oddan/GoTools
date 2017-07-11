@@ -31,7 +31,7 @@ function [E, dE] = interpoint_energy(points1, points2, dfun, efun, varargin)
       % If the second point set represent the boundary polyon, these are
       % fixed, which means that derivatives should not be multiplied by two
       % (as is the case for internal point that are measured against each
-      % other, as well as mirror points that are measured agains mirror
+      % other, as well as mirror points that are measured against mirror
       % images of each other)
       fac = 1;
    end

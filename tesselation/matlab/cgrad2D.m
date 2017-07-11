@@ -15,7 +15,7 @@ function [x, iter, x_hist] = cgrad2D(fun, x0, polygon)
 % RETURNS:
 %   x - optimized points
 
-   MAX_ITER = 2000;
+   MAX_ITER = 200; % 2000
    threshold = 1e-5;%sqrt(eps);
    
    prev_grad = [];
