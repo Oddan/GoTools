@@ -104,7 +104,7 @@ void minimise_conjugated_gradient(FunctionMinimizer<Functor>& dfmin)
 	// minimize along this direction
 	bool hit_domain_edge = false;
 	double new_val = dfmin.minimize(dir, hit_domain_edge); 
-	if (2.0 * fabs(new_val - old_val) <= TOL  * (1.0 + fabs(new_val) + fabs(old_val)+ EPS)) {
+	if (2.0 * fabs(new_val - old_val) <= TOL  * (fabs(new_val) + fabs(old_val)+ EPS)) {
 	    // we have reached a minimum
 	    break;
 	} else {
@@ -176,7 +176,7 @@ FunctionMinimizer(int num_param, const Functor& fun, const double* const seed, d
     for (int i = 0; i < num_param; ++i) {
         // We should scale only if domain size does not reflect geometry size
         // (i.e. not curve length parametrized basis).
-	param_tol_[i] = rel_tol_;// * (fun_.maxPar(i) - fun_.minPar(i));
+	param_tol_[i] = rel_tol_ * (fun_.maxPar(i) - fun_.minPar(i));
     }
     
     checkBorder(); // determine at_min_ and at_max_

@@ -12,42 +12,10 @@ template<typename T> inline
 void operator += (std::vector<T>& lhs, const std::vector<T>& rhs)
 // ----------------------------------------------------------------------------
 {
+  assert(lhs.size() == rhs.size());
   auto rhs_it = rhs.cbegin();
   for(auto lhs_it = lhs.begin(); lhs_it != lhs.end(); ++lhs_it, ++rhs_it)
     *lhs_it += *rhs_it;
-}
-
-// ----------------------------------------------------------------------------
-template<typename P> inline
-void operator += (P& p1, const P& p2)
-// ----------------------------------------------------------------------------
-{ 
-  p1[0] += p2[0]; 
-  p1[1] += p2[1];
-}
-
-// ----------------------------------------------------------------------------
-template<typename P> inline
-P operator - (const P& p1, const P& p2)
-// ----------------------------------------------------------------------------
-{
-  return P {p1[0] - p2[0], p1[1] - p2[1]};
-}
-
-// ----------------------------------------------------------------------------
-template<typename P> inline 
-P operator + (const P& p1, const P& p2)
-// ----------------------------------------------------------------------------
-{
-  return P {p1[0] + p2[0], p1[1] + p2[1]};
-}
-
-// ----------------------------------------------------------------------------
-template<typename P> inline
-P operator*(const P& p, double t)
-// ----------------------------------------------------------------------------
-{
-  return P {t*p[0], t*p[1]};
 }
 
 // ----------------------------------------------------------------------------
@@ -204,36 +172,85 @@ std::vector<P> inpolygon(const P* const pts, const unsigned int num_pts,
 }
 
 // ----------------------------------------------------------------------------    
-template<typename P>
-double projected_distance_to_line(const P& p, const P& a, const P& b)
+template<typename P> inline
+double projected_distance_to_line(P p, P a, P b)
 // ----------------------------------------------------------------------------    
 {
-  const P ap = p-a;
-  const P ab = b-a;
+  const double dab = dist(a,b);
+  p -= a; // now represents ap
+  b -= a; // now represents ab
+
+  return std::abs((p[0]*b[1] - p[1]*b[0]) / dab);
+
+  // const P ap = p-a;
+  // const P ab = b-a;
   
-  return std::abs((ap[0]*ab[1] - ap[1]*ab[0]) / dist(a,b));
+  //  return std::abs((ap[0]*ab[1] - ap[1]*ab[0]) / dist(a,b));
 }
 
 // ----------------------------------------------------------------------------    
 // Check if the point p is within distance 'tol' of the line segment defined by
 // points a and b
-template<typename P>
+template<typename P> inline
 bool point_on_line_segment(const P& p, const P& a, const P& b, double tol)
 // ----------------------------------------------------------------------------    
 {
-  if (dist(p, a) < tol) return true;
-  if (dist(p, b) < tol) return true;
+  const double tol2 = tol * tol;
+  const double dpa2 = dist2(p,a);
+  if (dpa2 < tol2) return true;
 
-  // we now know the point is _not_ coincident with the segment endpoints
+  const double dpb2 = dist2(p,b);
+  if (dpb2 < tol2) return true;
+
+  // we need to establish a maximum distance from endpoints such that no point
+  // outside this radius have a chance of being close enough to the line
+  // segment.  We ensure this by multiplying the distance by sqrt(5/4), which
+  // becomes 5/4 since we work with squared distances.  The factor 5/4 is easily
+  // derived using pythagoras and considering the distance to the line segment
+  // midpoint
+  const double dab2 = dist2(a,b);
+  const double max_rad2 = std::max(dab2, tol2) * 1.25; // 1.25 = 5/4.
+  if ((dpa2 > max_rad2) || (dpb2 > max_rad2)) return false;
+
+  // we now know the point is _not_ coincident with the segment endpoints, but
+  // still close enough that it remains a candidate.
+
+  // does the point project outside the segment, if so, it is not on the segment
+  if ((dab2 < dpa2) || (dab2 < dpb2))
+    return false;
+
+  // The only thing that remains to be checked now is whether the orthogonally
+  // projected distances is within the tolerance
   const double d = projected_distance_to_line(p, a, b);
-  if (d > tol) return false;
 
-  // the point is close enough to the infinite line, but is it close enough to
-  // the _segment_?
-  const double ap = dist(a,p);
-  const double ab = dist(a,b);
-  const double bp = dist(b,p);
-  return (ab > ap) && (ab > bp);
+  return (d < tol);
+  
+  // if (d > tol) return false;
+
+  // // the point is close enough to the infinite line, but is it close enough to
+  // // the _segment_?
+  // return (dab2 > dpa2) && (dab2 > dpb2);
+  // // const double ap = dist2(a,p);  // @ we can use dist2 instead of dist, since 
+  // // const double ab = dist2(a,b);  //   the square function is convex (here, it
+  // // const double bp = dist2(b,p);  //   prevents us from doing the costly square
+  // // return (ab > ap) && (ab > bp); //   root operation)
+}
+
+// ----------------------------------------------------------------------------
+template<typename P> inline
+bool acute_angle(const P& a, const P& b, const P& c)
+// ----------------------------------------------------------------------------
+{
+  // angle is acute if scalar product of vectors ba and bc is positive
+  return (c[0] - b[0]) * (a[0] - b[0]) + (c[1] - b[1]) * (a[1] - b[1]) > 0;
+}
+
+// ----------------------------------------------------------------------------
+template<typename P> inline
+bool projects_to_segment(const P& p, const P& a, const P&b)
+// ----------------------------------------------------------------------------    
+{
+  return acute_angle(p, a, b) && acute_angle(p, b, a);
 }
 
 // ----------------------------------------------------------------------------    
@@ -247,8 +264,82 @@ inline double random_uniform(double minval, double maxval)
   return unif(re);
 }
 
+// ----------------------------------------------------------------------------    
+template<typename T> inline
+std::vector<unsigned int> locate_nonzeros(const std::vector<T> vec)
+// ----------------------------------------------------------------------------    
+{
+  std::vector<unsigned int> result;
+  locate_nonzeros(vec, result);
+  return result;
+}
 
-    
+// ----------------------------------------------------------------------------    
+template<typename T> inline
+void locate_nonzeros(const std::vector<T> vec, std::vector<unsigned int>& target)
+// ----------------------------------------------------------------------------
+{
+  target.clear();
+  const unsigned int N = (unsigned int) vec.size();
+  for (unsigned int i = 0; i != N; ++i) 
+    if (vec[i] != 0)
+      target.push_back(i);
+}
+
+// ----------------------------------------------------------------------------
+template<typename T, typename Pred> inline
+std::pair<std::vector<T>, std::vector<unsigned int>>
+extract_from_range(const T* const start, unsigned int len, const Pred& fun)
+// ----------------------------------------------------------------------------  
+{
+  std::pair<std::vector<T>, std::vector<unsigned int>> result;
+
+  std::vector<int> flag(len);
+  transform(start, start+len, flag.begin(), fun);
+  result.second = locate_nonzeros(flag);
+  result.first.reserve(result.second.size());
+  transform(result.second.begin(), result.second.end(),
+	    back_inserter(result.first),
+	    [start](unsigned int ix) {return start[ix];});
+  return result;
+}
+
+// ----------------------------------------------------------------------------
+template<typename P> inline
+P mirror_point(P p, const P& a, const P& b)
+// ----------------------------------------------------------------------------
+{
+  // compute normalized tangent vector and normal vector
+  const P t = (a - b) / dist(a, b); // @@ unnecessary intermediary.  May be optimized
+  const P n {-t[1], t[0]};
+
+  // translate so that segment line passes through origo at 'a'
+  p -= a;
+
+  // compute mirroring matrix (from Householder).  Column-based storage.
+  const double nxny = n[0] * n[1];
+  const std::array<double, 4> H {1 - 2*n[0]*n[0], -2*nxny, -2*nxny, 1-2*n[1]*n[1]};
+
+  // compute mirrored point by multplying with matrix and translate back by adding a
+  return P { H[0] * p[0] + H[2] * p[1] + a[0],   
+             H[1] * p[0] + H[3] * p[1] + a[1]};
+}
+
+// ----------------------------------------------------------------------------        
+template<typename P> inline
+std::vector<P> mirror_points(const P* const pts,
+			     const unsigned int num_pts,
+			     const P& a,
+			     const P& b)
+// ----------------------------------------------------------------------------
+{
+  std::vector<P> result(num_pts);
+  transform(pts, pts + num_pts, result.begin(),
+	   [&a, &b] (const P& p) {return mirror_point(p, a, b);});
+  return result;
+}
+
+
 }; // end namespace
 
 

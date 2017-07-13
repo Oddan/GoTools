@@ -4,6 +4,7 @@
 #include "tesselate_utils.h"
 #include "tesselate_polyhedron.h"
 #include "polyhedral_energies.h"
+#include "GoTools/utils/GeneralFunctionMinimizer.h"
 
 using namespace std;
 using namespace TesselateUtils; 
@@ -11,7 +12,109 @@ using namespace TesselateUtils;
 namespace {
 
 const double PI = 3.14159265358979323;
+
+class PolygonEnergyFunctor
+{
+public:
+  PolygonEnergyFunctor(const Point2D* const polygon,
+		       const unsigned int num_corners,
+		       const unsigned int num_ipoints,
+		       const double radius);
+
+  double operator()(const double* const arg) const;
+  void grad(const double* arg, double* grad) const;
+  double minPar(int n) const;
+  double maxPar(int n) const;
+private:
+
+  bool use_cached(const double* const arg) const;
+  void update_cache(const double* const arg) const;
+  const Point2D* const poly_;
+  const unsigned int nc_; // num polygon corners
+  const unsigned int ni_; // num interior points
+  const double r_; // radius
+  const std::array<double, 4> bbox_; // bounding box
+
+  mutable ValAndDer cached_result_;
+  mutable vector<double> cached_arg_;
+
+};
   
+// ----------------------------------------------------------------------------  
+vector<Point2D> init_startpoints(const Point2D* const polygon,
+				 const unsigned int num_corners,
+				 const double vdist);
+// choose some initial startpoints as a basis for subsequent optimization  
+// ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+void optimize_interior_points(const Point2D* const polygon,
+			      const unsigned int num_corners,
+			      Point2D* const ipoints,
+			      const unsigned int num_ipoints,
+			      const double vdist);
+// ----------------------------------------------------------------------------  
+  
+}; // end anonymous namespace
+
+namespace TesselateUtils {
+
+// ============================================================================
+vector<Point2D> tesselatePolygon2D(const Point2D* const polygon,
+                                  const unsigned int num_corners,
+                                  const double vdist)
+// ============================================================================
+{
+  // computing the points defining the boundary polygon 
+
+  vector<Point2D> bpoints; // "boundary points"
+  for (unsigned int i = 0; i != num_corners; ++i) {
+    const auto tseg = tesselateSegment2D(polygon[i], 
+					 polygon[(i+1) % num_corners], 
+					 vdist);
+    bpoints.insert(bpoints.end(), tseg.begin(), tseg.end()-1);
+  }
+
+  // Choosing a set of interior points which we can later move around to optimal
+  // locations 
+  vector<Point2D> ipoints = init_startpoints(polygon, num_corners, vdist); 
+  
+  // Optimizing position of interior points
+  optimize_interior_points(&bpoints[0], (uint)bpoints.size(),
+			   &ipoints[0], (uint)ipoints.size(),
+			   vdist*1.5);
+
+
+  
+  // @@computing and reporting internal energy
+  const double R = 2 * vdist;
+  const auto e = polygon_energy(&bpoints[0], (unsigned int)bpoints.size(),
+				&ipoints[0], (unsigned int)ipoints.size(), 
+				R);
+
+  cout << "Energy is:" << e.val << endl;
+
+  vector<Point2D> points(bpoints);
+  points.insert(points.end(), ipoints.begin(), ipoints.end());
+  return points;
+}
+
+// ============================================================================
+vector<Point2D> tesselateSegment2D(const Point2D& p1,
+				   const Point2D& p2,
+				   const double vdist)
+// ============================================================================
+{
+  const double seg_len = dist(p1, p2);
+  const unsigned int num_intervals = (unsigned int)ceil(seg_len/vdist);
+
+  return interpolate(p1, p2, num_intervals - 1);
+}
+  
+};
+
+namespace {
+
 // ----------------------------------------------------------------------------  
 vector<Point2D> init_startpoints(const Point2D* const polygon,
 				 const unsigned int num_corners,
@@ -50,55 +153,104 @@ vector<Point2D> init_startpoints(const Point2D* const polygon,
   return result;
 }
   
-}; // end anonymous namespace
-
-namespace TesselateUtils {
-
-// ============================================================================
-vector<Point2D> tesselatePolygon2D(const Point2D* const polygon,
-                                  const unsigned int num_corners,
-                                  const double vdist)
-// ============================================================================
+// ----------------------------------------------------------------------------
+void optimize_interior_points(const Point2D* const polygon,
+			      const unsigned int num_corners,
+			      Point2D* const ipoints,
+			      const unsigned int num_ipoints,
+			      const double vdist)
+// ----------------------------------------------------------------------------  
 {
-  // computing the points defining the boundary polygon 
+  // Setting up function to minimize (energy function);
+  auto efun = PolygonEnergyFunctor(polygon, num_corners, num_ipoints, vdist);
+  
+  // Setting up function minimizer
+  Go::FunctionMinimizer<PolygonEnergyFunctor>
+    funcmin(num_ipoints * 2, efun, (double* const)&ipoints[0], 1e-1); // @@ TOLERANCE?
+  
+  // do the minimization
+  Go::minimise_conjugated_gradient(funcmin);
 
-  vector<Point2D> bpoints; // "boundary points"
-  for (unsigned int i = 0; i != num_corners; ++i) {
-    const auto tseg = tesselateSegment2D(polygon[i], 
-					 polygon[(i+1) % num_corners], 
-					 vdist);
-    bpoints.insert(bpoints.end(), tseg.begin(), tseg.end()-1);
+  // copying results back.  The cast is based on the knowledge that Points2D
+  // consists of POD and that points are stored contiguously in memory
+  // (as x1,y1,x2,y2, ...)
+  double* const target = (double* const) ipoints;
+  std::copy(funcmin.getPar(), funcmin.getPar() + funcmin.numPars(), target);
+}
+
+// ----------------------------------------------------------------------------    
+PolygonEnergyFunctor::PolygonEnergyFunctor(const Point2D* const polygon,
+					   const unsigned int num_corners,
+					   const unsigned int num_ipoints,
+					   const double radius)
+// ----------------------------------------------------------------------------    
+  : poly_(polygon), nc_(num_corners), ni_(num_ipoints), r_(radius),
+    bbox_(bounding_box(polygon, num_corners))
+{}
+
+// ----------------------------------------------------------------------------    
+void PolygonEnergyFunctor::update_cache(const double* const arg) const
+// ----------------------------------------------------------------------------    
+{
+  if (cached_arg_.empty())
+    cached_arg_.resize(2*ni_);
+
+  copy(arg, arg + 2 * ni_, &cached_arg_[0]);
+  cached_result_ = polygon_energy(poly_, nc_,
+				  (const Point2D* const) &cached_arg_[0],
+				  ni_, r_);
+}
+
+// ----------------------------------------------------------------------------    
+double PolygonEnergyFunctor::operator()(const double* const arg) const
+// ----------------------------------------------------------------------------    
+{
+  // Very inefficient to have separate methods for function value and function
+  // gradient.  We have therefore implemented a caching system here.
+  if (!use_cached(arg)) {
+    update_cache(arg);
+    //cout << "updating fval" << endl;
+  } else {
+    //cout << "using cached fval" << endl;
   }
-
-  // Choosing a set of interior points which we can later move around to optimal
-  // locations 
-  vector<Point2D> ipoints = init_startpoints(polygon, num_corners, vdist); 
-  
-  // Optimizing position of interior points
-
-  // @@computing and reporting internal energy
-  const double R = 2 * vdist;
-  const auto e = polygon_energy(&bpoints[0], (unsigned int)bpoints.size(),
-				&ipoints[0], (unsigned int)ipoints.size(), 
-				R);
-
-  cout << "Energy is:" << e.val << endl;
-
-  vector<Point2D> points(bpoints);
-  points.insert(points.end(), ipoints.begin(), ipoints.end());
-  return points;
+  return cached_result_.val;
 }
 
-// ============================================================================
-vector<Point2D> tesselateSegment2D(const Point2D& p1,
-				   const Point2D& p2,
-				   const double vdist)
-// ============================================================================
+// ----------------------------------------------------------------------------    
+void PolygonEnergyFunctor::grad(const double* arg, double* grad) const
+// ----------------------------------------------------------------------------
 {
-  const double seg_len = dist(p1, p2);
-  const unsigned int num_intervals = (unsigned int)ceil(seg_len/vdist);
-
-  return interpolate(p1, p2, num_intervals - 1);
+  // Very inefficient to have separate methods for function value and function
+  // gradient.  We have therefore implemented a caching system here.
+  if (!use_cached(arg)) {
+    update_cache(arg);
+    //cout << "updating derivative" << endl;
+  } else {
+    //cout << "using cached derivative" << endl;
+  }
+  const double* const dp = (const double* const)&cached_result_.der[0];
+  copy(dp, dp + 2 * ni_, grad);
 }
-  
-};
+
+// ----------------------------------------------------------------------------    
+double PolygonEnergyFunctor::minPar(int n) const
+// ----------------------------------------------------------------------------
+{
+  return bbox_[(n % 2) * 2];
+}
+
+// ----------------------------------------------------------------------------
+double PolygonEnergyFunctor::maxPar(int n) const 
+// ----------------------------------------------------------------------------  
+{
+  return bbox_[(n % 2) * 2 + 1];
+}
+
+// ----------------------------------------------------------------------------  
+bool PolygonEnergyFunctor::use_cached(const double* const arg) const
+// ----------------------------------------------------------------------------
+{
+  return (cached_arg_.size() > 0) && (std::equal(arg, arg + 2 * ni_, &cached_arg_[0]));
+}
+
+}; // end anonymous namespace

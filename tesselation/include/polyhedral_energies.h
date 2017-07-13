@@ -10,7 +10,7 @@ namespace TesselateUtils {
 			   const unsigned int num_bpoints,
 			   const Point2D* const ipoints,
 			   const unsigned int num_ipoints,
-			   double vdist);
+			   const double vdist);
 
 }; // end namespace Go
 

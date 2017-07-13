@@ -10,14 +10,29 @@ namespace {
 vector<DistanceEntry> 
 interpoint_distances_bruteforce_impl(const Point2D* const points,
 				     const uint num_points,
-				     double R);
+				     const double R);
 vector<DistanceEntry> 
 interpoint_distances_smart_impl(const Point2D* const points,
 				const uint num_points,
-				double R);
+				const double R);
 
-const tuple<vector<uint>, vector<uint>> 
-bin_points(const Point2D* const points, const uint num_points, double R);
+struct BinnedPoints {
+  vector<Point2D> binned_points;
+  vector<uint> original_index;
+  vector<uint> indices;
+  uint num_bins_x;
+  uint num_bins_y;
+};
+
+BinnedPoints bin_points(const Point2D* const points,
+			const uint num_points,
+			const double R);
+  
+void add_distances_from_bins(const BinnedPoints& binned_points,
+			     const uint ix1, const uint iy1,
+			     const uint ix2, const uint iy2,
+			     const double R, 
+			     vector<DistanceEntry>& result);
 
 };
 
@@ -27,13 +42,57 @@ namespace TesselateUtils {
 // ============================================================================  
 vector<DistanceEntry> interpoint_distances(const Point2D* const points,
 					   const uint num_points,
-					   double R, bool bruteforce)
+					   const double R,
+					   const bool bruteforce)
 // ============================================================================
 {
   if (bruteforce) {
+    // O(N^2) complexity, but competitive or even faster on small data
     return interpoint_distances_bruteforce_impl(points, num_points, R);
   }
+  // O(N log N) complexity
   return interpoint_distances_smart_impl(points, num_points, R);
+}
+  
+// ============================================================================
+vector<DistanceEntry> interpoint_distances(const Point2D* points,
+					   const uint num_points,
+					   const Point2D& p,
+					   const double R)
+// ============================================================================
+{
+  const double R2 = R*R; 
+  vector<DistanceEntry> result;
+  const auto points_end = points + num_points;
+  for (auto q = points; q != points_end; ++q)
+    if (dist2(p, *q) < R2)
+      result.push_back( {uint(q-points), 0, dist(p, *q)});
+  return result;
+}
+
+// ============================================================================  
+vector<DistanceEntry> interpoint_distances(const Point2D* points,
+					   const uint num_points,
+					   const Point2D* other_points,
+					   const uint num_other_points,
+					   const double R)
+// ============================================================================  
+{
+  const double R2 = R*R;
+  vector<DistanceEntry> result;
+  result.reserve(1000);  // hopefully sufficient to avoid vector reallocation
+  
+  // We only use a bruteforce implementation here, since we do not expect
+  // 'num_points' to be particularly big in this case. 
+  const auto points_end = points + num_points;
+  const auto other_points_end = other_points + num_other_points;
+  
+  for (auto p = points; p != points_end; ++p)
+    for (auto q = other_points; q != other_points_end; ++q)
+      if ((dist2(*p, *q) < R2) && p!=q) // skip if both points are the same
+	result.push_back({uint(p-points), uint(q-other_points), dist(*p, *q)});
+
+  return result;
 }
 
 }; // end namespace TesselateUtils
@@ -44,7 +103,7 @@ namespace {
 vector<DistanceEntry> 
 interpoint_distances_bruteforce_impl(const Point2D* const points, 
 				     const uint num_points,
-				     double R)
+				     const double R)
 // ----------------------------------------------------------------------------
 {
   const double R2 = R*R;
@@ -65,74 +124,130 @@ interpoint_distances_bruteforce_impl(const Point2D* const points,
 vector<DistanceEntry> 
 interpoint_distances_smart_impl(const Point2D* const points, 
 				const uint num_points, 
-				double R)
+				const double R)
 // ----------------------------------------------------------------------------
 {
-  const double R2 = R*R;
-  vector<DistanceEntry> result;
-
-  const tuple<vector<uint>, vector<uint>> bins = bin_points(points, num_points, R);
-  const auto& bin_x = get<0>(bins);
-  const auto& bin_y = get<1>(bins);
-
-  // loop over bins and identify neighbors.  Due to the bin size, neighbors can
-  // only be found within a single bin or in adjacent bins.
-  const uint maxbin_x = *std::max_element(bin_x.begin(), bin_x.end());
-  const uint maxbin_y = *std::max_element(bin_y.begin(), bin_y.end());
-
-  vector<uint> flag(num_points); // will be used to flag points in current bins
-  vector<uint> cur_pts; // this vector will hold the indices of the flagged points
+  // sort points in bins depending on spatial position
+  const BinnedPoints binned_points = bin_points(points, num_points, R);
   
-  for (int iy = 0; iy <= (int)maxbin_y; iy += 2) {
-    for (int ix = 0; ix <= (int)maxbin_x; ix += 2) {
-
-      // identify the points in the 3x3 set of bins under study
-      transform(bin_x.begin(), bin_x.end(), bin_y.begin(), flag.begin(), 
-		[ix, iy](int bx, int by) {
-		  return (bx >= ix-1) && (bx <= ix+1) &&
-		         (by >= iy-1) && (by <= iy+1);});
-      cur_pts.clear();
-      for (uint i = 0; i != flag.size(); ++i)
-	if (flag[i]) 
-	  cur_pts.push_back(i);
-
-      // compare distances between flagged points
-      for (uint i = 0; i != cur_pts.size(); ++i) {
-	for (uint j = i+1; j != cur_pts.size(); ++j) {
-	  auto& p1 = points[cur_pts[i]];
-	  auto& p2 = points[cur_pts[j]];
-	  if (dist2(p1, p2) < R2)
-	    result.push_back( {cur_pts[i], cur_pts[j], dist(p1, p2)});
-	}
-      }
+  vector<DistanceEntry> result;  
+  const uint num_bins_x = binned_points.num_bins_x;
+  const uint num_bins_y = binned_points.num_bins_y;
+  
+  // testing bin against themselves and neighbors
+  for (uint iy = 0; iy != num_bins_y; ++iy) {
+    for (uint ix = 0; ix != num_bins_x; ++ix) {
+      // comparing current bin againts itself
+      add_distances_from_bins(binned_points, ix, iy, ix, iy, R, result);
+      if (ix < num_bins_x-1) // compare against right neighbor
+	add_distances_from_bins(binned_points, ix, iy, ix+1, iy, R, result);
+      if (iy < num_bins_y-1) // compare against top neighbor
+	add_distances_from_bins(binned_points, ix, iy, ix, iy+1, R, result);
+      if ((ix < num_bins_x-1) && (iy < num_bins_y-1)) // diagonal compare 1
+	add_distances_from_bins(binned_points, ix, iy, ix+1, iy+1, R, result);
+      if ((ix > 0) && (iy < num_bins_y-1)) // diagonal compare 2
+	add_distances_from_bins(binned_points, ix, iy, ix-1, iy+1, R, result);
     }
   }
-  sort(result.begin(), result.end());
-  result.erase(unique(result.begin(), result.end()), result.end());
-
   return result;
 }
 
-// ----------------------------------------------------------------------------
-const tuple<vector<uint>, vector<uint>> 
-bin_points(const Point2D* const points, const uint num_points, double R)
+// ----------------------------------------------------------------------------  
+void add_distances_from_bins(const BinnedPoints& binned_points,
+			     const uint ix1, const uint iy1,
+			     const uint ix2, const uint iy2,
+			     const double R, 
+			     vector<DistanceEntry>& result)
+// ----------------------------------------------------------------------------  
+{
+  const uint bin_1_linear_ix = iy1 * binned_points.num_bins_x + ix1; 
+  const uint bin_2_linear_ix = iy2 * binned_points.num_bins_x + ix2;
+
+  // if we are comparing a bin against itself, we must take care not to register
+  // each distance twice
+  const bool same_bin = bin_1_linear_ix == bin_2_linear_ix;
+
+  const uint start_ix_1 = binned_points.indices[bin_1_linear_ix];
+  const uint num_pts_1 = binned_points.indices[bin_1_linear_ix + 1] - start_ix_1;
+  const uint start_ix_2 = binned_points.indices[bin_2_linear_ix];;
+  const uint num_pts_2 = binned_points.indices[bin_2_linear_ix + 1] - start_ix_2;
+
+  auto new_dists = (same_bin) ?
+    interpoint_distances(&binned_points.binned_points[start_ix_1], num_pts_1, R, true) :
+    interpoint_distances(&binned_points.binned_points[start_ix_1], num_pts_1,
+			 &binned_points.binned_points[start_ix_2], num_pts_2, R);
+
+  // indices in new_dists refer to the indices relative to the local bin.  We
+  // here convert to global indices
+  for (auto& d : new_dists) {
+    d.p1_ix = binned_points.original_index[start_ix_1 + d.p1_ix];
+    d.p2_ix = binned_points.original_index[start_ix_2 + d.p2_ix];
+  }
+
+  result.insert(result.end(), new_dists.begin(), new_dists.end());  
+}
+
+// ----------------------------------------------------------------------------    
+BinnedPoints bin_points(const Point2D* const points,
+			const uint num_points,
+			const double R)
 // ----------------------------------------------------------------------------
 {
-  tuple<vector<uint>, vector<uint>> result {vector<uint>(num_points),
-                                            vector<uint>(num_points)};
-  auto& bin_x = get<0>(result);
-  auto& bin_y = get<1>(result);
+  const auto bbox = bounding_box(points, num_points); 
+  const double xmin = bbox[0]; const double xmax = bbox[1];
+  const double ymin = bbox[2]; const double ymax = bbox[3];
 
-  const auto bbox = bounding_box(points, num_points);
-  const double xmin = bbox[0];
-  const double ymin = bbox[2];
-
+  vector<array<uint, 2>> bins(num_points); // identify the bin of each point
+  const double Rinv = 1.0/R;
   for (uint i = 0; i != num_points; ++i) {
-    bin_x[i] = (uint)ceil((points[i][0] - xmin)/R);
-    bin_y[i] = (uint)ceil((points[i][1] - ymin)/R);
+    bins[i][0] = (uint)ceil((points[i][0] - xmin) * Rinv);
+    bins[i][1] = (uint)ceil((points[i][1] - ymin) * Rinv);
+  }
+  const uint num_bins_x = (uint)ceil((xmax-xmin) * Rinv) + 1;
+  const uint num_bins_y = (uint)ceil((ymax-ymin) * Rinv) + 1;
+
+  // Sort points according to bin
+  BinnedPoints result { {num_points, {0, 0}}, vector<uint>(num_points, 0),
+		        {}, num_bins_x, num_bins_y};
+  uint pos = 0;
+  result.indices.push_back(pos);
+  
+  for (uint iy = 0; iy != num_bins_y; ++iy) {
+    for (uint ix = 0; ix != num_bins_x; ++ix) {
+      for (auto& b : bins) {
+	if ((b[0] == ix) && (b[1] == iy)) {
+	  const uint orig_ix = (uint)(&b-&bins[0]);
+	  result.original_index[pos] = orig_ix;
+	  result.binned_points[pos++] = points[orig_ix];
+	}
+      }
+      result.indices.push_back(pos);
+    }
   }
   return result;
 }
+    
+// // ----------------------------------------------------------------------------
+// const tuple<vector<uint>, vector<uint>> 
+// bin_points(const Point2D* const points, const uint num_points, const double R)
+// // ----------------------------------------------------------------------------
+// {
+//   tuple<vector<uint>, vector<uint>> result {vector<uint>(num_points),
+//                                             vector<uint>(num_points)};
+//   auto& bin_x = get<0>(result);
+//   auto& bin_y = get<1>(result);
+
+//   const auto bbox = bounding_box(points, num_points);
+//   const double xmin = bbox[0];
+//   const double ymin = bbox[2];
+
+//   const double R_inv = 1.0/R;
+//   for (uint i = 0; i != num_points; ++i) {
+//     bin_x[i] = (uint)ceil((points[i][0] - xmin) * R_inv);
+//     bin_y[i] = (uint)ceil((points[i][1] - ymin) * R_inv);
+//   }
+//   return result;
+// }
 
 
 };

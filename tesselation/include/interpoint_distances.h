@@ -30,9 +30,27 @@ struct DistanceEntry {
 // conceptually be considered as a sparse matrix.)
 std::vector<DistanceEntry> interpoint_distances(const Point2D* points,
 						const uint num_points,
-						double R, bool bruteforce=false);
+						const double R,
+						const bool bruteforce=false);
   
+// Compute distances from points to a specific, separate point 'p'.  Only
+// consider points whose distances to 'p' are shorter than R.  The second index
+// in the DistanceEntry will be set to 0.
+std::vector<DistanceEntry> interpoint_distances(const Point2D* points,
+						const uint num_points,
+						const Point2D& p,
+						const double R);
 
+// Compute interpoint distances between points in 'points' and points in
+// 'other_points'.  Only consider distances shorter than R. If the same point is
+// found in both sets (as identified by its memory location), it will ignore
+// the distance between the point and itself.
+std::vector<DistanceEntry> interpoint_distances(const Point2D* points,
+						const uint num_points,
+						const Point2D* other_points,
+						const uint num_other_points,
+						const double R);
+  
 }; //end namespace TesselateUtils
 
 

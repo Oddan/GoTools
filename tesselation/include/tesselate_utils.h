@@ -75,21 +75,77 @@ std::vector<P> inpolygon(const P* const pts, const unsigned int num_pts,
 // 'p' is the point we want to compute distance from.  'a' and 'b' are two
 // distinct points on the infinite line (thus defining the line)
 template<typename P>
-double projected_distance_to_line(const P& p, const P& a, const P& b);
+double projected_distance_to_line(P p, P a, P b);
 // ----------------------------------------------------------------------------    
 
 
 // ----------------------------------------------------------------------------    
 // Check if the point p is within distance 'tol' of the line segment defined by
 // points a and b
-template<typename P>
+template<typename P> inline
 bool point_on_line_segment(const P& p, const P& a, const P& b, double tol);
 // ----------------------------------------------------------------------------    
 
+// ----------------------------------------------------------------------------
+// Returns 'true' if the line through point 'p' that perpendicularly intersects
+// the line passing through 'a' and 'b' has its itnersection point within the
+// segment ab.
+template<typename P> inline
+bool projects_to_segment(const P& p, const P& a, const P&b);
+// ----------------------------------------------------------------------------    
+
+// ----------------------------------------------------------------------------
+// return 'true' if the angle abc is acute
+template<typename P> inline
+bool acute_angle(const P& a, const P& b, const P& c);
+// ----------------------------------------------------------------------------      
+
+// ----------------------------------------------------------------------------
+// Mirror point 'p' accross the line passing through 'a' and 'b', and return the
+// result.
+template<typename P> inline
+P mirror_point(P p, const P& a, const P& b);
+// ----------------------------------------------------------------------------
+  
+  
+// ----------------------------------------------------------------------------
+// mirror the provided set of points across the line passing through a and b,
+// and return the result (the mirror points) as a vector
+template<typename P> inline
+std::vector<P> mirror_points(const P* const pts,
+			     const unsigned int num_pts,
+			     const P& a,
+			     const P& b);
+// ----------------------------------------------------------------------------
+
+  
 // ----------------------------------------------------------------------------    
 double random_uniform(double minval, double maxval);
 // ----------------------------------------------------------------------------    
 
+// ----------------------------------------------------------------------------
+// similar to MATLAB's "find".  There are two versions, depending on whether
+// clarity of code (result in return value) or speed (result as output argument)
+// is favored.
+template<typename T> inline
+std::vector<unsigned int> locate_nonzeros(const std::vector<T> vec);
+
+template<typename T> inline
+void locate_nonzeros(const std::vector<T> vec, std::vector<unsigned int>& target);
+// ----------------------------------------------------------------------------    
+
+// ----------------------------------------------------------------------------
+// Extract all elements from a range that satisfy a predicate. The predicate
+// should take a reference to T and return a bool (or int).  The first vector in
+// the result contains the extracted values, the second vector contain the
+// respective indices.
+template<typename T, typename Pred> inline
+std::pair<std::vector<T>, std::vector<unsigned int>>
+extract_from_range(const T* const range_start,
+		   unsigned int range_length, const Pred& fun);
+// ----------------------------------------------------------------------------    
+
+  
 }; // end namespace TesselateUtils
 
 #include "tesselate_utils_impl.h"

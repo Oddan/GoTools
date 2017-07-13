@@ -5,6 +5,7 @@
 #include "tesselate_utils.h"
 #include "GoTools/utils/Point.h"
 #include "interpoint_distances.h"
+#include "polyhedral_energies.h"
 
 using namespace std;
 using namespace TesselateUtils;
@@ -15,6 +16,7 @@ namespace Test {
   void test_generate_grid();
   void test_inpolygon();
   void test_interpoint_distances();
+  void test_energy();
 };
 
 // ============================================================================
@@ -35,6 +37,9 @@ int main() {
   cout << "Testing interpoint distance computation: " << endl;
   Test::test_interpoint_distances();
 
+  // cout << "Testing energy computation: " << endl;
+  // Test::test_energy();
+  
   return 0;
 };
 
@@ -110,26 +115,48 @@ void test_interpoint_distances()
 // ----------------------------------------------------------------------------
 {
   // Define a random set of test points
-  const int N = 100;
-  const double R = 0.05;
+  const int N = 20000;
+  const double R = 0.1;
   vector<Point2D> points(N);
   generate(points.begin(), points.end(), 
 	   [](){return Point2D {random_uniform(0, 1), random_uniform(0, 1)};});
 
   const auto result = interpoint_distances(&points[0], N, R, false);
 
-  ofstream os("distances.mat");
-  for (auto e : result)
-    os << e.p1_ix << " " << e.p2_ix << " " << e.dist << '\n';
-  os.close();
+  // ofstream os("distances.mat");
+  // for (auto e : result)
+  //   os << e.p1_ix << " " << e.p2_ix << " " << e.dist << '\n';
+  // os.close();
 
-  ofstream os2("points.mat");
-  for (auto p : points)
-    os2 << p[0] << " " << p[1] << '\n';
-  os2.close();
+  // ofstream os2("points.mat");
+  // for (auto p : points)
+  //   os2 << p[0] << " " << p[1] << '\n';
+  // os2.close();
 
   cout << "Number of relations found: " << result.size() << endl;
     
 }
 
+// ----------------------------------------------------------------------------
+void test_energy()
+// ----------------------------------------------------------------------------
+{
+  const vector<Point2D> bpoints { {0,0}, {1,0}, {1,1}, {0,1} };
+
+  const vector<Point2D> points { {0.25, 0.5}, {0.75, 0.5}};
+  const double R = 1;
+
+  const auto result = polygon_energy(&bpoints[0], (uint)bpoints.size(),
+				     &points[0],  (uint)points.size(),
+				     R);
+
+  cout << "Energy is: " << result.val << '\n';
+
+  cout << "Energy derivatives are: \n";
+  for (auto d : result.der) {
+    cout << d[0] << " " << d[1] << '\n';
+  }
+    
+}
+  
 };
