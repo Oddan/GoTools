@@ -77,8 +77,6 @@ ValAndDer internal_energy(const Point2D* const ipoints,
 			  const double vdist)
 // ----------------------------------------------------------------------------
 {
-  // @@ Why is brute force performing better than "smart" version under
-  // optimized profiling?
   const auto dists = interpoint_distances(ipoints, num_ipoints, vdist, false);
 
   // accumulating energies and storing total value and partial derivatives in 'result'

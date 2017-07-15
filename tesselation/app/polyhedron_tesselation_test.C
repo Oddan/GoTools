@@ -28,10 +28,18 @@ int main(int varnum, char** vararg)
   for (int i = 0; i != num_corners; ++i) 
     corners.emplace_back(Point2D {atof(vararg[2*i + 3]), atof(vararg[2*i+4])});
 
-  vector<Point2D> result = tesselatePolygon2D(&corners[0], (unsigned int)corners.size(), l);
+  const auto result = tesselatePolygon2D(&corners[0], (unsigned int)corners.size(), l);
 
-  for(auto p = result.begin(); p != result.end(); ++p)
-    cout << (*p)[0] << " " << (*p)[1] << '\n';
+  cout << "Points: " << endl;
+  for (const auto p : result.points)
+    cout << p[0] << " " << p[1] << '\n';
+  cout << endl << "Tris: " << endl;
+  for (const auto t : result.tris)
+    cout << t[0] << " " << t[1] << " " << t[2] << '\n';
+  
+  
+  // for(auto p = result.begin(); p != result.end(); ++p)
+  //   cout << (*p)[0] << " " << (*p)[1] << '\n';
   
   return 0;
 };

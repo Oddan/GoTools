@@ -4,6 +4,7 @@
 #include <vector>
 #include <array>
 #include "common_defs.h" 
+#include "triangulate_domain.h"
 
 namespace TesselateUtils {
 
@@ -22,10 +23,14 @@ namespace TesselateUtils {
 
   // };
 
-  
-  std::vector<Point2D> tesselatePolygon2D(const Point2D* const polygon,
-					 const unsigned int num_corners,
-					 const double vdist);
+  struct Mesh2D {
+    std::vector<Point2D> points;
+    std::vector<Triangle> tris;
+  };
+    
+  Mesh2D tesselatePolygon2D(const Point2D* const polygon,
+			    const unsigned int num_corners,
+			    const double vdist);
 
   
   std::vector<Point2D> tesselateSegment2D(const Point2D& p1,

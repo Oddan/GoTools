@@ -60,7 +60,7 @@ void optimize_interior_points(const Point2D* const polygon,
 namespace TesselateUtils {
 
 // ============================================================================
-vector<Point2D> tesselatePolygon2D(const Point2D* const polygon,
+Mesh2D tesselatePolygon2D(const Point2D* const polygon,
                                   const unsigned int num_corners,
                                   const double vdist)
 // ============================================================================
@@ -96,7 +96,12 @@ vector<Point2D> tesselatePolygon2D(const Point2D* const polygon,
 
   vector<Point2D> points(bpoints);
   points.insert(points.end(), ipoints.begin(), ipoints.end());
-  return points;
+
+  const auto tris = triangulate_domain(&points[0],
+				       (uint)bpoints.size(),
+				       (uint)points.size(),
+				       2*vdist);
+  return {points, tris};
 }
 
 // ============================================================================

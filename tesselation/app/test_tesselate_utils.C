@@ -6,6 +6,7 @@
 #include "GoTools/utils/Point.h"
 #include "interpoint_distances.h"
 #include "polyhedral_energies.h"
+#include "triangulate_domain.h"
 
 using namespace std;
 using namespace TesselateUtils;
@@ -17,6 +18,10 @@ namespace Test {
   void test_inpolygon();
   void test_interpoint_distances();
   void test_energy();
+  void test_circumscribe_triangle();
+  void test_segment_intersection();
+  void test_triangulation();
+  
 };
 
 // ============================================================================
@@ -34,11 +39,20 @@ int main() {
   // cout << "Testing inpolygon: " << endl;
   // Test::test_inpolygon();
   
-  cout << "Testing interpoint distance computation: " << endl;
-  Test::test_interpoint_distances();
+  // cout << "Testing interpoint distance computation: " << endl;
+  // Test::test_interpoint_distances();
 
   // cout << "Testing energy computation: " << endl;
   // Test::test_energy();
+
+  cout << "testing circumscribe triangle: " << endl;
+  Test::test_circumscribe_triangle();
+
+  cout << "testing segment intersection: " << endl;
+  Test::test_segment_intersection();
+  
+  cout << "testing triangulation generation: " << endl;
+  Test::test_triangulation();
   
   return 0;
 };
@@ -158,5 +172,109 @@ void test_energy()
   }
     
 }
+// ----------------------------------------------------------------------------
+void test_circumscribe_triangle()
+// ----------------------------------------------------------------------------
+{
+  const Point2D p1 {0, 0};
+  const Point2D p2 {1, 0};
+  const Point2D p3 {1, 1};
+
+  Point2D center;
+  double radius2;
+  circumscribe_triangle(p1, p2, p3, center, radius2);
+
+  cout << "Points are: \n";
+  cout << "(" << p1[0] << ", " << p1[1] << "), ";
+  cout << "(" << p2[0] << ", " << p2[1] << "), ";
+  cout << "(" << p3[0] << ", " << p3[1] << ")\n";
+  cout << "Center is: \n";
+  cout << "(" << center[0] << ", " << center[1] << ")\n";
+  cout << "Radius is: " << sqrt(radius2) << endl << endl;
+
+  cout << "Computed distances to each point are: \n";
+  cout << "For p1 -- " << dist(p1, center) << endl;
+  cout << "For p2 -- " << dist(p2, center) << endl;
+  cout << "For p3 -- " << dist(p3, center) << endl;
+  cout << endl;
+}
+
+// ----------------------------------------------------------------------------
+void test_segment_intersection()
+// ----------------------------------------------------------------------------
+{
+  // obvious case
+  const Point2D p1a {1, 1}, p1b {4, 3};
+  const Point2D p2a {3, 1}, p2b {2, 3};
+
+  // endpoints-meet case
+  const Point2D q1a {1, 1}, q1b {1, 4};
+  const Point2D q2a {1, 4}, q2b {2, 3};
+
+  // endpoint-touch-segment case
+  const Point2D r1a {1, 1}, r1b {3, 1};
+  const Point2D r2a {2, 1}, r2b {2, 2};
+
+  const double tol = 1e-6;
+  cout << "Obvious case, positive tol: " << segments_intersect(p1a, p1b, p2a, p2b,  tol) << endl;
+  cout << "Obvious case, negative tol: " << segments_intersect(p1a, p1b, p2a, p2b, -tol) << endl;
+  cout << endl;
+  cout << "Endpoint-meet, positive tol: " << segments_intersect(q1a, q1b, q2a, q2b,  tol) << endl;
+  cout << "Endpoint-meet, negative tol: " << segments_intersect(q1a, q1b, q2a, q2b, -tol) << endl;
+  cout << endl;
+  cout << "Point-touch-line, pos. tol: " << segments_intersect(r1a, r1b, r2a, r2b,  tol) << endl;
+  cout << "Point-touch-line, pos. tol: " << segments_intersect(r1a, r1b, r2a, r2b, -tol) << endl;
+  cout << endl;
   
+  
+}
+
+// ----------------------------------------------------------------------------
+void test_triangulation()
+// ----------------------------------------------------------------------------
+{
+  vector<Point2D> bpoints { {0, 0}, {1, 0}, {1, 1}, {0,1}};
+  vector<Point2D> ipoints { {0.25, 0.25}, {0.75, 0.25}, {0.5, 0.5}, {0.25, 0.75}, {0.75, 0.75}};
+
+  vector<Point2D> all_points(bpoints);
+  all_points.insert(all_points.end(), ipoints.begin(), ipoints.end());
+
+  const double vdist = 0.9;
+  vector<Triangle> tris;
+  // vector<Triangle> tris = triangulate_domain(&all_points[0], (uint)bpoints.size(),
+  // 					     (uint)all_points.size(), vdist);
+
+  // cout << "Points: " << endl;
+  // for (const auto p : all_points)
+  //   cout << p[0] << ", " << p[1] << '\n';
+  // cout << endl;
+  // cout << "Tris: " << endl;
+  // for (const auto t : tris)
+  //   cout << t[0] << " " << t[1] << " " << t[2] << '\n';
+  // cout << endl << endl;
+
+
+  // non-convex case
+  bpoints = vector<Point2D> { {0,0}, {2,0}, {2,2}, {1,2}, {1,1}, {0,1} };
+  ipoints = vector<Point2D> { {0.5, 0.5}, {1, 0.5}, {1.5, 0.5}, {1.5, 1}, {1.5, 1.5}};
+  all_points = bpoints;
+  all_points.insert(all_points.end(), ipoints.begin(), ipoints.end());
+
+  tris = triangulate_domain(&all_points[0], (uint)bpoints.size(),
+			    (uint) all_points.size(), vdist);
+
+  cout << "--- Non-convex case: ---" << endl<<endl;
+  cout << "Points: " << endl;
+  for (const auto p : all_points)
+    cout << p[0] << ", " << p[1] << '\n';
+  cout << endl;
+  cout << "Tris: " << endl;
+  for (const auto t : tris)
+    cout << t[0] << " " << t[1] << " " << t[2] << '\n';
+  cout << endl << endl;
+  
+
+  
+}
+
 };

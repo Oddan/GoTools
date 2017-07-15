@@ -7,8 +7,16 @@
 
 namespace TesselateUtils {
 
-  const double PI = 3.14159265358979323;
+const double PI = 3.14159265358979323;
 
+// ----------------------------------------------------------------------------  
+template<typename P> inline double norm2(const P& p)
+// ----------------------------------------------------------------------------
+{
+  return p[0] * p[0] + p[1] * p[1];
+}
+  
+// ----------------------------------------------------------------------------
 template<typename P> inline double dist2(const P& p1, const P& p2)
 // ----------------------------------------------------------------------------
 {
@@ -71,9 +79,11 @@ std::vector<P> inpolygon(const P* const pts, const unsigned int num_pts,
 			 const double tol);
 // ----------------------------------------------------------------------------    
 
-// ----------------------------------------------------------------------------    
+// ----------------------------------------------------------------------------
 // 'p' is the point we want to compute distance from.  'a' and 'b' are two
-// distinct points on the infinite line (thus defining the line)
+// distinct points on the infinite line (thus defining the line).  The returned
+// distance is signed: a positive number indicates that the point is on the
+// "right" of the directed line from 'a' to 'b'.
 template<typename P>
 double projected_distance_to_line(P p, P a, P b);
 // ----------------------------------------------------------------------------    
@@ -143,7 +153,36 @@ template<typename T, typename Pred> inline
 std::pair<std::vector<T>, std::vector<unsigned int>>
 extract_from_range(const T* const range_start,
 		   unsigned int range_length, const Pred& fun);
-// ----------------------------------------------------------------------------    
+// ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+// solve a 2x2 linear system.  The columns of the 2x2 matrix is given in the
+// first two arguments, the right-hand-side in the third.  If matrix is
+// singular, the result will contain NaN-values.
+template<typename P> inline
+P solve_2D_matrix(const P& Mcol1, const P& Mcol2, const P& rhs);
+// ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+// Compute the center point and the radius of the circle that circumscribes the
+// triangle defined by p1, p2 and p3.  If the points are collinear, return
+// 'false'.  The circle center and squared radius are returned in the two last
+// (output) arguments.
+template<typename P> inline
+bool circumscribe_triangle(const P& p1, const P& p2, const P& p3,
+			   P& circ_center, double& radius2);
+// ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+// check whether two segments intersect.  A positive value for the tolerance
+// means that a vincinity within the tolerance counts as an intersection.  A
+// negative value for the tolerance, on the other hand, means that each line
+// segment must cross the other by a length of at least one times |tol|.  In
+// this case, a mere touch is not sufficient to count as a intersection.
+template<typename P> inline
+bool segments_intersect(const P& seg1_a, const P& seg1_b,
+			const P& seg2_a, const P& seg2_b, const double tol);
+// ----------------------------------------------------------------------------
 
   
 }; // end namespace TesselateUtils

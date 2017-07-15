@@ -3,6 +3,7 @@
 
 
 #include <assert.h>
+#include <cmath>
 #include <random>
 namespace TesselateUtils
 {
@@ -180,7 +181,7 @@ double projected_distance_to_line(P p, P a, P b)
   p -= a; // now represents ap
   b -= a; // now represents ab
 
-  return std::abs((p[0]*b[1] - p[1]*b[0]) / dab);
+  return (p[0]*b[1] - p[1]*b[0]) / dab;
 
   // const P ap = p-a;
   // const P ab = b-a;
@@ -206,7 +207,7 @@ bool point_on_line_segment(const P& p, const P& a, const P& b, double tol)
   // outside this radius have a chance of being close enough to the line
   // segment.  We ensure this by multiplying the distance by sqrt(5/4), which
   // becomes 5/4 since we work with squared distances.  The factor 5/4 is easily
-  // derived using pythagoras and considering the distance to the line segment
+  // derived using Pythagoras and considering the distance to the line segment
   // midpoint
   const double dab2 = dist2(a,b);
   const double max_rad2 = std::max(dab2, tol2) * 1.25; // 1.25 = 5/4.
@@ -221,7 +222,7 @@ bool point_on_line_segment(const P& p, const P& a, const P& b, double tol)
 
   // The only thing that remains to be checked now is whether the orthogonally
   // projected distances is within the tolerance
-  const double d = projected_distance_to_line(p, a, b);
+  const double d = std::abs(projected_distance_to_line(p, a, b));
 
   return (d < tol);
   
@@ -339,6 +340,77 @@ std::vector<P> mirror_points(const P* const pts,
   return result;
 }
 
+// ----------------------------------------------------------------------------
+template<typename P> inline
+P solve_2D_matrix(const P& Mcol1, const P& Mcol2, const P& rhs)
+// ----------------------------------------------------------------------------
+{
+  const double det = Mcol1[0] * Mcol2[1] - Mcol1[1] * Mcol2[0];
+  if (det==0)
+    return P {std::nan(""), std::nan("")};
+
+  const double Dx = rhs[0] * Mcol2[1] - rhs[1] * Mcol2[0];
+  const double Dy = Mcol1[0] * rhs[1] - Mcol1[1] * rhs[0];
+
+  return P {Dx/det, Dy/det};
+}
+
+// ----------------------------------------------------------------------------
+template<typename P> inline
+bool circumscribe_triangle(const P& p1, const P& p2, const P& p3,
+			   P& circ_center, double& radius2)
+// ----------------------------------------------------------------------------
+{
+  const double p1_2 = norm2(p1);
+  const double p2_2 = norm2(p2);
+  const double p3_2 = norm2(p3);
+  circ_center = solve_2D_matrix(P {p1[0] - p2[0], p1[0] - p3[0]},
+				P {p1[1] - p2[1], p1[1] - p3[1]},
+				P {0.5 * (p1_2 - p2_2), 0.5 * (p1_2 - p3_2)});
+  radius2 = dist2(p1, circ_center);
+  return !(std::isnan(circ_center[0]));
+}
+
+// ----------------------------------------------------------------------------
+// check whether two segments intersect.  A positive value for the tolerance
+// means that a vincinity within the tolerance counts as an intersection.  A
+// negative value for the tolerance, on the other hand, means that each line
+// segment must cross the other by a length of at least |tol| times its length.
+// In this case, a mere touch is not sufficient to count as a intersection.
+template<typename P> inline
+bool segments_intersect(const P& seg1_a, const P& seg1_b,
+			const P& seg2_a, const P& seg2_b, const double tol)
+// ----------------------------------------------------------------------------
+{
+  // first, compare bounding boxes, to eliminate obvious cases
+  if (std::min(seg1_a[0], seg1_b[0]) > std::max(seg2_a[0], seg2_b[0]) + tol)
+    return false;
+  if (std::min(seg1_a[1], seg1_b[1]) > std::max(seg2_a[1], seg2_b[1]) + tol)
+    return false;
+
+  // OK, bounding boxes overlap.  Check for intersection.
+  // We determine u and v such that: 
+  // (1-u) * seg1_a + u * seg1_b = (1-v) * seg2_a + v * seg2_b
+
+  const P uv = solve_2D_matrix( P {seg2_b[0] - seg2_a[0], seg2_b[1] - seg2_a[1]},
+                                P {seg1_a[0] - seg1_b[0], seg1_a[1] - seg1_b[1]},
+				P {seg1_a[0] - seg2_a[0], seg1_a[1] - seg2_a[1]});
+  if (std::isnan(uv[0])) {
+    // degenerate case - segments are collinear.  If tolerance is > 0, we must
+    // check whether they are indeed on the same line.  (If tolerance is < 0, we
+    // should not consider this and intersection).
+    if (tol < 0)
+      return false;
+      
+    const double l = std::min(dist(seg1_a, seg1_b), dist(seg2_a, seg2_b));
+    return ( std::abs(projected_distance_to_line(seg1_a, seg2_a, seg2_b)) < (tol * l) );
+  }
+
+  // OK.  Our system is not degenerate.  Let us check whether an actual
+  // intersection occurs.
+  return ((uv[0] > -tol) && (uv[0] < 1 + tol) && (uv[1] > -tol) && (uv[1] < 1 + tol));
+}
+  
 
 }; // end namespace
 
