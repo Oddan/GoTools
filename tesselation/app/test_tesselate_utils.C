@@ -7,6 +7,7 @@
 #include "interpoint_distances.h"
 #include "polyhedral_energies.h"
 #include "triangulate_domain.h"
+#include "SimplePolyhedronTesselation.h"
 
 using namespace std;
 using namespace TesselateUtils;
@@ -21,7 +22,7 @@ namespace Test {
   void test_circumscribe_triangle();
   void test_segment_intersection();
   void test_triangulation();
-  
+  void test_volume_tesselation();
 };
 
 // ============================================================================
@@ -45,14 +46,17 @@ int main() {
   // cout << "Testing energy computation: " << endl;
   // Test::test_energy();
 
-  cout << "testing circumscribe triangle: " << endl;
-  Test::test_circumscribe_triangle();
+  // cout << "testing circumscribe triangle: " << endl;
+  // Test::test_circumscribe_triangle();
 
-  cout << "testing segment intersection: " << endl;
-  Test::test_segment_intersection();
+  // cout << "testing segment intersection: " << endl;
+  // Test::test_segment_intersection();
   
-  cout << "testing triangulation generation: " << endl;
-  Test::test_triangulation();
+  // cout << "testing triangulation generation: " << endl;
+  // Test::test_triangulation();
+
+  cout << "testing volume tesselation: " << endl;
+  Test::test_volume_tesselation();
   
   return 0;
 };
@@ -272,9 +276,31 @@ void test_triangulation()
   for (const auto t : tris)
     cout << t[0] << " " << t[1] << " " << t[2] << '\n';
   cout << endl << endl;
-  
-
-  
 }
 
+// ----------------------------------------------------------------------------
+void test_volume_tesselation()
+// ----------------------------------------------------------------------------
+{
+  // Tesselate regular prism
+  const vector<Point3D> corners { {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, 
+                                {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1} };
+  const vector<Segment> edges   { {0, 1}, {1, 2}, {2, 3}, {3, 0},  // bottom face
+                                {4, 5}, {5, 6}, {6, 7}, {7, 4},  // top face
+                                {0, 4}, {1, 5}, {2, 6}, {3, 7}};  // "vertical" edges
+  const vector<FaceLoop> faces { { {0, 1, 2, 3}, false}, // bottom (zmin) face
+                                 { {4, 5, 6, 7}, true}, // top (zmax) face
+                                 { {0, 9, 4, 8}, true}, // front (ymin) face
+                                 { {2, 11, 6, 10}, true}, // back (ymax) face
+                                 { {8, 7, 11, 3}, true}, // left (xmin) face
+                                 { {1, 10, 5, 9}, true}}; // right (xmax) face
+  
+  const SimpleVolumeType v {};
+  SimplePolyhedron spoly {corners, edges, faces, v};
+
+  cout << "Polyhedron:\n" << endl;
+  cout << spoly << endl << endl;
+    
+  spoly.tesselate();
+}
 };

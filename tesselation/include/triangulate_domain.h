@@ -7,8 +7,6 @@
 
 namespace TesselateUtils {
 
-  using Triangle = std::array<uint, 3>;
-
   // Compute a generalized Delaunay triangulation of a not necessarily convex
   // domain with a set of given interior points.  The boundary points and
   // interior points are provided by 'points'.  The boundary points are listed

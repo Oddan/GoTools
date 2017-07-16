@@ -6,7 +6,6 @@
 
 using namespace std;
 using namespace TesselateUtils;
-using Segment = array<uint, 2>; // Representing a segment by indices to endpoints
 
 namespace {
   Triangle add_triangle(vector<Segment>& nsegs,   // input-output

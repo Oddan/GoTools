@@ -3,11 +3,17 @@
 
 #include <array>
 #include <vector>
+#include <ostream>
 
 namespace TesselateUtils {
 
-using uint = unsigned int;
-using Point2D = std::array<double,2>;
+using uint	= unsigned int;
+using Point2D	= std::array<double, 2>;
+using Point3D	= std::array<double, 3>;
+using Segment   = std::array<uint, 2>; // Representing a segment by indices to endpoints
+using Triangle	= std::array<uint, 3>;
+using Tet	= std::array<uint, 4>;
+  
 struct ValAndDer {
   double val;
   std::vector<Point2D> der;
@@ -18,8 +24,8 @@ struct ValAndDer {
   }
 };
 
-
-
+// =============================== 2D operators ===============================
+  
 // ----------------------------------------------------------------------------
 inline void operator += (Point2D& p1, const Point2D& p2)
 // ----------------------------------------------------------------------------
@@ -88,9 +94,118 @@ inline Point2D operator/(const Point2D& p, double t)
   return tmp;
 }
 
+// ----------------------------------------------------------------------------
+inline std::ostream& operator<<(std::ostream& os, const Point2D& p)
+// ----------------------------------------------------------------------------
+{
+  os << p[0] << ' ' << p[1] << '\n';
+  return os;
+}
+  
+// =============================== 3D operators ===============================
 
+// ----------------------------------------------------------------------------
+inline void operator += (Point3D& p1, const Point3D& p2)
+// ----------------------------------------------------------------------------
+{ 
+  p1[0] += p2[0]; 
+  p1[1] += p2[1];
+  p1[2] += p2[2];
+}
+
+// ----------------------------------------------------------------------------
+inline void operator -= (Point3D& p1, const Point3D& p2)
+// ----------------------------------------------------------------------------
+{ 
+  p1[0] -= p2[0]; 
+  p1[1] -= p2[1];
+  p1[2] -= p2[2];
+}
+
+// ----------------------------------------------------------------------------
+inline void operator *= (Point3D& p1, const double t)
+// ----------------------------------------------------------------------------
+{ 
+  p1[0] *= t; 
+  p1[1] *= t;
+  p1[2] *= t;
+}
+
+// ----------------------------------------------------------------------------
+inline void operator /= (Point3D& p1, const double t)
+// ----------------------------------------------------------------------------
+{ 
+  p1[0] /= t; 
+  p1[1] /= t;
+  p1[2] /= t;
+}
+
+// ----------------------------------------------------------------------------
+inline Point3D operator + (const Point3D& p1, const Point3D& p2)
+// ----------------------------------------------------------------------------
+{
+  Point3D tmp(p1);
+  tmp += p2;
+  return tmp;
+}
+
+// ----------------------------------------------------------------------------
+inline Point3D operator - (const Point3D& p1, const Point3D& p2)
+// ----------------------------------------------------------------------------
+{
+  Point3D tmp(p1);
+  tmp -= p2;
+  return tmp;
+}
+
+// ----------------------------------------------------------------------------
+inline Point3D operator*(const Point3D& p, double t)
+// ----------------------------------------------------------------------------
+{
+  Point3D tmp(p);
+  tmp *= t;
+  return tmp;
+}
+
+// ----------------------------------------------------------------------------
+inline Point3D operator/(const Point3D& p, double t)
+// ----------------------------------------------------------------------------
+{
+  Point3D tmp(p);
+  tmp /= t;
+  return tmp;
+}
+
+// ----------------------------------------------------------------------------
+inline std::ostream& operator<<(std::ostream& os, const Point3D& p)
+// ----------------------------------------------------------------------------
+{
+  os << p[0] << ' ' << p[1] << ' ' << p[2] << '\n';
+  return os;
+}
+  
+
+// ================= Operators on segments, triangles and tets =================
+
+inline std::ostream& operator<<(std::ostream& os, const Segment& s)
+{
+  os << s[0] << ' ' << s[1] << '\n';
+  return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const Triangle& tri)
+{
+  os << tri[0] << ' ' << tri[1] << ' ' << tri[2] << '\n';
+  return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const Tet& tet)
+{
+  os << tet[0] << ' ' << tet[1] << ' ' << tet[2] << ' ' << tet[3] << '\n';
+  return os;
+}
 
   
-}
+}; // end namespace TesselateUtils
 
 #endif
