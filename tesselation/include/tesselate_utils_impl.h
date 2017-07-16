@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <cmath>
 #include <random>
+#include "common_defs.h"
 namespace TesselateUtils
 {
 
@@ -174,7 +175,7 @@ std::vector<P> inpolygon(const P* const pts, const unsigned int num_pts,
 
 // ----------------------------------------------------------------------------    
 template<typename P> inline
-double projected_distance_to_line(P p, P a, P b)
+double projected_distance_to_line_2D(P p, P a, P b)
 // ----------------------------------------------------------------------------    
 {
   const double dab = dist(a,b);
@@ -222,7 +223,7 @@ bool point_on_line_segment(const P& p, const P& a, const P& b, double tol)
 
   // The only thing that remains to be checked now is whether the orthogonally
   // projected distances is within the tolerance
-  const double d = std::abs(projected_distance_to_line(p, a, b));
+  const double d = std::abs(projected_distance_to_line_2D(p, a, b));
 
   return (d < tol);
   
@@ -235,15 +236,6 @@ bool point_on_line_segment(const P& p, const P& a, const P& b, double tol)
   // // const double ab = dist2(a,b);  //   the square function is convex (here, it
   // // const double bp = dist2(b,p);  //   prevents us from doing the costly square
   // // return (ab > ap) && (ab > bp); //   root operation)
-}
-
-// ----------------------------------------------------------------------------
-template<typename P> inline
-bool acute_angle(const P& a, const P& b, const P& c)
-// ----------------------------------------------------------------------------
-{
-  // angle is acute if scalar product of vectors ba and bc is positive
-  return (c[0] - b[0]) * (a[0] - b[0]) + (c[1] - b[1]) * (a[1] - b[1]) > 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -307,7 +299,7 @@ extract_from_range(const T* const start, unsigned int len, const Pred& fun)
 
 // ----------------------------------------------------------------------------
 template<typename P> inline
-P mirror_point(P p, const P& a, const P& b)
+P mirror_point_2D(P p, const P& a, const P& b)
 // ----------------------------------------------------------------------------
 {
   // compute normalized tangent vector and normal vector
@@ -328,15 +320,15 @@ P mirror_point(P p, const P& a, const P& b)
 
 // ----------------------------------------------------------------------------        
 template<typename P> inline
-std::vector<P> mirror_points(const P* const pts,
-			     const unsigned int num_pts,
-			     const P& a,
-			     const P& b)
+std::vector<P> mirror_points_2D(const P* const pts,
+				const unsigned int num_pts,
+				const P& a,
+				const P& b)
 // ----------------------------------------------------------------------------
 {
   std::vector<P> result(num_pts);
   transform(pts, pts + num_pts, result.begin(),
-	   [&a, &b] (const P& p) {return mirror_point(p, a, b);});
+	   [&a, &b] (const P& p) {return mirror_point_2D(p, a, b);});
   return result;
 }
 
@@ -378,8 +370,8 @@ bool circumscribe_triangle(const P& p1, const P& p2, const P& p3,
 // segment must cross the other by a length of at least |tol| times its length.
 // In this case, a mere touch is not sufficient to count as a intersection.
 template<typename P> inline
-bool segments_intersect(const P& seg1_a, const P& seg1_b,
-			const P& seg2_a, const P& seg2_b, const double tol)
+bool segments_intersect_2D(const P& seg1_a, const P& seg1_b,
+			   const P& seg2_a, const P& seg2_b, const double tol)
 // ----------------------------------------------------------------------------
 {
   // first, compare bounding boxes, to eliminate obvious cases
@@ -403,7 +395,7 @@ bool segments_intersect(const P& seg1_a, const P& seg1_b,
       return false;
       
     const double l = std::min(dist(seg1_a, seg1_b), dist(seg2_a, seg2_b));
-    return ( std::abs(projected_distance_to_line(seg1_a, seg2_a, seg2_b)) < (tol * l) );
+    return ( std::abs(projected_distance_to_line_2D(seg1_a, seg2_a, seg2_b)) < (tol * l) );
   }
 
   // OK.  Our system is not degenerate.  Let us check whether an actual

@@ -5,6 +5,7 @@
 #include <vector>
 #include <functional>// @@ only for marking unimplemented functions
 #include <stdexcept> // @@ only for marking unimplemented functions
+#include <iostream>  // @@ only for debug purposes
 #include "common_defs.h"
 #include "tesselate_utils.h"
 
@@ -32,6 +33,10 @@ public:
   {}
 
   std::ostream& write (std::ostream& os) const;
+  void writeTesselatedOutline(std::ostream& os) const;
+  void writeTesselatedShell(std::ostream& os) const;
+  void writeTesselatedVolume(std::ostream& os) const;
+  
   std::vector<PointType> cornerPoints() const;
   std::vector<PointType> edgePoints() const; // all edge points
   std::vector<PointType> edgePoints(uint edge_ix) const;
@@ -39,33 +44,45 @@ public:
   std::vector<PointType> facePoints(uint face_ix) const;
   std::vector<PointType> volumePoints() const;
   
-  void tesselate(); 
-  bool is_tesselated() const {return !volume_tets_.empty();}
+  void tesselate(const double vdist); 
+  bool is_tesselated() const {return !edge_ipoints_.empty();}
   
-  const uint numCorners() { return (uint)corners_.size();}
-  const uint numEdges()   { return (uint)edges_.size();}
-  const uint numFaces()   { return (uint)faces_.size();}
-    
-    // the following functions need template specialization
-  std::array<PointType, 2> edgeCorners(uint edge_ix) const; 
-  std::vector<PointType>   faceBoundaryPoints(uint face_ix) const;   
+  uint numCorners() const { return (uint)corners_.size();}
+  uint numEdges()   const { return (uint)edges_.size();}
+  uint numFaces()   const { return (uint)faces_.size();}
+
+  uint numEdgePoints() const;
+  uint numFacePoints() const;
+  uint numVolumePoints() const;
+
+  std::array<PointType, 2> edgeCorners(uint edge_ix) const;
+  std::vector<PointType> faceBoundaryPoints(uint face_ix) const;
+  
+  // the following functions need template specialization
+  std::array<uint, 2> edgeCornerIndices(uint edge_ix) const;
+  std::vector<uint> faceBoundaryPointIndices(uint face_ix) const;
     
 private:
   void update_triangle_indices();
   void update_tet_indices();
+  void compute_global_edge_point_indices();
+  void compute_global_face_point_indices();
 
   // The following tesselating functions must be specifically implemented
   // for each particular choice of BoundedSpaceTraits.
   static void compute_tesselation(const std::array<PointType, 2>& boundary,
                                   const EdgeType& edge,
+                                  const double vdist,
                                   std::vector<PointType>& ipoints);
   static void compute_tesselation(const std::vector<PointType>& boundary,
                                   const FaceType& face,
+                                  const double vdist,
                                   std::vector<PointType>& ipoints,
                                   std::vector<Triangle>& triangles);
   static void compute_tesselation(const std::vector<PointType>& bpoints,
                                   const std::vector<Triangle>& btris,
                                   const VolumeType& volume,
+                                  const double vdist,
                                   std::vector<PointType>& ipoints,
                                   std::vector<Tet>& tets);
   
@@ -83,15 +100,101 @@ private:
   std::vector<PointType>              volume_ipoints_;
   std::vector<std::vector<Triangle>>  face_triangles_;
   std::vector<Tet>                    volume_tets_;
-  
+
+  std::vector<uint> edge_ipoints_start_ixs_;  // global start index of the
+                                              // corresponding edge's internal
+                                              // points
+  std::vector<uint> face_ipoints_start_ixs_;  // global start index of the
+                                              // corresponding face's internal
+                                              // points
 }; // end struct TesselableVolume
 
+
+// ----------------------------------------------------------------------------        
+template<typename BoundedSpaceTraits> inline void
+TesselableVolume<BoundedSpaceTraits>::compute_global_edge_point_indices() 
+// ----------------------------------------------------------------------------
+{
+  edge_ipoints_start_ixs_.resize(numEdges(), numCorners());
+  for (uint i = 0; i != numEdges()-1; ++i)
+    edge_ipoints_start_ixs_[i+1] = edge_ipoints_start_ixs_[i] +
+                                   (uint)edge_ipoints_[i].size();
+}
+
+// ----------------------------------------------------------------------------        
+template<typename BoundedSpaceTraits> inline void
+TesselableVolume<BoundedSpaceTraits>::compute_global_face_point_indices() 
+// ----------------------------------------------------------------------------
+{
+  face_ipoints_start_ixs_.resize(numFaces(), (uint)facePoints().size());
+  for (uint i = 0; i != numFaces() - 1; ++i)
+    face_ipoints_start_ixs_[i+1] = face_ipoints_start_ixs_[i] +
+                                   (uint)face_ipoints_[i].size();
+}
+
+  
+// ----------------------------------------------------------------------------        
+template<typename BoundedSpaceTraits> inline
+std::vector<typename TesselableVolume<BoundedSpaceTraits>::PointType>
+TesselableVolume<BoundedSpaceTraits>::faceBoundaryPoints(uint face_ix) const
+// ----------------------------------------------------------------------------
+{
+  const std::vector<PointType> pts = edgePoints();
+  const std::vector<uint> ixs = faceBoundaryPointIndices(face_ix);
+  std::vector<PointType> result(ixs.size());
+  transform(ixs.begin(), ixs.end(), result.begin(),
+            [&pts] (uint ix) { return pts[ix];});
+  return result;
+}
+  
+// ----------------------------------------------------------------------------      
+template<typename BoundedSpaceTraits> inline
+uint TesselableVolume<BoundedSpaceTraits>::numEdgePoints() const
+// ----------------------------------------------------------------------------
+{
+  return numCorners() +
+    accumulate(edge_ipoints_.begin(), edge_ipoints_.end(), 0,
+               [](uint acc, const std::vector<PointType>& v)
+               { return acc + (uint)v.size();});
+}
+
+// ----------------------------------------------------------------------------      
+template<typename BoundedSpaceTraits> inline
+uint TesselableVolume<BoundedSpaceTraits>::numFacePoints() const
+// ----------------------------------------------------------------------------
+{
+  return numEdgePoints() +
+    accumulate(face_ipoints_.begin(), face_ipoints_.end(), 0, 
+               [](uint acc, const std::vector<PointType>& v)
+               { return acc + (uint)v.size();});
+}
+
+// ----------------------------------------------------------------------------      
+template<typename BoundedSpaceTraits> inline
+uint TesselableVolume<BoundedSpaceTraits>::numVolumePoints() const
+// ----------------------------------------------------------------------------
+{
+  return numFacePoints() + (uint)volume_ipoints_.size();
+}
+  
 // ----------------------------------------------------------------------------    
 template<typename BoundedSpaceTraits> inline
 void TesselableVolume<BoundedSpaceTraits>::update_triangle_indices()
 // ----------------------------------------------------------------------------    
 {
-  throw std::runtime_error("update_triangle_indices() not yet implemented.");
+  for (uint f_ix = 0; f_ix != numFaces(); ++f_ix) {
+    
+    const auto glob_bpoint_indices = faceBoundaryPointIndices(f_ix);
+    const uint num_bpoints = (uint)glob_bpoint_indices.size();
+    const uint ipoints_ix_start = face_ipoints_start_ixs_[f_ix];
+
+    for (auto& t : face_triangles_[f_ix])
+      // looping over triangle corners and updating indices
+      for (uint i = 0; i != 3; ++i) 
+        t[i] = ( t[i] < num_bpoints )  ?
+               glob_bpoint_indices[t[i]] : 
+               (t[i] - num_bpoints) + ipoints_ix_start;
+  }
 }
 
 // ----------------------------------------------------------------------------    
@@ -99,12 +202,12 @@ template<typename BoundedSpaceTraits> inline
 void TesselableVolume<BoundedSpaceTraits>::update_tet_indices()
 // ----------------------------------------------------------------------------    
 {
-  throw std::runtime_error("update_tet_indices() not yet implemented.");  
+  std::cout << "Warning: update_tet_indices() not yet implemented.  Skipping." << std::endl;
 }
   
 // ----------------------------------------------------------------------------  
 template<typename BoundedSpaceTraits>
-inline void TesselableVolume<BoundedSpaceTraits>::tesselate()
+inline void TesselableVolume<BoundedSpaceTraits>::tesselate(const double vdist)
 // ----------------------------------------------------------------------------
 {
   if (is_tesselated())
@@ -117,19 +220,22 @@ inline void TesselableVolume<BoundedSpaceTraits>::tesselate()
 
   // tesselate all edges
   for (uint i = 0; i != numEdges(); ++i)
-    compute_tesselation(edgeCorners(i), edges_[i], edge_ipoints_[i]);
-
+    compute_tesselation(edgeCorners(i), edges_[i], vdist, edge_ipoints_[i]);
+  compute_global_edge_point_indices();
+  
   // tesselate all faces
   for (uint i = 0; i != numFaces(); ++i)
-    compute_tesselation(faceBoundaryPoints(i), faces_[i],
+    compute_tesselation(faceBoundaryPoints(i), faces_[i], vdist,
                         face_ipoints_[i], face_triangles_[i]);
+  compute_global_face_point_indices();
+  
 
   // make globally consistent indexing of points for the triangles
   update_triangle_indices();
 
   // tesselate the volume
   compute_tesselation(facePoints(), flatten(face_triangles_),
-                      volume_, volume_ipoints_, volume_tets_);
+                      volume_, vdist, volume_ipoints_, volume_tets_);
 
   // make globally consistent indexing of points for the triangles
   update_tet_indices();
@@ -236,7 +342,70 @@ TesselableVolume<BoundedSpaceTraits>::facePoints(uint face_ix) const
                 face_ipoints_[face_ix].begin(),
                 face_ipoints_[face_ix].end());
 }
+
+// ----------------------------------------------------------------------------
+template<typename BoundedSpaceTraits> inline
+std::array<typename TesselableVolume<BoundedSpaceTraits>::PointType, 2>
+TesselableVolume<BoundedSpaceTraits>::edgeCorners(uint edge_ix) const
+// ----------------------------------------------------------------------------
+{
+  const auto ixs = edgeCornerIndices(edge_ix);
+  return {corners_[ixs[0]], corners_[ixs[1]]};
+}
+
+// ----------------------------------------------------------------------------
+template<typename BoundedSpaceTraits> inline
+void TesselableVolume<BoundedSpaceTraits>::writeTesselatedOutline(std::ostream& os) const
+// ----------------------------------------------------------------------------  
+{
+  // write all tesselated edges on a easily plottable format
+
+  // first, write all corner points
+  for (const auto& c: corners_) os << c;
+
+  // then write all the interior points
+  for (const auto& pvec : edge_ipoints_)
+    for (const auto& p : pvec) os << p;
+  os << '\n';
   
+  // then write the connectivities
+  for (uint edge_ix = 0; edge_ix != numEdges(); ++edge_ix) {
+
+    // write first start point index
+    os << edgeCornerIndices(edge_ix)[0] << ' ';
+
+    // write end point index, and start point index of next segment (which is
+    // the same point)
+    if (is_tesselated()) {
+      const uint start_ix = edge_ipoints_start_ixs_[edge_ix];
+      for (uint ip_ix = 0; ip_ix != (uint)edge_ipoints_[edge_ix].size(); ++ip_ix)
+        os << start_ix + ip_ix << '\n' << start_ix + ip_ix << ' ';
+    }
+
+    // write last end point index
+    os << edgeCornerIndices(edge_ix)[1] << '\n';
+    
+  }
+}
+
+// ----------------------------------------------------------------------------
+template<typename BoundedSpaceTraits> inline
+void TesselableVolume<BoundedSpaceTraits>::writeTesselatedShell(std::ostream& os) const
+// ----------------------------------------------------------------------------
+{
+  std::cout << "Warning: writeTesselatedShell() unimplemented.  Skipping." << std::endl;
+}
+
+// ----------------------------------------------------------------------------
+template<typename BoundedSpaceTraits> inline
+void TesselableVolume<BoundedSpaceTraits>::writeTesselatedVolume(std::ostream& os) const
+// ----------------------------------------------------------------------------
+{
+  std::cout << "Warning: writeTesselatedVolume() unimplemented.  Skipping." << std::endl;  
+}
+
+
+
 }; // end namespace TesselateUtils
 
 

@@ -10,28 +10,21 @@ namespace TesselateUtils {
 const double PI = 3.14159265358979323;
 
 // ----------------------------------------------------------------------------  
-template<typename P> inline double norm2(const P& p)
+template<typename P>
+inline double dist2(const P& p1, const P& p2)
 // ----------------------------------------------------------------------------
 {
-  return p[0] * p[0] + p[1] * p[1];
+  return p1.dist2(p2);
+}
+
+// ----------------------------------------------------------------------------
+template<typename P>
+inline double dist(const P& p1, const P& p2) 
+// ----------------------------------------------------------------------------
+{
+  return std::sqrt(dist2(p1, p2));
 }
   
-// ----------------------------------------------------------------------------
-template<typename P> inline double dist2(const P& p1, const P& p2)
-// ----------------------------------------------------------------------------
-{
-  const double dx = p1[0] - p2[0];
-  const double dy = p1[1] - p2[1];
-  return dx*dx + dy*dy;
-}
-
-// ----------------------------------------------------------------------------
-template<typename P> inline double dist(const P& p1, const P& p2) 
-// ----------------------------------------------------------------------------
-{
-  return sqrt(dist2(p1, p2));
-}
-
 // ----------------------------------------------------------------------------
 template<typename P>
 std::vector<P> interpolate(const P& p1, const P& p2, unsigned int num);
@@ -85,7 +78,7 @@ std::vector<P> inpolygon(const P* const pts, const unsigned int num_pts,
 // distance is signed: a positive number indicates that the point is on the
 // "right" of the directed line from 'a' to 'b'.
 template<typename P>
-double projected_distance_to_line(P p, P a, P b);
+double projected_distance_to_line_2D(P p, P a, P b);
 // ----------------------------------------------------------------------------    
 
 
@@ -114,7 +107,7 @@ bool acute_angle(const P& a, const P& b, const P& c);
 // Mirror point 'p' accross the line passing through 'a' and 'b', and return the
 // result.
 template<typename P> inline
-P mirror_point(P p, const P& a, const P& b);
+P mirror_point_2D(P p, const P& a, const P& b);
 // ----------------------------------------------------------------------------
   
   
@@ -122,10 +115,10 @@ P mirror_point(P p, const P& a, const P& b);
 // mirror the provided set of points across the line passing through a and b,
 // and return the result (the mirror points) as a vector
 template<typename P> inline
-std::vector<P> mirror_points(const P* const pts,
-			     const unsigned int num_pts,
-			     const P& a,
-			     const P& b);
+std::vector<P> mirror_points_2D(const P* const pts,
+				const unsigned int num_pts,
+				const P& a,
+				const P& b);
 // ----------------------------------------------------------------------------
 
   
@@ -156,6 +149,17 @@ extract_from_range(const T* const range_start,
 // ----------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
+template<typename T>
+std::vector<T> extract_from_range(const std::vector<T>& vec,
+				  const std::vector<unsigned int>& ixs)
+// ----------------------------------------------------------------------------
+{
+  std::vector<T> res(ixs.size());
+  transform(ixs.begin(), ixs.end(), res.begin(), [&vec](unsigned int i) {return vec[i];});
+  return res;
+}
+  
+// ----------------------------------------------------------------------------
 // solve a 2x2 linear system.  The columns of the 2x2 matrix is given in the
 // first two arguments, the right-hand-side in the third.  If matrix is
 // singular, the result will contain NaN-values.
@@ -180,8 +184,8 @@ bool circumscribe_triangle(const P& p1, const P& p2, const P& p3,
 // segment must cross the other by a length of at least one times |tol|.  In
 // this case, a mere touch is not sufficient to count as a intersection.
 template<typename P> inline
-bool segments_intersect(const P& seg1_a, const P& seg1_b,
-			const P& seg2_a, const P& seg2_b, const double tol);
+bool segments_intersect_2D(const P& seg1_a, const P& seg1_b,
+			   const P& seg2_a, const P& seg2_b, const double tol);
 // ----------------------------------------------------------------------------
 
   

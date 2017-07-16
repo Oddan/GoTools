@@ -12,8 +12,9 @@
 using namespace std;
 using namespace TesselateUtils;
 
+
 namespace Test { 
-  void test_poly_area();
+  void test_poly_p();
   void test_bounding_box();
   void test_generate_grid();
   void test_inpolygon();
@@ -220,14 +221,14 @@ void test_segment_intersection()
   const Point2D r2a {2, 1}, r2b {2, 2};
 
   const double tol = 1e-6;
-  cout << "Obvious case, positive tol: " << segments_intersect(p1a, p1b, p2a, p2b,  tol) << endl;
-  cout << "Obvious case, negative tol: " << segments_intersect(p1a, p1b, p2a, p2b, -tol) << endl;
+  cout << "Obvious case, positive tol: " << segments_intersect_2D(p1a, p1b, p2a, p2b,  tol) << endl;
+  cout << "Obvious case, negative tol: " << segments_intersect_2D(p1a, p1b, p2a, p2b, -tol) << endl;
   cout << endl;
-  cout << "Endpoint-meet, positive tol: " << segments_intersect(q1a, q1b, q2a, q2b,  tol) << endl;
-  cout << "Endpoint-meet, negative tol: " << segments_intersect(q1a, q1b, q2a, q2b, -tol) << endl;
+  cout << "Endpoint-meet, positive tol: " << segments_intersect_2D(q1a, q1b, q2a, q2b,  tol) << endl;
+  cout << "Endpoint-meet, negative tol: " << segments_intersect_2D(q1a, q1b, q2a, q2b, -tol) << endl;
   cout << endl;
-  cout << "Point-touch-line, pos. tol: " << segments_intersect(r1a, r1b, r2a, r2b,  tol) << endl;
-  cout << "Point-touch-line, pos. tol: " << segments_intersect(r1a, r1b, r2a, r2b, -tol) << endl;
+  cout << "Point-touch-line, pos. tol: " << segments_intersect_2D(r1a, r1b, r2a, r2b,  tol) << endl;
+  cout << "Point-touch-line, pos. tol: " << segments_intersect_2D(r1a, r1b, r2a, r2b, -tol) << endl;
   cout << endl;
   
   
@@ -300,7 +301,11 @@ void test_volume_tesselation()
 
   cout << "Polyhedron:\n" << endl;
   cout << spoly << endl << endl;
-    
-  spoly.tesselate();
+
+  const double vdist = 0.3;
+  spoly.tesselate(vdist);
+
+  cout << "Writing wirefame: " << endl;
+  spoly.writeTesselatedOutline(cout);
 }
 };

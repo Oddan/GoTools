@@ -69,9 +69,9 @@ Mesh2D tesselatePolygon2D(const Point2D* const polygon,
 
   vector<Point2D> bpoints; // "boundary points"
   for (unsigned int i = 0; i != num_corners; ++i) {
-    const auto tseg = tesselateSegment2D(polygon[i], 
-					 polygon[(i+1) % num_corners], 
-					 vdist);
+    const auto tseg = tesselateSegment(polygon[i], 
+				       polygon[(i+1) % num_corners], 
+				       vdist);
     bpoints.insert(bpoints.end(), tseg.begin(), tseg.end()-1);
   }
 
@@ -104,17 +104,6 @@ Mesh2D tesselatePolygon2D(const Point2D* const polygon,
   return {points, tris};
 }
 
-// ============================================================================
-vector<Point2D> tesselateSegment2D(const Point2D& p1,
-				   const Point2D& p2,
-				   const double vdist)
-// ============================================================================
-{
-  const double seg_len = dist(p1, p2);
-  const unsigned int num_intervals = (unsigned int)ceil(seg_len/vdist);
-
-  return interpolate(p1, p2, num_intervals - 1);
-}
   
 };
 

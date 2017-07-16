@@ -8,11 +8,21 @@
 namespace TesselateUtils {
 
 using uint	= unsigned int;
-using Point2D	= std::array<double, 2>;
-using Point3D	= std::array<double, 3>;
 using Segment   = std::array<uint, 2>; // Representing a segment by indices to endpoints
 using Triangle	= std::array<uint, 3>;
 using Tet	= std::array<uint, 4>;
+
+template<int Dim>
+struct PointXD {
+
+  double& operator[](uint i) { return coords[i];}
+  const double& operator[](uint i) const {return coords[i];}
+  
+  std::array<double, Dim> coords;
+};
+
+using Point2D = PointXD<2>; //std::array<double, 2>;
+using Point3D = PointXD<3>; // std::array<double, 3>;
   
 struct ValAndDer {
   double val;
@@ -101,6 +111,30 @@ inline std::ostream& operator<<(std::ostream& os, const Point2D& p)
   os << p[0] << ' ' << p[1] << '\n';
   return os;
 }
+
+// ----------------------------------------------------------------------------
+inline double norm2(const Point2D& p)
+// ----------------------------------------------------------------------------
+{
+  return p[0] * p[0] + p[1] * p[1];
+}
+  
+// ----------------------------------------------------------------------------
+inline double dist2(const Point2D& p1, const Point2D& p2)
+// ----------------------------------------------------------------------------
+{
+  const double dx = p1[0] - p2[0];
+  const double dy = p1[1] - p2[1];
+  return dx*dx + dy*dy;
+}
+
+// ----------------------------------------------------------------------------
+inline bool acute_angle(const Point2D& a, const Point2D& b, const Point2D& c)
+// ----------------------------------------------------------------------------
+{
+  // angle is acute if scalar product of vectors ba and bc is positive
+  return (c[0] - b[0]) * (a[0] - b[0]) + (c[1] - b[1]) * (a[1] - b[1]) > 0;
+}
   
 // =============================== 3D operators ===============================
 
@@ -183,8 +217,36 @@ inline std::ostream& operator<<(std::ostream& os, const Point3D& p)
   os << p[0] << ' ' << p[1] << ' ' << p[2] << '\n';
   return os;
 }
+ 
+// ----------------------------------------------------------------------------
+ inline double norm2(const Point3D& p)
+// ----------------------------------------------------------------------------
+{
+  return p[0] * p[0] + p[1] * p[1] + p[2] * p[2];
+}
   
+// ----------------------------------------------------------------------------
+inline double dist2(const Point3D& p1, const Point3D& p2)
+// ----------------------------------------------------------------------------
+{
+  const double dx = p1[0] - p2[0];
+  const double dy = p1[1] - p2[1];
+  const double dz = p1[2] - p2[2];
+  return dx*dx + dy*dy + dz*dz;
+}
 
+
+// ----------------------------------------------------------------------------
+inline bool acute_angle(const Point3D& a, const Point3D& b, const Point3D& c)
+// ----------------------------------------------------------------------------
+{
+  // angle is acute if scalar product of vectors ba and bc is positive
+  return (c[0] - b[0]) * (a[0] - b[0]) +
+         (c[1] - b[1]) * (a[1] - b[1]) +
+         (c[2] - b[2]) * (a[2] - b[2])> 0;
+}
+
+  
 // ================= Operators on segments, triangles and tets =================
 
 inline std::ostream& operator<<(std::ostream& os, const Segment& s)
@@ -204,6 +266,7 @@ inline std::ostream& operator<<(std::ostream& os, const Tet& tet)
   os << tet[0] << ' ' << tet[1] << ' ' << tet[2] << ' ' << tet[3] << '\n';
   return os;
 }
+
 
   
 }; // end namespace TesselateUtils

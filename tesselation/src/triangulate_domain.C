@@ -176,7 +176,7 @@ void find_candidate_points(const Segment& s,
       // point is close enough to be a neighbor point
       all_neigh_pts[i] = 1;
       // check if it is also a candidate point
-      if ((projected_distance_to_line(points[i], points[s[0]], points[s[1]]) < 0) &&
+      if ((projected_distance_to_line_2D(points[i], points[s[0]], points[s[1]]) < 0) &&
 	  (!introduces_intersection(s, i, nsegs, points, TOL))) {
 	cand_pts[i] = 1; // point is a candidate point
       } 
@@ -204,10 +204,10 @@ bool introduces_intersection(const Segment& s,
     else if ((ns[0] == s[0] && ns[1] == s[1]) || (ns[0] == s[1] && ns[1] == s[0]))
       // the two segments are the same - no new intersection created
       continue;
-    else if (segments_intersect(points[pt_ix], points[s[0]],
-				points[ns[0]], points[ns[1]], -tol) ||
-	     segments_intersect(points[pt_ix], points[s[1]],
-				points[ns[0]], points[ns[1]], -tol))
+    else if (segments_intersect_2D(points[pt_ix], points[s[0]],
+				   points[ns[0]], points[ns[1]], -tol) ||
+	     segments_intersect_2D(points[pt_ix], points[s[1]],
+				   points[ns[0]], points[ns[1]], -tol))
       return true;
   return false;
 }

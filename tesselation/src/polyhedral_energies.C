@@ -176,7 +176,7 @@ void add_boundary_contribution(const Point2D& bp1,
   const auto& per_pts     = per.first;
   result_local.reset((uint)per_pts.size()); // reinitialize local result structure
 
-  const auto mpoints = mirror_points(&per_pts[0], (uint)per_pts.size(), bp1, bp2);
+  const auto mpoints = mirror_points_2D(&per_pts[0], (uint)per_pts.size(), bp1, bp2);
   dvec = interpoint_distances(&per_pts[0], (uint)per_pts.size(),
 			      &mpoints[0], (uint)per_pts.size(), vdist);
 
