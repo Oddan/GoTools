@@ -202,6 +202,15 @@ inline Point3D operator*(const Point3D& p, double t)
 }
 
 // ----------------------------------------------------------------------------
+inline Point3D operator*(double t, const Point3D& p)
+// ----------------------------------------------------------------------------
+{
+  Point3D tmp(p);
+  tmp *= t;
+  return tmp;
+}
+
+// ----------------------------------------------------------------------------
 inline Point3D operator/(const Point3D& p, double t)
 // ----------------------------------------------------------------------------
 {
@@ -246,7 +255,25 @@ inline bool acute_angle(const Point3D& a, const Point3D& b, const Point3D& c)
          (c[2] - b[2]) * (a[2] - b[2])> 0;
 }
 
-  
+// ----------------------------------------------------------------------------
+// cross product
+inline Point3D operator^(const Point3D& p, const Point3D& q)
+// ----------------------------------------------------------------------------  
+{
+  return { p[1] * q[2] - p[2] * q[1],
+           p[2] * q[0] - p[0] * q[2],
+           p[0] * q[1] - p[1] * q[0]};
+}
+
+
+// ----------------------------------------------------------------------------
+// scalar product
+inline double operator*(const Point3D& p, const Point3D& q)
+// ----------------------------------------------------------------------------
+{
+  return p[0] * q[0] + p[1] * q[1] + p[2] * q[2];
+}
+
 // ================= Operators on segments, triangles and tets =================
 
 inline std::ostream& operator<<(std::ostream& os, const Segment& s)

@@ -6,6 +6,7 @@
 #include <functional>// @@ only for marking unimplemented functions
 #include <stdexcept> // @@ only for marking unimplemented functions
 #include <iostream>  // @@ only for debug purposes
+#include <iterator>
 #include "common_defs.h"
 #include "tesselate_utils.h"
 
@@ -126,7 +127,7 @@ template<typename BoundedSpaceTraits> inline void
 TesselableVolume<BoundedSpaceTraits>::compute_global_face_point_indices() 
 // ----------------------------------------------------------------------------
 {
-  face_ipoints_start_ixs_.resize(numFaces(), (uint)facePoints().size());
+  face_ipoints_start_ixs_.resize(numFaces(), (uint)edgePoints().size());
   for (uint i = 0; i != numFaces() - 1; ++i)
     face_ipoints_start_ixs_[i+1] = face_ipoints_start_ixs_[i] +
                                    (uint)face_ipoints_[i].size();
@@ -216,7 +217,7 @@ inline void TesselableVolume<BoundedSpaceTraits>::tesselate(const double vdist)
   edge_ipoints_.resize(numEdges());
   face_ipoints_.resize(numFaces());
   face_triangles_.resize(numFaces());
-  volume_tets_.resize(numFaces());
+  //volume_tets_.resize(numFaces());
 
   // tesselate all edges
   for (uint i = 0; i != numEdges(); ++i)
@@ -393,7 +394,17 @@ template<typename BoundedSpaceTraits> inline
 void TesselableVolume<BoundedSpaceTraits>::writeTesselatedShell(std::ostream& os) const
 // ----------------------------------------------------------------------------
 {
-  std::cout << "Warning: writeTesselatedShell() unimplemented.  Skipping." << std::endl;
+  // writing points
+  os << "Points: " << '\n';
+  const auto shell_points = facePoints();
+  std::copy(shell_points.begin(), shell_points.end(), std::ostream_iterator<PointType>(os, " "));
+
+  
+  // writing triangles
+  os << "Triangles: " << '\n';
+  for (const auto& tris : face_triangles_)
+    for (const auto& t : tris)
+      os << t[0] << ' ' << t[1] << ' ' << t[2] << '\n';
 }
 
 // ----------------------------------------------------------------------------

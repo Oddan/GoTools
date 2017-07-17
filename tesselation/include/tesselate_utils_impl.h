@@ -122,7 +122,7 @@ bool inpolygon(const P& pt, const P* const poly,
     
     // case where startpoint of segment is exactly on the ray
     if (p1[1] == pt[1]) {
-      isects += int(p1[0] > pt[0]); // must be to the right to be on the ray
+      //isects += int(p1[0] > pt[0]); // must be to the right to be on the ray
       continue;
     } else {
       // we know that the startpoint is not _exactly_ on the ray

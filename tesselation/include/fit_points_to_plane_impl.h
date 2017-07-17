@@ -8,9 +8,11 @@
 
 namespace TesselateUtils {
 
+// ----------------------------------------------------------------------------  
 template<typename P>
 std::array<double, 4> fit_points_to_plane(const P* const points,
                                           const unsigned int num_points)
+// ----------------------------------------------------------------------------  
 {
   // @@ Since we do not have a linear algebra package easily available, we do this the
   // roundabout way - we find the angles (theta, psi) such that the plane having the normal
@@ -102,9 +104,33 @@ std::array<double, 4> fit_points_to_plane(const P* const points,
   return {n[0], n[1], n[2], d};
   
 }
-                                          
+  
+// ----------------------------------------------------------------------------
+template<typename P>
+std::array<double, 4> fit_loop_to_plane(const P* const points,
+                                        const unsigned int num_points)
+// ----------------------------------------------------------------------------
+{
+  std::array<double, 4> result = fit_points_to_plane(points, num_points);
 
+  // computing the "normal" of the loop
+  auto cross = [](const P& p1, const P& p2) { return P {p1[1] * p2[2] - p1[2] * p2[1],
+                                                        p1[2] * p2[0] - p1[0] * p2[2],
+                                                        p1[0] * p2[1] - p1[1] * p2[0]};};
+  P ln {0.0, 0.0, 0.0};
+  for (uint i = 0; i != (uint)num_points; ++i) {
+    auto& P1 = points[i];
+    auto& P2 = points[(i+1) % num_points];
+    const P tmp = cross(P1, P2);
+    ln[0] = ln[0] + tmp[0]; ln[1] = ln[1] + tmp[1]; ln[2] = ln[2] + tmp[2];
+  }
 
+  // take scalar product with plane normal, and check if they point the same way
+  if ((ln[0] * result[0] + ln[1] * result[1] + ln[2] * result[2]) < 0) 
+    for (uint i= 0; i != 4; ++i)
+      result[i] = -result[i];
+  return result;
+}
   
 };
 

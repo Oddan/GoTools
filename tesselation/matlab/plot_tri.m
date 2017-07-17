@@ -6,8 +6,11 @@ function plot_tri(pts, tri)
       
       ixs = [tri(i,:), tri(i,1)]';
       
-      plot(pts(ixs,1), pts(ixs,2), '*-r');
-      
+      if size(pts,2) == 2
+         plot(pts(ixs,1), pts(ixs,2), '*-r');
+      else
+         plot3(pts(ixs,1), pts(ixs,2), pts(ixs, 3), '*-r');
+      end
    end
    
 end

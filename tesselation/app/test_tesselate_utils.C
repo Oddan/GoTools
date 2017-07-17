@@ -58,11 +58,11 @@ int main() {
   // cout << "testing triangulation generation: " << endl;
   // Test::test_triangulation();
 
-  // cout << "testing volume tesselation: " << endl;
-  // Test::test_volume_tesselation();
+  cout << "testing volume tesselation: " << endl;
+  Test::test_volume_tesselation();
 
-  cout << "testing plane fitting: " << endl;
-  Test::test_fit_to_plane();
+  // cout << "testing plane fitting: " << endl;
+  // Test::test_fit_to_plane();
   
   return 0;
 };
@@ -322,6 +322,10 @@ void test_volume_tesselation()
                                  { {2, 11, 6, 10}, true}, // back (ymax) face
                                  { {8, 7, 11, 3}, true}, // left (xmin) face
                                  { {1, 10, 5, 9}, true}}; // right (xmax) face
+
+  // const vector<Point3D> corners { {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0} };
+  // const vector<Segment> edges   { {0, 1}, {1, 2}, {2, 3}, {3, 0}};
+  // const vector<FaceLoop> faces { { {0, 1, 2, 3}, false}};
   
   const SimpleVolumeType v {};
   SimplePolyhedron spoly {corners, edges, faces, v};
@@ -334,7 +338,13 @@ void test_volume_tesselation()
 
   cout << "Writing wirefame: " << endl;
   spoly.writeTesselatedOutline(cout);
+
+  cout << "Writing shell: " << endl;
+  spoly.writeTesselatedShell(cout);
+
 }
+
+
 
 
 

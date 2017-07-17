@@ -30,6 +30,7 @@ inline std::ostream& operator<<(std::ostream& os, FaceLoop fl)
 // ----------------------------------------------------------------------------
 {
   for (const auto e : fl.edge_ixs) os << e << ' '; os << fl.ccw << '\n';
+  //for (const auto e : fl.edge_ixs) os << e << '\n';
   return os;
 }
 

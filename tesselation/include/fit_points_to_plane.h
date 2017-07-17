@@ -14,7 +14,12 @@ namespace TesselateUtils {
 template<typename P>
 std::array<double, 4> fit_points_to_plane(const P* const points,
                                           const unsigned int num_points);
-                                          
+
+// As above, but considers the points to lie on a loop, and chooses orientation of normal to
+// ensure loop becomes counterclockwise oriented in plane
+template<typename P>
+std::array<double, 4> fit_loop_to_plane(const P* const points,
+                                        const unsigned int num_points);
 };
 
 #include "fit_points_to_plane_impl.h"

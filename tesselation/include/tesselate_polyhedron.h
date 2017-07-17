@@ -16,8 +16,9 @@ struct Mesh2D {
 };
   
 Mesh2D tesselatePolygon2D(const Point2D* const polygon,
-			    const unsigned int num_corners,
-			    const double vdist);
+			  const unsigned int num_corners,
+			  const double vdist,
+			  const bool tesselate_boundary=true);
 
 
 template<typename PointXD> 

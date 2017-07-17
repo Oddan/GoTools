@@ -61,30 +61,33 @@ namespace TesselateUtils {
 
 // ============================================================================
 Mesh2D tesselatePolygon2D(const Point2D* const polygon,
-                                  const unsigned int num_corners,
-                                  const double vdist)
+			  const unsigned int num_corners,
+			  const double vdist,
+			  const bool tesselate_boundary)
 // ============================================================================
 {
   // computing the points defining the boundary polygon 
 
   vector<Point2D> bpoints; // "boundary points"
-  for (unsigned int i = 0; i != num_corners; ++i) {
-    const auto tseg = tesselateSegment(polygon[i], 
-				       polygon[(i+1) % num_corners], 
-				       vdist);
-    bpoints.insert(bpoints.end(), tseg.begin(), tseg.end()-1);
+  if (tesselate_boundary) {
+    for (unsigned int i = 0; i != num_corners; ++i) {
+      const auto tseg = tesselateSegment(polygon[i], 
+					 polygon[(i+1) % num_corners], 
+					 vdist);
+      bpoints.insert(bpoints.end(), tseg.begin(), tseg.end()-1);
+    }
+  } else {
+    bpoints = vector<Point2D>(polygon, polygon + num_corners);
   }
 
   // Choosing a set of interior points which we can later move around to optimal
   // locations 
   vector<Point2D> ipoints = init_startpoints(polygon, num_corners, vdist); 
   
-  // Optimizing position of interior points
+  //Optimizing position of interior points
   optimize_interior_points(&bpoints[0], (uint)bpoints.size(),
-			   &ipoints[0], (uint)ipoints.size(),
-			   vdist*1.5);
-
-
+  			   &ipoints[0], (uint)ipoints.size(),
+  			   vdist * 1); // * 1.5
   
   // @@computing and reporting internal energy
   const double R = 2 * vdist;
@@ -129,12 +132,13 @@ vector<Point2D> init_startpoints(const Point2D* const polygon,
   const int ny = (int)ceil(N_bbox/nx);
 
   // constructing regular grid of points within the bounding box
-  const vector<Point2D> gridpoints = generate_grid_2D(Point2D {bbox[0], bbox[2]},
-  						      Point2D {bbox[1], bbox[3]},
-  						      nx, ny);
+  const vector<Point2D> gridpoints =
+    generate_grid_2D(Point2D {bbox[0] + vdist/2, bbox[2] + vdist/2},
+		     Point2D {bbox[1] - vdist/2, bbox[3] - vdist/2},
+		     nx, ny);
   
-// keeping the points that fall within the original polygon
-  const double TOL_FAC = 0.5 * vdist; // do not keep points too close to the boundary
+  // keeping the points that fall within the original polygon
+  const double TOL_FAC = 0.25 * vdist; // do not keep points too close to the boundary
   vector<Point2D> result = inpolygon(&gridpoints[0], (unsigned int)gridpoints.size(),
 				     polygon,  num_corners, TOL_FAC);
 
