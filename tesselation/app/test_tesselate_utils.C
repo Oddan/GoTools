@@ -8,6 +8,7 @@
 #include "polyhedral_energies.h"
 #include "triangulate_domain.h"
 #include "SimplePolyhedronTesselation.h"
+#include "fit_points_to_plane.h"
 
 using namespace std;
 using namespace TesselateUtils;
@@ -24,6 +25,7 @@ namespace Test {
   void test_segment_intersection();
   void test_triangulation();
   void test_volume_tesselation();
+  void test_fit_to_plane();
 };
 
 // ============================================================================
@@ -56,8 +58,11 @@ int main() {
   // cout << "testing triangulation generation: " << endl;
   // Test::test_triangulation();
 
-  cout << "testing volume tesselation: " << endl;
-  Test::test_volume_tesselation();
+  // cout << "testing volume tesselation: " << endl;
+  // Test::test_volume_tesselation();
+
+  cout << "testing plane fitting: " << endl;
+  Test::test_fit_to_plane();
   
   return 0;
 };
@@ -280,6 +285,28 @@ void test_triangulation()
 }
 
 // ----------------------------------------------------------------------------
+void test_fit_to_plane()
+// ----------------------------------------------------------------------------  
+{
+  vector<Point3D> pts { {0, 0, 0}, {1, 0, 0}, {0, 1, 0}};
+  //vector<Point3D>  pts { {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 0.01}};
+  
+  const auto plane_eq = fit_points_to_plane(&pts[0], (uint)pts.size());
+
+  cout << "Plane equation is: " << endl;
+  cout << plane_eq[0] << " x + " << plane_eq[1] << " y + " << plane_eq[2] << " z + ";
+  cout << plane_eq[3] << " = 0" << endl;
+  
+  vector<double> dists(pts.size());
+  transform(pts.begin(), pts.end(), dists.begin(), [&](const Point3D& p) {
+      return p[0] * plane_eq[0] + p[1] * plane_eq[1] + p[2] * plane_eq[2] + plane_eq[3];
+    });
+  cout << "Distances to plane are: " << endl;
+  copy(dists.begin(), dists.end(), ostream_iterator<double>(cout, ", "));
+  cout << endl;
+}
+
+// ----------------------------------------------------------------------------
 void test_volume_tesselation()
 // ----------------------------------------------------------------------------
 {
@@ -302,10 +329,13 @@ void test_volume_tesselation()
   cout << "Polyhedron:\n" << endl;
   cout << spoly << endl << endl;
 
-  const double vdist = 0.3;
+  const double vdist = 0.1;
   spoly.tesselate(vdist);
 
   cout << "Writing wirefame: " << endl;
   spoly.writeTesselatedOutline(cout);
 }
+
+
+
 };

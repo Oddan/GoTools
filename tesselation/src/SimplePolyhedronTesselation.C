@@ -2,6 +2,7 @@
 #include <array>
 #include "tesselate_polyhedron.h"
 #include "SimplePolyhedronTesselation.h"
+#include "fit_points_to_plane.h"
 
 using namespace std;
 using namespace TesselateUtils;
@@ -62,7 +63,18 @@ void SimplePolyhedron::compute_tesselation(const vector<Point3D>& boundary,
                                            vector<Triangle>& triangles)
 // ----------------------------------------------------------------------------
 {
-  // project face to plane
+  // fit a plane to the points on the boundary
+  const array<double, 4> pl = fit_points_to_plane(&boundary[0],
+                                                  (uint)boundary.size());
+
+  // check if any point is too far off the fitted plane
+  for (const auto& p : boundary) {
+    const double dist = p[0] * pl[0] + p[1] * pl[1] + p[2] * pl[2] + pl[3];
+    if (dist > vdist/2)
+      throw runtime_error("The boundary points of the face are not sufficiently"
+                          " close to a common plane.");
+  }
+  // if we got here, we know that the plane is OK
 
   // tesselate face in plane
 
