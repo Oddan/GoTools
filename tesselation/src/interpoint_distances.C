@@ -193,7 +193,7 @@ BinnedPoints bin_points(const Point2D* const points,
 			const double R)
 // ----------------------------------------------------------------------------
 {
-  const auto bbox = bounding_box(points, num_points); 
+  const auto bbox = bounding_box_2D(points, num_points); 
   const double xmin = bbox[0]; const double xmax = bbox[1];
   const double ymin = bbox[2]; const double ymax = bbox[3];
 
@@ -237,7 +237,7 @@ BinnedPoints bin_points(const Point2D* const points,
 //   auto& bin_x = get<0>(result);
 //   auto& bin_y = get<1>(result);
 
-//   const auto bbox = bounding_box(points, num_points);
+//   const auto bbox = bounding_box_2D(points, num_points);
 //   const double xmin = bbox[0];
 //   const double ymin = bbox[2];
 

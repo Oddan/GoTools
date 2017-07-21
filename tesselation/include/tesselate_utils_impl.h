@@ -1,11 +1,12 @@
 #ifndef _TESSELATE_UTILS_IMPL_H
 #define _TESSELATE_UTILS_IMPL_H
 
-
+#include <limits>
 #include <assert.h>
 #include <cmath>
 #include <random>
 #include "common_defs.h"
+#include "lu.h"
 namespace TesselateUtils
 {
 
@@ -55,7 +56,7 @@ double polygon_area(const P* const poly, const unsigned int num_corners)
 
 // ----------------------------------------------------------------------------    
 template<typename P>  
-std::array<double, 4> bounding_box(const P* const points,
+std::array<double, 4> bounding_box_2D(const P* const points,
 				   const unsigned int num_points)
 // ----------------------------------------------------------------------------    
 {
@@ -71,8 +72,30 @@ std::array<double, 4> bounding_box(const P* const points,
 }
 
 // ----------------------------------------------------------------------------
+template<typename P>  
+std::array<double, 6> bounding_box_3D(const P* const points,
+                                      const unsigned int num_points)
+// ----------------------------------------------------------------------------  
+{
+  assert(num_points > 0);
+  const auto minmax_x = std::minmax_element(points, points + num_points,
+					    [](P p1, P p2) {return p1[0] < p2[0];});
+  const auto minmax_y = std::minmax_element(points, points + num_points,
+					    [](P p1, P p2) {return p1[1] < p2[1];});
+  const auto minmax_z = std::minmax_element(points, points + num_points,
+					    [](P p1, P p2) {return p1[2] < p2[2];});
+
+  return std::array<double, 6> { (*(minmax_x.first))[0], (*(minmax_x.second))[0],
+                                 (*(minmax_y.first))[1], (*(minmax_y.second))[1],
+                                 (*(minmax_z.first))[2], (*(minmax_z.second))[2]};
+}
+  
+// ----------------------------------------------------------------------------
 template<typename P>
-std::vector<P> generate_grid_2D(const P& c1, const P& c2, int nx, int ny)
+std::vector<P> generate_grid_2D(const P& c1,
+                                const P& c2,
+                                unsigned int nx,
+                                unsigned int ny)
 // ----------------------------------------------------------------------------  
 {
   // Generate vectors of points demarcating the leftmost and rightmost grid columns.
@@ -83,11 +106,33 @@ std::vector<P> generate_grid_2D(const P& c1, const P& c2, int nx, int ny)
   std::vector<std::vector<P>> gridrows;
   std::transform(yminvec.begin(), yminvec.end(), ymaxvec.begin(),
 		 std::back_inserter(gridrows),
-		 [nx](P p1, P p2) {return interpolate(p1, p2, nx);});
+		 [nx](const P& p1, const P& p2) {return interpolate(p1, p2, nx);});
 
   return flatten(gridrows);
 }
 
+// ----------------------------------------------------------------------------
+template<typename P>
+std::vector<P> generate_grid_3D(const P& c1,
+                                const P& c2,
+                                unsigned int nx,
+                                unsigned int ny,
+                                unsigned int nz)
+// ----------------------------------------------------------------------------  
+{
+  // generate upper and lower layer
+  const auto zminvec = generate_grid_2D(c1, {c2[0], c2[1], c1[2]}, nx, ny);
+  const auto zmaxvec = generate_grid_2D({c1[0], c1[1], c2[2]}, c2, nx, ny);
+
+  // generate intermediate layers
+  std::vector<std::vector<P>> layers;
+  std::transform(zminvec.begin(), zminvec.end(), zmaxvec.begin(),
+                 std::back_inserter(layers),
+                 [nz](const P& p1, const P& p2) {return interpolate(p1, p2, nz);});
+  return flatten(layers);
+}
+  
+  
 // ----------------------------------------------------------------------------  
 template<typename T>
 std::vector<T> flatten(const std::vector<std::vector<T>>& arg)
@@ -171,6 +216,114 @@ std::vector<P> inpolygon(const P* const pts, const unsigned int num_pts,
   std::copy_if(pts, pts + num_pts, std::back_inserter(result),
 	       [&](const P& p) {return inpolygon(p, poly, num_corners, tol);});
   return result;
+}
+
+// ----------------------------------------------------------------------------
+// Check if a 3D point is inside a closed shell consisting of triangles
+template<typename P, typename T>
+bool inside_shell(const P& pt, const P* const bpoints, const T* const tris,
+                  const unsigned int num_tris, const double tol)
+// ----------------------------------------------------------------------------    
+{
+  // Checking horizontal ray against all triangles and determining the closest
+  // intersection, if any.  If there are no intersections, the point is outside.
+  // If there are one or more intersections, the sign of the closest
+  // intersection determines whether the point is inside or outside.
+  double dist_2 = std::numeric_limits<double>::infinity();
+  int sign = -1; // positive sign: ray is "piercing out of" shell
+  for (auto t = tris; t != tris + num_tris; ++t) {
+
+    // identifying corners of triangle
+    const P& tri_p1 = bpoints[(*t)[0]];
+    const P& tri_p2 = bpoints[(*t)[1]];
+    const P& tri_p3 = bpoints[(*t)[2]];
+    
+    // first, check if point is _on_ triangle, in which case we exclude it (we
+    // only seek true interior points)
+    if (point_on_triangle(pt, tri_p1, tri_p2, tri_p3, tol))
+      return false;
+
+    // check if horizontal ray intersect with this triangle, and if so, what the
+    // signed distance to the intersection is.
+    double cur_dist_2(0.0);
+    int cur_sign(0);
+    if (ray_intersects_face(pt, P {1, 0, 0}, tri_p1, tri_p2, tri_p3,
+                            cur_dist_2, cur_sign))
+      if (cur_dist_2 < dist_2) {
+        dist_2 = cur_dist_2;
+        sign = cur_sign;
+      }
+  }
+  return sign > 0;
+}
+
+// ----------------------------------------------------------------------------      
+// Check if a point is within distance 'tol' from a triangle in 3D space.
+template<typename P> inline
+bool point_on_triangle(const P& p, const P& c1, const P& c2, const P& c3,
+                       const double tol)
+// ----------------------------------------------------------------------------      
+{
+  assert(false);
+}
+
+
+// ----------------------------------------------------------------------------
+// Returns the 3D points that are inside the closed shell defined by a set of
+// triangles
+template<typename P, typename T>
+std::vector<P> inside_shell(const P* const pts, const unsigned int num_pts,
+                            const P* const bpoints, const T* const tris,
+                            const unsigned int num_tris, const double tol)
+// ----------------------------------------------------------------------------    
+{
+  std::vector<P> result;
+  std::copy_if(pts, pts + num_pts, std::back_inserter(result),
+               [&](const P& p) {return inside_shell(p, bpoints, tris,
+                                                    num_tris, tol);});
+  return result;
+}
+
+// ----------------------------------------------------------------------------
+template<typename P> inline
+bool ray_intersects_face(const P& pt, const P& dir,
+                         const P& p1, const P& p2, const P& p3,
+                         double& dist_2, int& sign)
+// ----------------------------------------------------------------------------
+{
+  const P v1 = p2 - p1;
+  const P v2 = p3 - p1;
+  const P dp = pt - p1;
+
+  // we consider the system:
+  // pt + (-param[2]) * dir = p1 * param[0] v1 + p2 * param[1] v2
+  // and solve for the three unknown parameters
+  P param = solve_3D_matrix(v1, v2, dir, dp); 
+
+  if (std::isnan(param[0])) // degenerate system; ray perpendicular to normal
+    return false;
+
+  if ((param[2] > 0) || (param[0] < 0) ||
+      (param[1] < 0) || (param[0] + param[1] > 1))
+    // intersection point falls outside triangle
+    return false;
+
+  // intersection point falls within triangle, compute signed distance
+  const P I = p1 + param[0] * v1 + param[1] * v2;
+  dist_2 = dist2(pt, I);
+  sign = determinant3D(dir, v1, v2) > 0 ? 1 : -1;
+
+  return true;
+} 
+
+// ----------------------------------------------------------------------------
+template<typename P>
+double determinant3D(const P& u, const P& v, const P& w)
+// ----------------------------------------------------------------------------
+{
+  return u[0] * (v[1] * w[2] - v[2] * w[1]) +
+         u[1] * (v[2] * w[0] - v[0] * w[2]) +
+         u[2] * (v[0] * w[1] - v[1] * w[0]);
 }
 
 // ----------------------------------------------------------------------------    
@@ -345,6 +498,55 @@ P solve_2D_matrix(const P& Mcol1, const P& Mcol2, const P& rhs)
   const double Dy = Mcol1[0] * rhs[1] - Mcol1[1] * rhs[0];
 
   return P {Dx/det, Dy/det};
+}
+
+
+// ----------------------------------------------------------------------------
+// solve a 3x3 linear system.  The columns of the 3x3 matrix are given in the
+// first three arguments, the right-hand-side in the fourth.  If matrix is
+// singular, the result will contain NaN-values.
+template<typename P> inline
+P solve_3D_matrix(const P& Mcol1, const P& Mcol2, const P& Mcol3, const P& rhs)
+// ----------------------------------------------------------------------------
+{
+  assert(false);
+}
+
+// ----------------------------------------------------------------------------
+// Solve N-sized linear system.  Result vector will be written to array pointed
+// to by 'result'.  Function returns 'true' if success.
+template<int N> inline
+bool solve_linear_system(const double* const m,
+                         const double* const rhs,
+                         double* const result)
+// ----------------------------------------------------------------------------  
+{
+  // compute LU decomposition
+  std::array<double, N*N> coefs; std::copy(m, m + N * N, coefs.begin());
+  std::array<int, N> perm;
+  bool parity;
+  bool success = lu(N, &coefs[0], &perm[0], parity);
+  if (!success)
+    return false;
+  
+  // solve by back-substitution
+
+  std::transform(perm.begin(), perm.end(), result, // result becomes permuted right-hand-side
+                 [&rhs] (int i) {return rhs[i];});
+
+  // compute L y = rhs
+  for (int row = 0; row != N; ++row) 
+    for (int col = 0; col != row; ++col)
+      result[row] -= (coefs[row + col*N] * result[col]);
+
+  // compute U x = y
+  for (int row = N-1; row>=0; --row) {
+    for (int col = row+1; col != N; ++col)
+      result[row] -= (coefs[row + col * N] * result[col]);
+    result[row] /= coefs[row + row * N];
+  }
+    
+  return true;
 }
 
 // ----------------------------------------------------------------------------

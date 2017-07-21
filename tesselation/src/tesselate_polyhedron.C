@@ -1,4 +1,5 @@
 #include <iostream> // for debugging
+#include <assert.h>
 #include <cmath>
 #include <algorithm>
 #include "tesselate_utils.h"
@@ -48,12 +49,32 @@ vector<Point2D> init_startpoints(const Point2D* const polygon,
 // ----------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
+vector<Point3D> init_startpoints(const Point3D* const bpoints,
+                                 const unsigned int num_bpoints,
+                                 const Triangle* btris,
+                                 const unsigned int num_btris,
+                                 const double vdist);
+// choose some initial startpoints as a basis for subsequent optimization
+// ----------------------------------------------------------------------------
+  
+// ----------------------------------------------------------------------------
 void optimize_interior_points(const Point2D* const polygon,
 			      const unsigned int num_corners,
 			      Point2D* const ipoints,
 			      const unsigned int num_ipoints,
 			      const double vdist);
 // ----------------------------------------------------------------------------  
+
+
+// ----------------------------------------------------------------------------    
+vector<Point3D> optimize_interior_points(const Point3D* bpoints,
+                                         const unsigned int num_bpoints,
+                                         const Triangle* btris,
+                                         const unsigned int num_btris,
+                                         const Point3D* const ipoints,
+                                         const unsigned int num_ipoints,
+                                         const double vdist);
+// ----------------------------------------------------------------------------    
   
 }; // end anonymous namespace
 
@@ -87,16 +108,17 @@ Mesh2D tesselatePolygon2D(const Point2D* const polygon,
   //Optimizing position of interior points
   optimize_interior_points(&bpoints[0], (uint)bpoints.size(),
   			   &ipoints[0], (uint)ipoints.size(),
-  			   vdist * 1); // * 1.5
+  			   vdist * 1.5); //1); // * 1.5
   
-  // @@computing and reporting internal energy
-  const double R = 2 * vdist;
-  const auto e = polygon_energy(&bpoints[0], (unsigned int)bpoints.size(),
-				&ipoints[0], (unsigned int)ipoints.size(), 
-				R);
+  // // @@computing and reporting internal energy
+  // const double R = 2 * vdist;
+  // const auto e = polygon_energy(&bpoints[0], (unsigned int)bpoints.size(),
+  //       			&ipoints[0], (unsigned int)ipoints.size(), 
+  //       			R);
 
-  cout << "Energy is:" << e.val << endl;
+  // cout << "Energy is:" << e.val << endl;
 
+  // Triangulating points
   vector<Point2D> points(bpoints);
   points.insert(points.end(), ipoints.begin(), ipoints.end());
 
@@ -107,11 +129,85 @@ Mesh2D tesselatePolygon2D(const Point2D* const polygon,
   return {points, tris};
 }
 
+// ============================================================================
+Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
+                             const unsigned int num_bpoints,
+                             const Triangle* const btris,
+                             const unsigned int num_btris,
+                             const double vdist)
+// ============================================================================
+{
+  // choosing a set of interior points
+  vector<Point3D> ipoints = init_startpoints(bpoints, num_bpoints, btris,
+                                             num_btris, vdist);
+
+  // optimizing position of interior points
+  optimize_interior_points(bpoints, num_bpoints, btris, num_btris,
+                           &ipoints[0], (uint)ipoints.size(), vdist * 1.5);
+
+  // constructing tets from points
+  vector<Point3D> points(bpoints, bpoints + num_bpoints);
+  points.insert(points.end(), ipoints.begin(), ipoints.end());
+  const auto tets = construct_tets(bpoints, num_bpoints,
+                                   btris, num_btris,
+                                   &points[0], (uint)points.size(),
+                                   2*vdist);
+  return{points, tets};
+}
   
 };
 
 namespace {
 
+// ----------------------------------------------------------------------------
+vector<Point3D> init_startpoints(const Point3D* const bpoints,
+                                 const unsigned int num_bpoints,
+                                 const Triangle* btris,
+                                 const unsigned int num_btris,
+                                 const double vdist)
+// choose some initial startpoints as a basis for subsequent optimization
+// ----------------------------------------------------------------------------
+{
+  const array<double, 6> bbox = bounding_box_3D(bpoints, num_bpoints);
+  const double bbox_lx = bbox[1] - bbox[0];
+  const double bbox_ly = bbox[3] - bbox[2];
+  const double bbox_lz = bbox[5] - bbox[4];
+
+  // computing amount of points needed to approximately fill the bounding box,
+  // where points are approximately equidistant by 'vdist'.
+  const double box_vol = bbox_lx * bbox_ly * bbox_lz;
+  const int N_bbox = (int)ceil(box_vol / (vdist * vdist * vdist));
+  const double Rxy = bbox_lx / bbox_ly;
+  const double Rxz = bbox_lx / bbox_lz;
+  const double Ryz = bbox_ly / bbox_lz;
+  const int nx = (int)ceil(pow(N_bbox * Rxy * Rxz, 1/3.));
+  const int ny = (int)ceil(pow(N_bbox / Rxy * Ryz, 1/3.));
+  const int nz = (int)ceil(pow(N_bbox / Rxz / Ryz, 1/3.));
+  
+  // constructing regular grid of points within the bounding box
+  const vector<Point3D> gridpoints =
+    generate_grid_3D(Point3D {bbox[0] + vdist/2, bbox[2] + vdist/2, bbox[4] + vdist/2},
+                     Point3D {bbox[1] - vdist/2, bbox[3] - vdist/2, bbox[5] - vdist/2},
+                     nx, ny, nz);
+
+  // keeping the points that fall within the shell
+  const double TOL_FAC = 0.25 * vdist; // do not keep points too close to boundary
+  vector<Point3D> result = inside_shell(&gridpoints[0],
+                                        (unsigned int) gridpoints.size(),
+                                        bpoints,
+                                        btris,
+                                        num_btris,
+                                        TOL_FAC);
+
+  // add perturbation to avoid 'symmetry locking' during the optimization stage
+  const double PM = 1.0e-1 * min({bbox_lx/nx, bbox_ly/ny, bbox_lz/nz});
+  transform(result.begin(), result.end(), result.begin(), [PM] (const Point3D& p) {
+      return Point3D {p[0] + random_uniform(-PM, PM),
+                      p[1] + random_uniform(-PM, PM),
+                      p[2] + random_uniform(-PM, PM)};});
+  return result;
+}
+   
 // ----------------------------------------------------------------------------  
 vector<Point2D> init_startpoints(const Point2D* const polygon,
 				 const unsigned int num_corners,
@@ -120,7 +216,7 @@ vector<Point2D> init_startpoints(const Point2D* const polygon,
 // ----------------------------------------------------------------------------
 {
   //const double poly_area = polygon_area(polygon, num_corners);
-  const array<double, 4> bbox = bounding_box(polygon, num_corners);
+  const array<double, 4> bbox = bounding_box_2D(polygon, num_corners);
   const double bbox_lx = bbox[1] - bbox[0];
   const double bbox_ly = bbox[3] - bbox[2];
   const double bbox_area =  bbox_lx * bbox_ly;
@@ -149,6 +245,19 @@ vector<Point2D> init_startpoints(const Point2D* const polygon,
 		                               p[1] + random_uniform(-PM, PM)};});
 
   return result;
+}
+
+// ----------------------------------------------------------------------------
+  vector<Point3D> optimize_interior_points(const Point3D* bpoints,
+                                           const unsigned int num_bpoints,
+                                           const Triangle* btris,
+                                           const unsigned int num_btris,
+                                           const Point3D* const ipoints,
+                                           const unsigned int num_ipoints,
+                                           const double vdist)
+// ----------------------------------------------------------------------------
+{
+  assert(false); // not implemented
 }
   
 // ----------------------------------------------------------------------------
@@ -183,7 +292,7 @@ PolygonEnergyFunctor::PolygonEnergyFunctor(const Point2D* const polygon,
 					   const double radius)
 // ----------------------------------------------------------------------------    
   : poly_(polygon), nc_(num_corners), ni_(num_ipoints), r_(radius),
-    bbox_(bounding_box(polygon, num_corners))
+    bbox_(bounding_box_2D(polygon, num_corners))
 {}
 
 // ----------------------------------------------------------------------------    

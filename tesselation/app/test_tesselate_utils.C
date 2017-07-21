@@ -16,7 +16,7 @@ using namespace TesselateUtils;
 
 namespace Test { 
   void test_poly_p();
-  void test_bounding_box();
+  void test_bounding_box_2D();
   void test_generate_grid();
   void test_inpolygon();
   void test_interpoint_distances();
@@ -26,6 +26,7 @@ namespace Test {
   void test_triangulation();
   void test_volume_tesselation();
   void test_fit_to_plane();
+  void test_linear_system();
 };
 
 // ============================================================================
@@ -35,7 +36,7 @@ int main() {
   // Test::test_poly_area();
 
   // cout << "Testing bounding box: " << endl;
-  // Test::test_bounding_box();
+  // Test::test_bounding_box_2D();
 
   // cout << "Testing generate_grid: " << endl;
   // Test::test_generate_grid();
@@ -58,11 +59,14 @@ int main() {
   // cout << "testing triangulation generation: " << endl;
   // Test::test_triangulation();
 
-  cout << "testing volume tesselation: " << endl;
-  Test::test_volume_tesselation();
-
   // cout << "testing plane fitting: " << endl;
   // Test::test_fit_to_plane();
+
+  // cout << "testing volume tesselation: " << endl;
+  // Test::test_volume_tesselation();
+
+  cout << "testing linear system solving: " << endl;
+  Test::test_linear_system();
   
   return 0;
 };
@@ -81,12 +85,12 @@ void test_poly_area()
 }
 
 // ----------------------------------------------------------------------------
-void test_bounding_box()
+void test_bounding_box_2D()
 // ----------------------------------------------------------------------------
 {
   vector<Go::Point> poly { {0.0, 0.0}, {1.0, 0.0}, {0.5, 0.5}, {0.0, 1.0}};
   
-  const auto box = bounding_box(&poly[0], (int)poly.size());
+  const auto box = bounding_box_2D(&poly[0], (int)poly.size());
   cout << "Bounding box is: \n";
   cout << "xmin: " << box[0] << ", xmax: " << box[1] << '\n';
   cout << "ymin: " << box[2] << ", ymax: " << box[3] << endl;
@@ -114,7 +118,7 @@ void test_inpolygon()
 {
   const vector<Go::Point> poly = { {0.0, 0.0}, {1.0, 0.0}, 
 				   {1.0, 2.0}, {0.5, 1.0}, {0.0, 1.0}};
-  const auto bbox = bounding_box(&poly[0], (int)poly.size());
+  const auto bbox = bounding_box_2D(&poly[0], (int)poly.size());
   const int nx = 30;
   const int ny = 30;
   const double tol = 1e-6;
@@ -344,8 +348,17 @@ void test_volume_tesselation()
 
 }
 
+// ----------------------------------------------------------------------------
+void test_linear_system()
+// ----------------------------------------------------------------------------
+{
+  const vector<double> m {1, -2, 0, 6, 5, 0, 8, 6, 2, 3, 2, -7, -1, 3, -3, 1};
+  const vector<double> rhs {1, 2, 3, 4};
+  vector<double> result(rhs.size());
 
+  bool success = solve_linear_system<4>(&m[0], &rhs[0], &result[0]);
 
-
+  copy(result.begin(), result.end(), ostream_iterator<double>(cout, "\n"));
+}
 
 };

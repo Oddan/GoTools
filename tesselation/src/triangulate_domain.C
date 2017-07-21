@@ -91,6 +91,21 @@ vector<Triangle> triangulate_domain(const Point2D* const points,
   return result;
 }
 
+// ============================================================================
+// The algorithm used here is a 3D generalization og the algorithm used above,
+// and which was inspired by S.H. Lo, "Delaunay Triangulation of Non-Convex
+// Planar Domains" (1989)
+std::vector<Tet> construct_tets(const Point3D* const bpoints,
+                                const uint num_bpoints,
+                                const Triangle* btris,
+                                const uint num_btris,
+                                const Point3D* const ipoints,
+                                const uint num_ipoints,
+                                const double vdist)
+// ============================================================================
+{
+  assert(false);
+}
   
 }; // end namespace TesselateUtils
 

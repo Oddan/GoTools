@@ -23,6 +23,25 @@ namespace TesselateUtils {
 					   const uint num_bpoints, 
 					   const uint tot_num_points,
 					   const double vdist);
+
+  // Compute a 3D simplex (Tet) mesh from a closed boundary shell (consisting of
+  // points [bpoints] and triangles [btris] ) and a number of interior points
+  // [ipoints].  It is assumed that all provided interior points lie within the
+  // boundary shell, and that the spacing of the points (both interior and on
+  // the shell) is such that no triangle needs to have a bigger circumscribing
+  // circle than one with radius 'vdist'.  ('vdist' can be as large as you want,
+  // but runtime performance is improved by keeping 'vdist' low).  All boundary
+  // triangles should be provied with outward-facing normals, meaning that the
+  // three corners making up the triangle are provided in counterclockwise
+  // order.
+  std::vector<Tet> construct_tets(const Point3D* const bpoints,
+                                  const uint num_bpoints,
+                                  const Triangle* btris,
+                                  const uint num_btris,
+                                  const Point3D* const ipoints,
+                                  const uint num_ipoints,
+                                  const double vdist);
+    
 };
 
 #endif

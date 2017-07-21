@@ -1,4 +1,5 @@
 #include <iostream> // for debugging
+#include <stdexcept> // for debugging
 #include <array>
 #include "tesselate_polyhedron.h"
 #include "SimplePolyhedronTesselation.h"
@@ -121,13 +122,17 @@ void SimplePolyhedron::compute_tesselation(const vector<Point3D>& boundary,
 template<> 
 void SimplePolyhedron::compute_tesselation(const vector<Point3D>& bpoints,
                                            const vector<Triangle>& btris,
-                                           const VolumeType& volume,
+                                           const VolumeType& volume,  // dummy; empty type
                                            const double vdist,
                                            vector<Point3D>& ipoints,
                                            vector<Tet>& tets)
 // ----------------------------------------------------------------------------
 {
-
+  const Mesh3D m3d = tesselatePolyhedron3D(&bpoints[0], (uint)bpoints.size(),
+                                           &btris[0], (uint)btris.size(),
+                                           vdist);
+  ipoints = m3d.points;
+  tets = m3d.tets;
 }
   
 }; // end namespace TesselateUtils
