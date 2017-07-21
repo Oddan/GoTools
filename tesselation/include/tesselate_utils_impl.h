@@ -121,9 +121,14 @@ std::vector<P> generate_grid_3D(const P& c1,
 // ----------------------------------------------------------------------------  
 {
   // generate upper and lower layer
-  const auto zminvec = generate_grid_2D(c1, {c2[0], c2[1], c1[2]}, nx, ny);
-  const auto zmaxvec = generate_grid_2D({c1[0], c1[1], c2[2]}, c2, nx, ny);
-
+  const auto layergrid2D = generate_grid_2D(c1, c2, nx, ny);
+  auto zminvec = layergrid2D;
+  auto zmaxvec = layergrid2D;
+  for (unsigned int i = 0; i != (unsigned int)layergrid2D.size(); ++i) {
+    zminvec[i][2] = c1[2];
+    zmaxvec[i][2] = c2[2];
+  }
+    
   // generate intermediate layers
   std::vector<std::vector<P>> layers;
   std::transform(zminvec.begin(), zminvec.end(), zmaxvec.begin(),
@@ -264,7 +269,21 @@ bool point_on_triangle(const P& p, const P& c1, const P& c2, const P& c3,
                        const double tol)
 // ----------------------------------------------------------------------------      
 {
-  assert(false);
+  P v1(c2); v1 -= c1;  // vector from p1 to p2 (edge of triangle)
+  P v2(c3); v2 -= c1;  // vector from p1 to p3 (other edge of triangle)
+  P n; cross(v1, v2, n);  // normal to triangle: cross product of v1 and v2
+
+  // normalizing normal vector
+  const double n_len = std::sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+  n[0] /= n_len; n[1] /= n_len; n[2] /= n_len;
+
+  // express point 'p' in terms of the coordinate system (v1, v2, n)
+  const P param = solve_3D_matrix(v1, v2, n, p);
+  if (fabs(param[2]) > tol)
+    return false;  //point is more than 'tol' away from the triangle plane along
+                   //the normal vector 'n'.
+
+  return ( (param[0] > 0) && (param[1] > 0) && (param[0] + param[1] <= 0.5));
 }
 
 
@@ -506,10 +525,22 @@ P solve_2D_matrix(const P& Mcol1, const P& Mcol2, const P& rhs)
 // first three arguments, the right-hand-side in the fourth.  If matrix is
 // singular, the result will contain NaN-values.
 template<typename P> inline
-P solve_3D_matrix(const P& Mcol1, const P& Mcol2, const P& Mcol3, const P& rhs)
+P solve_3D_matrix(const P& c1, const P& c2, const P& c3, const P& rhs)
 // ----------------------------------------------------------------------------
 {
-  assert(false);
+  // Solve system using Cramer's rule
+  const double det = determinant3D(c1, c2, c3);
+  const double inf_norm = std::max({*std::max_element(&c1[0], &c1[0] + 3),
+                                    *std::max_element(&c2[0], &c2[0] + 3),
+                                    *std::max_element(&c3[0], &c3[0] + 3)});
+  if (det < inf_norm * std::numeric_limits<double>::epsilon())
+    return P {std::nan(""), std::nan(""), std::nan("")};
+  const double det_inv = 1.0 / det;
+
+  // determinant OK
+  return P { determinant3D(rhs, c2, c3) * det_inv,
+             determinant3D(c1, rhs, c3) * det_inv,
+             determinant3D(c1, c2, rhs) * det_inv};
 }
 
 // ----------------------------------------------------------------------------

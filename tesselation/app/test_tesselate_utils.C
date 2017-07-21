@@ -4,12 +4,15 @@
 #include <iterator>
 #include "tesselate_utils.h"
 #include "GoTools/utils/Point.h"
+#include "GoTools/utils/CPUclock.h"
 #include "interpoint_distances.h"
 #include "polyhedral_energies.h"
 #include "triangulate_domain.h"
 #include "SimplePolyhedronTesselation.h"
+#include "tesselate_polyhedron.h"
 #include "fit_points_to_plane.h"
 
+using namespace Go;
 using namespace std;
 using namespace TesselateUtils;
 
@@ -27,6 +30,7 @@ namespace Test {
   void test_volume_tesselation();
   void test_fit_to_plane();
   void test_linear_system();
+  void test_polyhedron3D_tesselation();
 };
 
 // ============================================================================
@@ -65,8 +69,11 @@ int main() {
   // cout << "testing volume tesselation: " << endl;
   // Test::test_volume_tesselation();
 
-  cout << "testing linear system solving: " << endl;
-  Test::test_linear_system();
+  // cout << "testing linear system solving: " << endl;
+  // Test::test_linear_system();
+
+  cout << "Testing tesselation of 3D polyhedron: " << endl;
+  Test::test_polyhedron3D_tesselation();
   
   return 0;
 };
@@ -352,13 +359,57 @@ void test_volume_tesselation()
 void test_linear_system()
 // ----------------------------------------------------------------------------
 {
-  const vector<double> m {1, -2, 0, 6, 5, 0, 8, 6, 2, 3, 2, -7, -1, 3, -3, 1};
-  const vector<double> rhs {1, 2, 3, 4};
+  const vector<double> m {1, -2, 0, 0, 8, 6, -7,  -3, 1};
+  const vector<double> rhs {1, 2, 3};
   vector<double> result(rhs.size());
 
-  bool success = solve_linear_system<4>(&m[0], &rhs[0], &result[0]);
+  // using LU
+  solve_linear_system<3>(&m[0], &rhs[0], &result[0]);
 
   copy(result.begin(), result.end(), ostream_iterator<double>(cout, "\n"));
+  cout << endl << endl;
+  // using Cramer's rule
+  const Point3D c1 {m[0], m[1], m[2]};
+  const Point3D c2 {m[3], m[4], m[5]};
+  const Point3D c3 {m[6], m[7], m[8]};
+  const Point3D rhs2 {1, 2, 3};
+  
+  const Point3D res = solve_3D_matrix(c1, c2, c3, rhs2);
+  cout << res;
+
+  // timing issues
+  const int N = 1000000;
+
+  cout << "Now timing " << N << " separate solutions of the system." << endl;
+  CPUclock clock;
+  clock.initTime();
+
+  for (uint i = 0; i != N; ++i)
+    solve_3D_matrix(c1, c2, c3, rhs2);
+
+  cout << clock.getInterval() << " seconds elapsed with Cramer. " << endl;
+  
+  clock.initTime();
+  for (uint i = 0; i != N; ++i)
+    solve_linear_system<3>(&m[0], &rhs[0], &result[0]);
+
+  cout << clock.getInterval() << " seconds elapsed with LU." << endl;
+}
+
+// ----------------------------------------------------------------------------
+void test_polyhedron3D_tesselation()
+// ----------------------------------------------------------------------------
+{
+  // simplex corners
+  const vector<Point3D> bpoints { {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+  const vector<Triangle> btris { {0, 2, 1}, {0, 1, 3}, {1, 2, 3}, {2, 0, 3} };
+  const  double vdist = 0.05;
+
+  const auto mesh = tesselatePolyhedron3D(&bpoints[0], (uint)bpoints.size(),
+                                          &btris[0], (uint)btris.size(),
+                                          vdist);
+                                  
+  
 }
 
 };
