@@ -14,6 +14,12 @@ namespace {
 			const Point2D* const points, // input only
 			const double vdist);         // input only
 
+  Tet add_tet(vector<Triangle>& ntris, // input-output
+              vector<Triangle>& dtris, // input-output
+              vector<uint>& unused_pts,
+              const Point3D* const points,
+              const double vdist);
+  
   void find_candidate_points(const Segment& s,
 			     const vector<Segment>& nsegs,
 			     const vector<uint>& unused_pts,
@@ -22,14 +28,29 @@ namespace {
 			     vector<uint>& cand_pts,         // input-output
 			     vector<uint>& all_neigh_pts);    // input-output
 
+  void find_candidate_points(const Triangle& tri,
+                             const vector<Triangle>& ntris,
+                             const vector<uint>& unused_pts,
+                             const Point3D* const points,
+                             const double vdist,
+			     vector<uint>& cand_pts,         // input-output
+			     vector<uint>& all_neigh_pts);    // input-output
+
   uint best_candidate_point(const vector<uint>& cand_pts, // nb: will be modified
 			    const Segment& seg,
 			    const Point2D* const points);
+
+  uint best_candidate_point(const vector<uint>& cand_pts, // nb: will be modified
+                            const Triangle& cur_tri,
+                            const Point3D* const points);
 
   bool is_delaunay(const Triangle& tri,
 		   const vector<uint>& neigh_pts,
 		   const Point2D* const points);
 
+  bool is_delaunay(const Triangle& tri, const uint chosen_pt,
+                   const vector<uint>& neigh_pts, const Point3D* const points);
+  
   bool add_or_remove_segment(const Segment& seg,
 			     vector<Segment>& nsegs,
 			     vector<Segment>& dsegs,
@@ -42,6 +63,12 @@ namespace {
 			       const vector<Segment>& nsegs,
 			       const Point2D* const points,
 			       const double tol);
+
+  bool introduces_intersection(const Triangle& tri,
+                               const uint pt_ix,
+                               const vector<Triangle>& ntris,
+                               const Point3D* const points,
+                               const double tol);
 
   bool search_and_erase_segment(const Segment& seg, vector<Segment>& segvec);
   
@@ -95,22 +122,198 @@ vector<Triangle> triangulate_domain(const Point2D* const points,
 // The algorithm used here is a 3D generalization og the algorithm used above,
 // and which was inspired by S.H. Lo, "Delaunay Triangulation of Non-Convex
 // Planar Domains" (1989)
-std::vector<Tet> construct_tets(const Point3D* const bpoints,
-                                const uint num_bpoints,
-                                const Triangle* btris,
-                                const uint num_btris,
-                                const Point3D* const ipoints,
-                                const uint num_ipoints,
-                                const double vdist)
+vector<Tet> construct_tets(const Point3D* const points,
+                           const uint tot_num_points,
+                           const Triangle* btris,
+                           const uint num_btris,
+                           const double vdist)
 // ============================================================================
 {
-  assert(false);
+  // preparing vectors keeping track of 'non-delaunay' and 'delaunay' faces
+  // (terms used as the 3D generalization of terms used for triangulate_domain()).
+  // At start, all boundary triangles are considered "non-delaunay".
+  vector<Triangle> ntris(btris, btris + num_btris), dtris;
+
+  // We use this vector to keep track of indices to nodes that are still
+  // interior or on the working front, which in the beginning means "all nodes".
+  vector<uint> unused_pts(tot_num_points, 1); // 1 for unused, 0 for used
+
+  // Establish the result vector, and gradually fill it with tets until there
+  // are no remaining points on the workign front nor in the interior.
+  vector<Tet> result;
+
+  while (ntris.size() + dtris.size() > 0)
+    result.push_back(add_tet(ntris, dtris, unused_pts, points, vdist));
+
+  // sanity check: there should be no unused nodes left by now
+  assert(accumulate(unused_pts.begin(), unused_pts.end(), 0) == 0);
+
+  return result;
 }
+
   
 }; // end namespace TesselateUtils
 
 namespace {
 
+// ----------------------------------------------------------------------------
+Tet add_tet(vector<Triangle>& ntris,
+            vector<Triangle>& dtris,
+            vector<uint>& unused_pts,
+            const Point3D* const points,
+            const double vdist)
+// ----------------------------------------------------------------------------
+{
+  // Choose the next triangle to work with, aiming to deplete the non-delaunay
+  // triangles as quickly as possible
+  const Triangle cur_tri = (ntris.size() > 0) ? ntris.back() : dtris.back();
+  (ntris.size() > 0) ? ntris.pop_back() : dtris.pop_back();
+
+  // Identify all points within 'vdist' of triangle, and separate them into
+  // 'candidate' and 'non-candidate' points, according to criteria analogous to
+  // those mentioned in the comments to 'add_triangle'.  
+  vector<uint> cand_pts, all_neigh_pts;
+  find_candidate_points(cur_tri, ntris, unused_pts, points, vdist,
+                        cand_pts, all_neigh_pts);
+
+  // The 'best' of the candidate points will be chosen as the fourth corner of
+  // the tet.  The best point is the one with no other candidate points within
+  // the circumscribing sphere of the generated tet.
+  const uint chosen_pt = best_candidate_point(cand_pts, cur_tri, points);
+
+  // Determine whether teh generated tet is a "delaunay tet" or if it contains
+  // other points caused by nonconvexity of the working front (or if it is
+  // semi-delaunay by having other points exactly on its circumscription
+  const bool is_del = is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points);
+  
+  // modify working front and remaining nodes
+  const bool removed1 = add_or_remove_face({cur_tri[0], cur_tri[1], chosen_pt},
+                                           ntris, dtris, unused_pts, is_del, __);
+  const bool removed2 = add_or_remove_face({cur_tri[1], cur_tri[2], chosen_pt},
+                                           ntris, dtris, unused_pts, is_del, __);
+  const bool removed3 = add_or_remove_face({cur_tri[2], cur_tri[0], chosen_pt},
+                                           ntris, dtris, unused_pts, is_del, __);
+  if (removed1 && removed2 && removed3)
+    // all the face triangles already existed on the front.  The proposed tet
+    // just fills in a hole in the mesh.  This means that the chosen point will
+    // not be on the working front, and we should remove it from the active list
+    // as well.
+    unused_pts[chosen_pt] = 0;
+
+  return Tet {cur_tri[0], cur_tri[1], cur_tri[2], chosen_pt};
+}
+
+
+  
+// ----------------------------------------------------------------------------
+uint best_candidate_point(const vector<uint>& cand_pts,
+                          const Triangle& cur_tri,
+                          const Point3D* const points)
+// ----------------------------------------------------------------------------
+{
+  // find indices of candidate points
+  vector<uint> cand_ixs;
+  for (uint i = 0; i != (uint)cand_pts.size(); ++i)
+    if (cand_pts[i])
+      cand_ixs.push_back(i);
+
+  if (cand_ixs.empty())
+    // @@ this should be handled more gracefully
+    throw runtime_error("No candidate found for new triangle point."
+                        "  Increase 'vdist' and try again.");
+
+  // searching for the candidate whose resulting tet has a minimal containing
+  // sphere that does not contain any other candidate.
+  Point3D center; // center of the minimal containing sphere
+  double radius2; // squared radius of the containing sphere
+
+  // @@ It may be faster to eliminate neighbors as one goes along (any neighbour
+  // otuside the sphere could be immediately disregarded and removed from the
+  // vector).  This would however introduce a bit of extra logic.
+  for (const auto ix : cand_ixs) {
+    if (fitting_sphere(points[ix], points[cur_tri[0]], points[cur_tri[1]],
+                       points[cur_tri[2]], center, radius2)) {
+      // check whether the sphere contains any candidate point
+      bool interior_point_found = false;
+      for (const auto ix2 : cand_ixs)
+        if (dist2(center, points[ix2]) < radius2) {
+          interior_point_found = true;
+          break;
+        }
+      if (!interior_point_found)
+        return ix;
+    }
+  }
+  // we should never get her by design, so throw an error if it happens
+  throw runtime_error("No suitable best candidate.  This should not happen.");
+  return -1; // dummy, to keep compiler happy
+}
+  
+// ----------------------------------------------------------------------------  
+void find_candidate_points(const Triangle& tri,
+                           const vector<Triangle>& ntris,
+                           const vector<uint>& unused_pts,
+                           const Point3D* const points,
+                           const double vdist,
+                           vector<uint>& cand_pts,         // input-output
+                           vector<uint>& all_neigh_pts)    // input-output
+// ----------------------------------------------------------------------------
+{
+  const double TOL = 1.0e-6; // @@ safe/general enough?
+  const uint N = (uint)unused_pts.size();
+  cand_pts.resize(N); fill(cand_pts.begin(), cand_pts.end(), 0);
+  all_neigh_pts.resize(N); fill(all_neigh_pts.begin(), all_neigh_pts.end(), 0);
+
+  for (uint i = 0; i != N; ++i) {
+    if ((!unused_pts[i]) || (i== tri[0]) || (i == tri[1]) || (i == tri[2])) {
+      // this is either a non-active point or one of the triangle corners; we
+      // need not consider those.
+      continue;
+    }
+    const Point3D& p1 = points[tri[0]];
+    const Point3D& p2 = points[tri[1]];
+    const Point3D& p3 = points[tri[2]];
+    if (point_on_triangle(points[i], p1, p2, p3, vdist)) {
+      // point is close enough to triangle to be considered a neighbor point.
+      all_neigh_pts[i] = 1;
+      if ((point_on_inside_of_face(points[i], p1, p2, p3)) &&
+          (!introduces_intersection(tri, i, ntris, points, TOL))) {
+        cand_pts[i] = 1; // point is a candidate point
+      }
+    }
+  }
+}
+
+// ----------------------------------------------------------------------------
+bool introduces_intersection(const Triangle& tri,
+                             const uint pt_ix,
+                             const vector<Triangle>& ntris,
+                             const Point3D* const points,
+                             const double tol)
+// ----------------------------------------------------------------------------
+{
+  // checking each non-delaunay triangle for intersection against the triangles
+  // that would be introduced if the point indiced by 'pt_ix' were to form a tet
+  // with the already-existing triangle 'tri'.
+  for (const auto& nt : ntris) 
+    if ((nt[0] == pt_ix) || (nt[1] == pt_ix) || (nt[2] == pt_ix))
+      // candidate point is one of the corners of this triangle, no new
+      // intersection possible
+      continue;
+    else if (nt == tri)
+      // the two triangles are actually the same - no new intersection created
+      continue;
+    else if (triangles_intersect_3D(points[tri[0]], points[tri[1]], points[pt_ix],
+                                    points[nt[0]], points[nt[1]], points[nt[2]]) ||
+             triangles_intersect_3D(points[tri[1]], points[tri[2]], points[pt_ix],
+                                    points[nt[0]], points[nt[1]], points[nt[2]]) ||
+             triangles_intersect_3D(points[tri[2]], points[tri[0]], points[pt_ix],
+                                    points[nt[0]], points[nt[1]], points[nt[2]]))
+      return true;
+  return false;
+}
+  
+  
 // ----------------------------------------------------------------------------
 Triangle add_triangle(vector<Segment>& nsegs,   
 		      vector<Segment>& dsegs,   
@@ -236,7 +439,7 @@ uint best_candidate_point(const vector<uint>& cand_pts,
 {
   // find indices of candidate points
   vector<uint> cand_ixs;
-  for (uint i = 0; i != cand_pts.size(); ++i)
+  for (uint i = 0; i != (uint)cand_pts.size(); ++i)
     if (cand_pts[i])
       cand_ixs.push_back(i);
 
@@ -251,7 +454,7 @@ uint best_candidate_point(const vector<uint>& cand_pts,
   const Point2D& p1 = points[seg[0]];
   const Point2D& p2 = points[seg[1]];
 
-  // @@ It may be faster to eliminate neighbors as one go along (any neighbour
+  // @@ It may be faster to eliminate neighbors as one goes along (any neighbour
   // outside the circumscribed circle could be disregarded and removed from the
   // vector).  This introduces a bit more logic, but something to consider if
   // this part of the code proves to be a bottleneck.
@@ -296,7 +499,7 @@ bool is_delaunay(const Triangle& tri,
   
   const uint N = (uint)neigh_pts.size();
   for (uint i = 0; i != N; ++i) 
-    if ((neigh_pts[i]) &&                               // should be neigh poitn
+    if ((neigh_pts[i]) &&                               // should be neigh point
 	((i!=tri[0]) && (i!=tri[1]) && (i!=tri[2])) &&  // should not be corner of triangle
 	(dist2(points[i], circ_center) < radius2))
       return false;
@@ -304,6 +507,30 @@ bool is_delaunay(const Triangle& tri,
   return true;
 }
 
+// ----------------------------------------------------------------------------
+bool is_delaunay(const Triangle& tri, const uint chosen_pt,
+                 const vector<uint>& neigh_pts, const Point3D* const points)
+// ----------------------------------------------------------------------------
+{
+  Point3D center;
+  double radius2;
+  const double tol = 1e-5; // same comment as for the 2D version of 'is_delaunay above
+  fitting_sphere(points[tri[0]], points[tri[1]], points[tri[2]], points[chosen_pt],
+                 center, radius2);
+  radius2 *= (1+tol); // slightly increase radius to ensure points on the boundary are captured
+
+  const uint N = (uint)neigh_pts.size();
+  for (uint i = 0; i != N; ++i)
+    if ((neigh_pts[i]) && // should be a neighbor point
+        (i != chosen_pt) && // should not be the chosen point
+        ((i!=tri[0]) && (i!=tri[1]) && (i!=tri[2])) && // should not be part of triangle
+        (dist2(points[i], center) < radius2)) // should be within the radius
+      return false;  // this point is inside the sphere, hence the proposed 'tet' is not delaunay
+
+  return true;
+}
+
+  
 // ----------------------------------------------------------------------------  
 bool add_or_remove_segment(const Segment& seg,
                            vector<Segment>& nsegs,
@@ -351,6 +578,8 @@ bool search_and_erase_segment(const Segment& seg, vector<Segment>& segvec)
   }
   return false; 
 }
-  
+
+
+
 }; // end anonymous namespace
 

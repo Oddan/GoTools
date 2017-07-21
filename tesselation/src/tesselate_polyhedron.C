@@ -149,16 +149,14 @@ Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
   // optimize_interior_points(bpoints, num_bpoints, btris, num_btris,
   //                          &ipoints[0], (uint)ipoints.size(), vdist * 1.5);
 
-  // // constructing tets from points
-  // vector<Point3D> points(bpoints, bpoints + num_bpoints);
-  // points.insert(points.end(), ipoints.begin(), ipoints.end());
-  // const auto tets = construct_tets(bpoints, num_bpoints,
-  //                                  btris, num_btris,
-  //                                  &points[0], (uint)points.size(),
-  //                                  2*vdist);
-  // return{points, tets};
+  // constructing tets from points
+  vector<Point3D> points(bpoints, bpoints + num_bpoints);
+  points.insert(points.end(), ipoints.begin(), ipoints.end());
+  const auto tets = construct_tets(&points[0], (uint)points.size(),
+                                   btris, num_btris,
+                                   2*vdist);
+  return{points, tets};
 }
-  
 };
 
 namespace {

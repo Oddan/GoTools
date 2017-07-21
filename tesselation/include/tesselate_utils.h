@@ -169,7 +169,14 @@ bool ray_intersects_face(const P& pt, const P& dir,
                          const P& p1, const P& p2, const P& p3,
                          double& dist_2, int& sign);
 // ----------------------------------------------------------------------------
-  
+
+// ----------------------------------------------------------------------------
+// Check if 3D point 'pt' is on the "inside" or the "outside of the oriented
+// plane defined by the oriented triangle face given by its corner points in
+// counterclockwise order, 'p1', 'p2', and 'p3'.
+template<typename P>
+bool point_on_inside_of_face(const P& pt, const P& p1, const P& p2, const P& p3);
+// ----------------------------------------------------------------------------  
   
 // ----------------------------------------------------------------------------
 // return 'true' if the angle abc is acute
@@ -277,14 +284,37 @@ bool circumscribe_triangle(const P& p1, const P& p2, const P& p3,
 // ----------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
+// Compute the unique sphere that contains the four provided points on its
+// boundary.  Return false if no such sphere exist (i.e. points are planar)
+template<typename P> inline
+bool fitting_sphere(const P& p1, const P& p2, const P& p3, const P& p4,
+                    P& center, double& radius2);
+// ----------------------------------------------------------------------------
+
+
+// ----------------------------------------------------------------------------
 // check whether two segments intersect.  A positive value for the tolerance
-// means that a vincinity within the tolerance counts as an intersection.  A
+// means that a vicinity within the tolerance counts as an intersection.  A
 // negative value for the tolerance, on the other hand, means that each line
 // segment must cross the other by a length of at least one times |tol|.  In
 // this case, a mere touch is not sufficient to count as a intersection.
 template<typename P> inline
 bool segments_intersect_2D(const P& seg1_a, const P& seg1_b,
 			   const P& seg2_a, const P& seg2_b, const double tol);
+// ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+// Check whether two triangles (p1, p2, p3) and (q1, q2, q3) intersect.
+template<typename P> inline
+bool triangles_intersect_3D(const P& p1, const P& p2, const P& p3,
+                            const P& q1, const P& q2, const P& q3);
+// ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+// Check if a line segments intersects a triangle in 3D space
+template<typename P> inline
+bool segment_intersects_face(const P& seg_a, const P& seg_b,
+                             const P& tri_a, const P& tri_b, const P& tri_c);
 // ----------------------------------------------------------------------------
 
   

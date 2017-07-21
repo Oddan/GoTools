@@ -286,6 +286,21 @@ bool point_on_triangle(const P& p, const P& c1, const P& c2, const P& c3,
   return ( (param[0] > 0) && (param[1] > 0) && (param[0] + param[1] <= 0.5));
 }
 
+// ----------------------------------------------------------------------------
+// Check if 3D point 'pt' is on the "inside" or the "outside of the oriented
+// plane defined by the oriented triangle face given by its corner points in
+// counterclockwise order, 'p1', 'p2', and 'p3'.
+template<typename P>
+bool point_on_inside_of_face(const P& pt, const P& p1, const P& p2, const P& p3)
+// ----------------------------------------------------------------------------  
+{
+  // If point is on 'inside' of the oriented triangle's plane, then (p1->p2),
+  // (p1->p3) and (pt->p1) should have a positive determinant.
+  P dp = p1; dp -= pt;
+  P v1 = p2; v1 -= p1;
+  P v2 = p3; v2 -= p1;
+  return (determinant3D(v1, v2, dp) > 0);
+}
 
 // ----------------------------------------------------------------------------
 // Returns the 3D points that are inside the closed shell defined by a set of
@@ -597,6 +612,31 @@ bool circumscribe_triangle(const P& p1, const P& p2, const P& p3,
 }
 
 // ----------------------------------------------------------------------------
+// Compute the unique sphere that contains the four provided points on its
+// boundary.  Return false if no such sphere exist (i.e. points are planar)
+template<typename P> inline
+bool fitting_sphere(const P& p1, const P& p2, const P& p3, const P& p4,
+                    P& center, double& radius2)
+// ----------------------------------------------------------------------------
+{
+  const double p1_2 = norm2(p1);
+  const double p2_2 = norm2(p2);
+  const double p3_2 = norm2(p3);
+  const double p4_2 = norm2(p4);
+
+  center = solve_3D_matrix(P {p1[0] - p2[0], p2[0] - p3[0], p3[0] - p4[0]},
+                           P {p1[1] - p2[1], p2[1] - p3[1], p3[1] - p4[1]},
+                           P {p1[2] - p2[2], p2[2] - p3[2], p3[2] - p4[2]},
+                           P {0.5 * (p1_2 - p2_2),
+                              0.5 * (p2_2 - p3_2),
+                              0.5 * (p3_2 - p4_2)});
+  radius2 = dist2(p1, center);
+  return !(std::isnan(center[0]));
+  
+}
+
+
+// ----------------------------------------------------------------------------
 // check whether two segments intersect.  A positive value for the tolerance
 // means that a vincinity within the tolerance counts as an intersection.  A
 // negative value for the tolerance, on the other hand, means that each line
@@ -608,9 +648,16 @@ bool segments_intersect_2D(const P& seg1_a, const P& seg1_b,
 // ----------------------------------------------------------------------------
 {
   // first, compare bounding boxes, to eliminate obvious cases
-  if (std::min(seg1_a[0], seg1_b[0]) > std::max(seg2_a[0], seg2_b[0]) + tol)
-    return false;
-  if (std::min(seg1_a[1], seg1_b[1]) > std::max(seg2_a[1], seg2_b[1]) + tol)
+  const std::array<P, 2> s1 {seg1_a, seg1_b}, s2 {seg2_a, seg2_b};
+  const auto bbox1 = bounding_box_2D(&s1[0], 2);
+  const auto bbox2 = bounding_box_2D(&s2[0], 2);
+  
+  // const array<double, 4> bbox1 {std::min(seg1_a[0], seg1_b[0]), std::max(seg1_a[0], seg1_b[0]),
+  //                               std::min(seg1_a[1], seg1_b[1]), std::max(seg1_a[1], seg1_b[1])};
+  // const array<double, 4> bbox2 {std::min(seg2_a[0], seg2_b[0]), std::max(seg2_a[0], seg2_b[0]),
+  //                               std::min(seg2_a[1], seg2_b[1]), std::max(seg2_a[1], seg2_b[1])};
+  if ( (bbox1[0] > bbox2[1] + tol) || (bbox2[0] > bbox1[1] + tol) ||
+       (bbox1[2] > bbox2[3] + tol) || (bbox2[2] > bbox1[3] + tol))
     return false;
 
   // OK, bounding boxes overlap.  Check for intersection.
@@ -623,7 +670,7 @@ bool segments_intersect_2D(const P& seg1_a, const P& seg1_b,
   if (std::isnan(uv[0])) {
     // degenerate case - segments are collinear.  If tolerance is > 0, we must
     // check whether they are indeed on the same line.  (If tolerance is < 0, we
-    // should not consider this and intersection).
+    // should not consider this an intersection).
     if (tol < 0)
       return false;
       
@@ -636,6 +683,48 @@ bool segments_intersect_2D(const P& seg1_a, const P& seg1_b,
   return ((uv[0] > -tol) && (uv[0] < 1 + tol) && (uv[1] > -tol) && (uv[1] < 1 + tol));
 }
   
+
+// ----------------------------------------------------------------------------
+// Check whether two triangles (p1, p2, p3) and (q1, q2, q3) intersect.
+template<typename P> inline
+bool triangles_intersect_3D(const P& p1, const P& p2, const P& p3,
+                            const P& q1, const P& q2, const P& q3)
+// ----------------------------------------------------------------------------
+{
+  // first, compare bounding boxes to eliminate obvious non-matches
+  const std::array<P, 3> t1 {p1, p2, p3}, t2 {q1, q2, q3};
+  const auto bbox1 = bounding_box_3D(&t1[0], 3);
+  const auto bbox2 = bounding_box_3D(&t2[0], 3);
+  if ( (bbox1[0] > bbox2[1]) || (bbox2[0] > bbox1[1]) ||
+       (bbox1[2] > bbox2[3]) || (bbox2[2] > bbox1[3]) ||
+       (bbox1[4] > bbox2[5]) || (bbox2[4] > bbox1[5]))
+    return false;
+
+  // bounding boxes overlap, we must check for intesection.  Two triangles
+  // intersect if there is an edge in one triangle that 'pierces' the other one.
+  return (segment_intersects_face(p1, p2, q1, q2, q3) ||
+          segment_intersects_face(p2, p3, q1, q2, q3) ||
+          segment_intersects_face(p3, p1, q1, q2, q3) ||
+          segment_intersects_face(q1, q2, p1, p2, p3) ||
+          segment_intersects_face(q2, q3, p1, p2, p3) ||
+          segment_intersects_face(q3, q1, p1, p2, p3));
+}
+
+// ----------------------------------------------------------------------------
+// Check if a line segments intersects a triangle in 3D space
+template<typename P> inline
+bool segment_intersects_face(const P& seg_a, const P& seg_b,
+                             const P& tri_a, const P& tri_b, const P& tri_c)
+// ----------------------------------------------------------------------------
+{
+  double d2(0);
+  int sign(1);
+  P dir(seg_b); dir -= seg_a;
+  bool isect = ray_intersects_face(seg_a, dir, tri_a, tri_b, tri_c, d2, sign);
+
+  return (isect) &&
+         (d2 < dist2(seg_a, seg_b));
+}
 
 }; // end namespace
 
