@@ -403,12 +403,19 @@ void test_polyhedron3D_tesselation()
   // simplex corners
   const vector<Point3D> bpoints { {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
   const vector<Triangle> btris { {0, 2, 1}, {0, 1, 3}, {1, 2, 3}, {2, 0, 3} };
-  const  double vdist = 0.05;
+  const  double vdist = 0.3;
 
   const auto mesh = tesselatePolyhedron3D(&bpoints[0], (uint)bpoints.size(),
                                           &btris[0], (uint)btris.size(),
                                           vdist);
-                                  
+  cout << "Number of mesh elements: " << mesh.tets.size() << endl;
+
+  ofstream os_points("mesh_points.mat");
+  ofstream os_tets("mesh_tets.mat");
+  for (const auto p : mesh.points) os_points << p;
+  for (const auto t : mesh.tets) os_tets << t;
+  os_points.close();
+  os_tets.close();
   
 }
 

@@ -141,7 +141,7 @@ void add_boundary_contribution(const Point2D& bp1,
   // identify the points within reach of the boundary ("neighbor points"). 
   const auto npoints = extract_from_range(ipoints, num_ipoints,
   			     [&bp1, &bp2, vdist](const Point2D& p) {
-  	return point_on_line_segment(p, bp1, bp2, vdist);});
+        return point_on_line_segment(p, bp1, bp2, vdist, false);});
   const auto& neigh_ixs    = npoints.second;   
   const auto& neigh_points = npoints.first; 
 

@@ -1,3 +1,4 @@
+#include <fstream> // @@ debug purposes
 #include <algorithm>
 #include <assert.h>
 #include <stdexcept>
@@ -57,7 +58,14 @@ namespace {
 			     vector<uint>& unused_pts,
 			     const bool delaunay,
 			     const bool orientation); // 1: the new point is first in the segment
-                                                      // 0: the new point is last in the segment 
+                                                      // 0: the new point is last in the segment
+
+  bool add_or_remove_face(const Triangle& tri, // third corner of 'tri' is the new point
+                          vector<Triangle>& ntris,
+                          vector<Triangle>& dtris,
+                          vector<uint>& unused_pts,
+                          const bool delaunay);
+  
   bool introduces_intersection(const Segment& s,
 			       const uint pt_ix,
 			       const vector<Segment>& nsegs,
@@ -71,6 +79,9 @@ namespace {
                                const double tol);
 
   bool search_and_erase_segment(const Segment& seg, vector<Segment>& segvec);
+  bool search_and_erase_face(const Triangle& tri, vector<Triangle>& trivec);
+
+  
   
 };
 
@@ -164,6 +175,22 @@ Tet add_tet(vector<Triangle>& ntris,
             const double vdist)
 // ----------------------------------------------------------------------------
 {
+  // // @@ write current status to file
+  // ofstream points_os("points.mat");
+  // ofstream unused_os("unused.mat");
+  // for (uint i = 0; i != (uint)unused_pts.size(); ++i) {
+  //   points_os << points[i];
+  //   unused_os << unused_pts[i] << " ";
+  // }
+  // points_os.close();
+  // unused_os.close();
+  // ofstream tris_os("triangles.mat");
+  // for (uint i = 0; i != ntris.size(); ++i)
+  //   tris_os << ntris[i] << '\n';
+  // for (uint i = 0; i != dtris.size(); ++i)
+  //   tris_os << dtris[i] << '\n';
+  // tris_os.close();
+
   // Choose the next triangle to work with, aiming to deplete the non-delaunay
   // triangles as quickly as possible
   const Triangle cur_tri = (ntris.size() > 0) ? ntris.back() : dtris.back();
@@ -186,19 +213,20 @@ Tet add_tet(vector<Triangle>& ntris,
   // semi-delaunay by having other points exactly on its circumscription
   const bool is_del = is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points);
   
-  // modify working front and remaining nodes
-  const bool removed1 = add_or_remove_face({cur_tri[0], cur_tri[1], chosen_pt},
-                                           ntris, dtris, unused_pts, is_del, __);
-  const bool removed2 = add_or_remove_face({cur_tri[1], cur_tri[2], chosen_pt},
-                                           ntris, dtris, unused_pts, is_del, __);
-  const bool removed3 = add_or_remove_face({cur_tri[2], cur_tri[0], chosen_pt},
-                                           ntris, dtris, unused_pts, is_del, __);
-  if (removed1 && removed2 && removed3)
-    // all the face triangles already existed on the front.  The proposed tet
-    // just fills in a hole in the mesh.  This means that the chosen point will
-    // not be on the working front, and we should remove it from the active list
-    // as well.
-    unused_pts[chosen_pt] = 0;
+  // modify working front and remaining nodes.  Make sure to add them in
+  // _clockwise_ corner order, since we want them to be pointing outwards of the
+  // active front.
+  add_or_remove_face({cur_tri[0], cur_tri[1], chosen_pt}, ntris, dtris, unused_pts, is_del);
+  add_or_remove_face({cur_tri[1], cur_tri[2], chosen_pt}, ntris, dtris, unused_pts, is_del);
+  add_or_remove_face({cur_tri[2], cur_tri[0], chosen_pt}, ntris, dtris, unused_pts, is_del);
+
+  // Verify the four corners of the inserted tet - how many of them remain on
+  // the active front?  We set them to 0, and add back those that are still
+  // found on the front.
+  unused_pts[chosen_pt] = 0;
+  for (uint i = 0; i != 3; ++i) unused_pts[cur_tri[i]] = 0;
+  for(const auto t : ntris) { for (uint i = 0; i != 3; ++i) unused_pts[t[i]] = 1; }
+  for(const auto t : dtris) { for (uint i = 0; i != 3; ++i) unused_pts[t[i]] = 1; }
 
   return Tet {cur_tri[0], cur_tri[1], cur_tri[2], chosen_pt};
 }
@@ -261,18 +289,19 @@ void find_candidate_points(const Triangle& tri,
 {
   const double TOL = 1.0e-6; // @@ safe/general enough?
   const uint N = (uint)unused_pts.size();
+  const Point3D& p1 = points[tri[0]]; // p1, p2 and p3 references are for 
+  const Point3D& p2 = points[tri[1]]; // convenience only
+  const Point3D& p3 = points[tri[2]];
+  
   cand_pts.resize(N); fill(cand_pts.begin(), cand_pts.end(), 0);
   all_neigh_pts.resize(N); fill(all_neigh_pts.begin(), all_neigh_pts.end(), 0);
-
+  
   for (uint i = 0; i != N; ++i) {
     if ((!unused_pts[i]) || (i== tri[0]) || (i == tri[1]) || (i == tri[2])) {
       // this is either a non-active point or one of the triangle corners; we
       // need not consider those.
       continue;
     }
-    const Point3D& p1 = points[tri[0]];
-    const Point3D& p2 = points[tri[1]];
-    const Point3D& p3 = points[tri[2]];
     if (point_on_triangle(points[i], p1, p2, p3, vdist)) {
       // point is close enough to triangle to be considered a neighbor point.
       all_neigh_pts[i] = 1;
@@ -304,11 +333,11 @@ bool introduces_intersection(const Triangle& tri,
       // the two triangles are actually the same - no new intersection created
       continue;
     else if (triangles_intersect_3D(points[tri[0]], points[tri[1]], points[pt_ix],
-                                    points[nt[0]], points[nt[1]], points[nt[2]]) ||
+                                    points[nt[0]], points[nt[1]], points[nt[2]], -tol) ||
              triangles_intersect_3D(points[tri[1]], points[tri[2]], points[pt_ix],
-                                    points[nt[0]], points[nt[1]], points[nt[2]]) ||
+                                    points[nt[0]], points[nt[1]], points[nt[2]], -tol) ||
              triangles_intersect_3D(points[tri[2]], points[tri[0]], points[pt_ix],
-                                    points[nt[0]], points[nt[1]], points[nt[2]]))
+                                    points[nt[0]], points[nt[1]], points[nt[2]], -tol))
       return true;
   return false;
 }
@@ -390,7 +419,7 @@ void find_candidate_points(const Segment& s,
       // need not consider those
       continue;
     }
-    if (point_on_line_segment(points[i], points[s[0]], points[s[1]], vdist)) {
+    if (point_on_line_segment(points[i], points[s[0]], points[s[1]], vdist, false)) {
       // point is close enough to be a neighbor point
       all_neigh_pts[i] = 1;
       // check if it is also a candidate point
@@ -548,7 +577,7 @@ bool add_or_remove_segment(const Segment& seg,
 
   if (segment_found) {
     // segment already existed and has been removed (since both its triangles
-    // has now been located).  We must remove the point that is no longer on the
+    // have now been located).  We must remove the point that is no longer on the
     // working boundary
     unused_pts[orientation ? seg[1] : seg[0]] = 0;
     return true;
@@ -579,7 +608,46 @@ bool search_and_erase_segment(const Segment& seg, vector<Segment>& segvec)
   return false; 
 }
 
+// ----------------------------------------------------------------------------
+bool add_or_remove_face(const Triangle& tri, // third corner of 'tri' is the new point
+                        vector<Triangle>& ntris,
+                        vector<Triangle>& dtris,
+                        vector<uint>& unused_pts,
+                        const bool delaunay)
+// ----------------------------------------------------------------------------
+{
+  const bool tri_found = search_and_erase_face(tri, ntris) ||
+                         search_and_erase_face(tri, dtris);
+  if (tri_found) 
+    // triangle already existed and has been removed from the front.
+    return true;
 
+  // this is a newly introduced triangle.  Add it to the respective list of
+  // triangles on the boundary
+  (delaunay ? dtris : ntris).push_back(tri);
+  return false;
+}
+
+// ----------------------------------------------------------------------------
+bool search_and_erase_face(const Triangle& tri, vector<Triangle>& trivec)
+// ----------------------------------------------------------------------------
+{
+  auto iter = find_if(trivec.begin(), trivec.end(), [&tri](Triangle t) {
+      reverse(t.begin(), t.end());
+      // flip triangle, rotate it three times, and check for a match each time
+      for (uint i = 0; i!=3; ++i) {
+        if (equal(t.begin(), t.end(), tri.begin()))
+          return true;
+        rotate(t.begin(), t.begin()+1,t.end());
+      }
+      return false;
+    });
+  if (iter != trivec.end()) {
+    trivec.erase(iter);
+    return true;
+  }
+  return false;
+}
 
 }; // end anonymous namespace
 

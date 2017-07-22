@@ -1,6 +1,6 @@
-function plot_tri(pts, tri)
+function plot_tri(pts, tri, color)
 
-   clf; hold on
+   hold on
    
    for i = 1:size(tri, 1)
       
@@ -9,7 +9,9 @@ function plot_tri(pts, tri)
       if size(pts,2) == 2
          plot(pts(ixs,1), pts(ixs,2), '*-r');
       else
-         plot3(pts(ixs,1), pts(ixs,2), pts(ixs, 3), '*-r');
+         %plot3(pts(ixs,1), pts(ixs,2), pts(ixs, 3), '*-r');
+         plot3(pts(ixs,1), pts(ixs,2), pts(ixs, 3), ['-' color]);
+         patch(pts(ixs,1), pts(ixs,2), pts(ixs,3), color);
       end
    end
    

@@ -141,10 +141,9 @@ Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
   vector<Point3D> ipoints = init_startpoints(bpoints, num_bpoints, btris,
                                              num_btris, vdist);
 
-  for (int i =0; i != (int)ipoints.size(); ++i)
-    cout << ipoints[i];
+  // for (int i =0; i != (int)ipoints.size(); ++i)
+  //   cout << ipoints[i]; @@
   
-  return Mesh3D {};
   // // optimizing position of interior points
   // optimize_interior_points(bpoints, num_bpoints, btris, num_btris,
   //                          &ipoints[0], (uint)ipoints.size(), vdist * 1.5);
@@ -154,7 +153,7 @@ Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
   points.insert(points.end(), ipoints.begin(), ipoints.end());
   const auto tets = construct_tets(&points[0], (uint)points.size(),
                                    btris, num_btris,
-                                   2*vdist);
+                                   20 * vdist); //@@2*vdist);
   return{points, tets};
 }
 };

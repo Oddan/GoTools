@@ -126,16 +126,15 @@ std::vector<P> inside_shell(const P* const pts, const unsigned int num_pts,
 // distinct points on the infinite line (thus defining the line).  The returned
 // distance is signed: a positive number indicates that the point is on the
 // "right" of the directed line from 'a' to 'b'.
-template<typename P>
-double projected_distance_to_line_2D(P p, P a, P b);
+template<typename P> double projected_distance_to_line_2D(P p, P a, P b);
+template<typename P> double projected_distance_to_line_3D(P p, P a, P b);
 // ----------------------------------------------------------------------------    
-
 
 // ----------------------------------------------------------------------------    
 // Check if the point p is within distance 'tol' of the line segment defined by
-// points a and b
+// points a and b.  'in_3D' should be 'true' for 3D, and 'false' for 2D
 template<typename P> inline
-bool point_on_line_segment(const P& p, const P& a, const P& b, double tol);
+bool point_on_line_segment(const P& p, const P& a, const P& b, double tol, bool in_3D);
 // ----------------------------------------------------------------------------    
 
 // ----------------------------------------------------------------------------    
@@ -167,6 +166,7 @@ bool projects_to_segment(const P& p, const P& a, const P&b);
 template<typename P> inline
 bool ray_intersects_face(const P& pt, const P& dir,
                          const P& p1, const P& p2, const P& p3,
+                         double tol,
                          double& dist_2, int& sign);
 // ----------------------------------------------------------------------------
 
@@ -294,27 +294,37 @@ bool fitting_sphere(const P& p1, const P& p2, const P& p3, const P& p4,
 
 // ----------------------------------------------------------------------------
 // check whether two segments intersect.  A positive value for the tolerance
-// means that a vicinity within the tolerance counts as an intersection.  A
-// negative value for the tolerance, on the other hand, means that each line
-// segment must cross the other by a length of at least one times |tol|.  In
-// this case, a mere touch is not sufficient to count as a intersection.
+// means that segments within a distance of 'tol' times their length scale
+// counts as an intersection. A negative value for the tolerance, on the other
+// hand, means that each line segment must cross the other by a length of at
+// least one times |tol| times their length scale.  In this case, a mere touch
+// is not sufficient to count as a intersection.
 template<typename P> inline
 bool segments_intersect_2D(const P& seg1_a, const P& seg1_b,
 			   const P& seg2_a, const P& seg2_b, const double tol);
 // ----------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
-// Check whether two triangles (p1, p2, p3) and (q1, q2, q3) intersect.
+// Check whether two triangles (p1, p2, p3) and (q1, q2, q3) intersect.  A
+// positive value for the tolerance means that triangles closer to each other
+// than 'tol' times their length scale are interpreted to intersect.  A negative
+// value for the tolerance means there need to be an actual intersection of at
+// least their length scale times |tol|.  In this case, a mere touch is not
+// sufficient to count as an intersection.
 template<typename P> inline
 bool triangles_intersect_3D(const P& p1, const P& p2, const P& p3,
-                            const P& q1, const P& q2, const P& q3);
+                            const P& q1, const P& q2, const P& q3, const double tol);
 // ----------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
-// Check if a line segments intersects a triangle in 3D space
+// Check if a line segments intersects a triangle in 3D space.  A positive value
+// for the tolerance means that a segment within a distance of 'tol' to the face
+// is interpreted to intersect it.  A negative value of 'tol' needs that the
+// segment must penetrate the triangle by at least |tol| times the length scale.
 template<typename P> inline
 bool segment_intersects_face(const P& seg_a, const P& seg_b,
-                             const P& tri_a, const P& tri_b, const P& tri_c);
+                             const P& tri_a, const P& tri_b, const P& tri_c,
+                             const double tol);
 // ----------------------------------------------------------------------------
 
   

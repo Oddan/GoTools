@@ -167,7 +167,7 @@ bool inpolygon(const P& pt, const P* const poly,
 
     // First, check if point is _on_ the edge, in which case we exclude it (we
     // only seek those that are true interior points)
-    if (point_on_line_segment(pt, p1, p2, tol))
+    if (point_on_line_segment(pt, p1, p2, tol, false))
       return false;
     
     // case where startpoint of segment is exactly on the ray
@@ -252,7 +252,11 @@ bool inside_shell(const P& pt, const P* const bpoints, const T* const tris,
     // signed distance to the intersection is.
     double cur_dist_2(0.0);
     int cur_sign(0);
-    if (ray_intersects_face(pt, P {1, 0, 0}, tri_p1, tri_p2, tri_p3,
+    // we use tolerance of 0 here, since 'tol' above is only intended to be used
+    // for establishing whether points are located directly on a face, not to
+    // establish whether a ray strikes close enough to a face to count as an
+    // intersection.
+    if (ray_intersects_face(pt, P {1, 0, 0}, tri_p1, tri_p2, tri_p3, 0,
                             cur_dist_2, cur_sign))
       if (cur_dist_2 < dist_2) {
         dist_2 = cur_dist_2;
@@ -269,8 +273,18 @@ bool point_on_triangle(const P& p, const P& c1, const P& c2, const P& c3,
                        const double tol)
 // ----------------------------------------------------------------------------      
 {
-  P v1(c2); v1 -= c1;  // vector from p1 to p2 (edge of triangle)
-  P v2(c3); v2 -= c1;  // vector from p1 to p3 (other edge of triangle)
+  // first, check edges
+  if (point_on_line_segment(p, c1, c2, tol, true) ||
+      point_on_line_segment(p, c2, c3, tol, true) ||
+      point_on_line_segment(p, c3, c1, tol, true))
+    return true;
+
+  // OK.  Point is not on (or sufficiently close to) the edges.  Check whether
+  // it is found in the interior.
+  
+  P v1(c2); v1 -= c1;  // vector from c1 to c2 (edge of triangle)
+  P v2(c3); v2 -= c1;  // vector from c1 to c3 (other edge of triangle)
+  P dp(p);  dp -= c1;  // vector from c1 to p
   P n; cross(v1, v2, n);  // normal to triangle: cross product of v1 and v2
 
   // normalizing normal vector
@@ -278,12 +292,12 @@ bool point_on_triangle(const P& p, const P& c1, const P& c2, const P& c3,
   n[0] /= n_len; n[1] /= n_len; n[2] /= n_len;
 
   // express point 'p' in terms of the coordinate system (v1, v2, n)
-  const P param = solve_3D_matrix(v1, v2, n, p);
-  if (fabs(param[2]) > tol)
+  const P param = solve_3D_matrix(v1, v2, n, dp);
+  if (std::fabs(param[2]) > tol)
     return false;  //point is more than 'tol' away from the triangle plane along
                    //the normal vector 'n'.
 
-  return ( (param[0] > 0) && (param[1] > 0) && (param[0] + param[1] <= 0.5));
+  return ( (param[0] > 0) && (param[1] > 0) && (param[0] + param[1] <= 1));
 }
 
 // ----------------------------------------------------------------------------
@@ -322,7 +336,7 @@ std::vector<P> inside_shell(const P* const pts, const unsigned int num_pts,
 template<typename P> inline
 bool ray_intersects_face(const P& pt, const P& dir,
                          const P& p1, const P& p2, const P& p3,
-                         double& dist_2, int& sign)
+                         const double tol, double& dist_2, int& sign)
 // ----------------------------------------------------------------------------
 {
   const P v1 = p2 - p1;
@@ -337,8 +351,8 @@ bool ray_intersects_face(const P& pt, const P& dir,
   if (std::isnan(param[0])) // degenerate system; ray perpendicular to normal
     return false;
 
-  if ((param[2] > 0) || (param[0] < 0) ||
-      (param[1] < 0) || (param[0] + param[1] > 1))
+  if ((param[2] > tol)     || (param[0] + tol < 0) ||
+      (param[1] + tol < 0) || (param[0] + param[1] > 1 + tol))
     // intersection point falls outside triangle
     return false;
 
@@ -370,18 +384,27 @@ double projected_distance_to_line_2D(P p, P a, P b)
   b -= a; // now represents ab
 
   return (p[0]*b[1] - p[1]*b[0]) / dab;
+}
 
-  // const P ap = p-a;
-  // const P ab = b-a;
+// ----------------------------------------------------------------------------    
+template<typename P> inline
+double projected_distance_to_line_3D(P p, P a, P b)
+// ----------------------------------------------------------------------------    
+{
+  const double dab = dist(a,b);
+  p -= a; // now represents ap
+  b -= a; // now represents ab
+  P cx; cross(b, p, cx); // cross product of ap and ab
   
-  //  return std::abs((ap[0]*ab[1] - ap[1]*ab[0]) / dist(a,b));
+  return sqrt(cx[0] * cx[0] + cx[1] * cx[1] + cx[2] * cx[2]) / dab;
+
 }
 
 // ----------------------------------------------------------------------------    
 // Check if the point p is within distance 'tol' of the line segment defined by
 // points a and b
 template<typename P> inline
-bool point_on_line_segment(const P& p, const P& a, const P& b, double tol)
+bool point_on_line_segment(const P& p, const P& a, const P& b, double tol, bool in_3D)
 // ----------------------------------------------------------------------------    
 {
   const double tol2 = tol * tol;
@@ -410,19 +433,9 @@ bool point_on_line_segment(const P& p, const P& a, const P& b, double tol)
 
   // The only thing that remains to be checked now is whether the orthogonally
   // projected distances is within the tolerance
-  const double d = std::abs(projected_distance_to_line_2D(p, a, b));
-
+  const double d = in_3D ? std::abs(projected_distance_to_line_3D(p, a, b)) :
+                           std::abs(projected_distance_to_line_2D(p, a, b));
   return (d < tol);
-  
-  // if (d > tol) return false;
-
-  // // the point is close enough to the infinite line, but is it close enough to
-  // // the _segment_?
-  // return (dab2 > dpa2) && (dab2 > dpb2);
-  // // const double ap = dist2(a,p);  // @ we can use dist2 instead of dist, since 
-  // // const double ab = dist2(a,b);  //   the square function is convex (here, it
-  // // const double bp = dist2(b,p);  //   prevents us from doing the costly square
-  // // return (ab > ap) && (ab > bp); //   root operation)
 }
 
 // ----------------------------------------------------------------------------
@@ -548,7 +561,7 @@ P solve_3D_matrix(const P& c1, const P& c2, const P& c3, const P& rhs)
   const double inf_norm = std::max({*std::max_element(&c1[0], &c1[0] + 3),
                                     *std::max_element(&c2[0], &c2[0] + 3),
                                     *std::max_element(&c3[0], &c3[0] + 3)});
-  if (det < inf_norm * std::numeric_limits<double>::epsilon())
+  if (std::fabs(det) < inf_norm * std::numeric_limits<double>::epsilon())
     return P {std::nan(""), std::nan(""), std::nan("")};
   const double det_inv = 1.0 / det;
 
@@ -651,16 +664,14 @@ bool segments_intersect_2D(const P& seg1_a, const P& seg1_b,
   const std::array<P, 2> s1 {seg1_a, seg1_b}, s2 {seg2_a, seg2_b};
   const auto bbox1 = bounding_box_2D(&s1[0], 2);
   const auto bbox2 = bounding_box_2D(&s2[0], 2);
+  const double L = std::max({bbox1[1] - bbox1[0], bbox1[3] - bbox1[2], 
+                             bbox2[1] - bbox2[0], bbox2[3] - bbox2[2]});
   
-  // const array<double, 4> bbox1 {std::min(seg1_a[0], seg1_b[0]), std::max(seg1_a[0], seg1_b[0]),
-  //                               std::min(seg1_a[1], seg1_b[1]), std::max(seg1_a[1], seg1_b[1])};
-  // const array<double, 4> bbox2 {std::min(seg2_a[0], seg2_b[0]), std::max(seg2_a[0], seg2_b[0]),
-  //                               std::min(seg2_a[1], seg2_b[1]), std::max(seg2_a[1], seg2_b[1])};
-  if ( (bbox1[0] > bbox2[1] + tol) || (bbox2[0] > bbox1[1] + tol) ||
-       (bbox1[2] > bbox2[3] + tol) || (bbox2[2] > bbox1[3] + tol))
+  if ( (bbox1[0] > bbox2[1] + L*tol) || (bbox2[0] > bbox1[1] + L*tol) ||
+       (bbox1[2] > bbox2[3] + L*tol) || (bbox2[2] > bbox1[3] + L*tol))
     return false;
 
-  // OK, bounding boxes overlap.  Check for intersection.
+  // OK, bounding boxes sufficiently overlap.  Check for intersection.
   // We determine u and v such that: 
   // (1-u) * seg1_a + u * seg1_b = (1-v) * seg2_a + v * seg2_b
 
@@ -674,7 +685,7 @@ bool segments_intersect_2D(const P& seg1_a, const P& seg1_b,
     if (tol < 0)
       return false;
       
-    const double l = std::min(dist(seg1_a, seg1_b), dist(seg2_a, seg2_b));
+    const double l = std::max(dist(seg1_a, seg1_b), dist(seg2_a, seg2_b));
     return ( std::abs(projected_distance_to_line_2D(seg1_a, seg2_a, seg2_b)) < (tol * l) );
   }
 
@@ -688,42 +699,46 @@ bool segments_intersect_2D(const P& seg1_a, const P& seg1_b,
 // Check whether two triangles (p1, p2, p3) and (q1, q2, q3) intersect.
 template<typename P> inline
 bool triangles_intersect_3D(const P& p1, const P& p2, const P& p3,
-                            const P& q1, const P& q2, const P& q3)
+                            const P& q1, const P& q2, const P& q3, const double tol)
 // ----------------------------------------------------------------------------
 {
   // first, compare bounding boxes to eliminate obvious non-matches
   const std::array<P, 3> t1 {p1, p2, p3}, t2 {q1, q2, q3};
   const auto bbox1 = bounding_box_3D(&t1[0], 3);
   const auto bbox2 = bounding_box_3D(&t2[0], 3);
-  if ( (bbox1[0] > bbox2[1]) || (bbox2[0] > bbox1[1]) ||
-       (bbox1[2] > bbox2[3]) || (bbox2[2] > bbox1[3]) ||
-       (bbox1[4] > bbox2[5]) || (bbox2[4] > bbox1[5]))
+  const double L = std::max({bbox1[1] - bbox1[0], bbox1[3] - bbox1[2], bbox1[5] - bbox1[4],
+                             bbox2[1] - bbox2[0], bbox2[3] - bbox2[2], bbox2[5] - bbox2[4]});  
+  if ( (bbox1[0] > bbox2[1] + L*tol) || (bbox2[0] > bbox1[1] + L*tol) ||
+       (bbox1[2] > bbox2[3] + L*tol) || (bbox2[2] > bbox1[3] + L*tol) ||
+       (bbox1[4] > bbox2[5] + L*tol) || (bbox2[4] > bbox1[5] + L*tol))
     return false;
 
   // bounding boxes overlap, we must check for intesection.  Two triangles
   // intersect if there is an edge in one triangle that 'pierces' the other one.
-  return (segment_intersects_face(p1, p2, q1, q2, q3) ||
-          segment_intersects_face(p2, p3, q1, q2, q3) ||
-          segment_intersects_face(p3, p1, q1, q2, q3) ||
-          segment_intersects_face(q1, q2, p1, p2, p3) ||
-          segment_intersects_face(q2, q3, p1, p2, p3) ||
-          segment_intersects_face(q3, q1, p1, p2, p3));
+  return (segment_intersects_face(p1, p2, q1, q2, q3, tol) ||
+          segment_intersects_face(p2, p3, q1, q2, q3, tol) ||
+          segment_intersects_face(p3, p1, q1, q2, q3, tol) ||
+          segment_intersects_face(q1, q2, p1, p2, p3, tol) ||
+          segment_intersects_face(q2, q3, p1, p2, p3, tol) ||
+          segment_intersects_face(q3, q1, p1, p2, p3, tol));
 }
 
 // ----------------------------------------------------------------------------
 // Check if a line segments intersects a triangle in 3D space
 template<typename P> inline
 bool segment_intersects_face(const P& seg_a, const P& seg_b,
-                             const P& tri_a, const P& tri_b, const P& tri_c)
+                             const P& tri_a, const P& tri_b, const P& tri_c,
+                             const double tol)
 // ----------------------------------------------------------------------------
 {
+  const double rel_tol_2 = (1+tol) * (1+tol); // relative tolerance squared
   double d2(0);
   int sign(1);
   P dir(seg_b); dir -= seg_a;
-  bool isect = ray_intersects_face(seg_a, dir, tri_a, tri_b, tri_c, d2, sign);
+  bool isect = ray_intersects_face(seg_a, dir, tri_a, tri_b, tri_c, tol, d2, sign);
 
   return (isect) &&
-         (d2 < dist2(seg_a, seg_b));
+         (d2 * rel_tol_2 < dist2(seg_a, seg_b));
 }
 
 }; // end namespace
