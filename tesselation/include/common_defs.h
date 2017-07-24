@@ -23,16 +23,25 @@ struct PointXD {
 
 using Point2D = PointXD<2>; //std::array<double, 2>;
 using Point3D = PointXD<3>; // std::array<double, 3>;
-  
+
+template<typename PointXD>  
 struct ValAndDer {
   double val;
-  std::vector<Point2D> der;
+  std::vector<PointXD> der;
 
-  void reset(uint num_der) {
-    val = 0;
-    der = std::vector<Point2D>(num_der, Point2D {0, 0});
-  }
+  void reset(uint num_der);
 };
+
+template<> inline void ValAndDer<Point2D>::reset(uint num_der) {
+  val = 0;
+  der = std::vector<Point2D>(num_der, Point2D {0, 0});
+}
+
+  template<> inline void ValAndDer<Point3D>::reset(uint num_der) {
+  val = 0;
+  der = std::vector<Point3D>(num_der, Point3D {0, 0, 0});
+}
+  
 
 // =============================== 2D operators ===============================
   

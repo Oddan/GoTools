@@ -60,8 +60,8 @@ int main() {
   // cout << "testing segment intersection: " << endl;
   // Test::test_segment_intersection();
   
-  // cout << "testing triangulation generation: " << endl;
-  // Test::test_triangulation();
+  cout << "testing triangulation generation: " << endl;
+  Test::test_triangulation();
 
   // cout << "testing plane fitting: " << endl;
   // Test::test_fit_to_plane();
@@ -72,8 +72,8 @@ int main() {
   // cout << "testing linear system solving: " << endl;
   // Test::test_linear_system();
 
-  cout << "Testing tesselation of 3D polyhedron: " << endl;
-  Test::test_polyhedron3D_tesselation();
+  // cout << "Testing tesselation of 3D polyhedron: " << endl;
+  // Test::test_polyhedron3D_tesselation();
   
   return 0;
 };

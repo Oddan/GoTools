@@ -227,27 +227,4 @@ BinnedPoints bin_points(const Point2D* const points,
   return result;
 }
     
-// // ----------------------------------------------------------------------------
-// const tuple<vector<uint>, vector<uint>> 
-// bin_points(const Point2D* const points, const uint num_points, const double R)
-// // ----------------------------------------------------------------------------
-// {
-//   tuple<vector<uint>, vector<uint>> result {vector<uint>(num_points),
-//                                             vector<uint>(num_points)};
-//   auto& bin_x = get<0>(result);
-//   auto& bin_y = get<1>(result);
-
-//   const auto bbox = bounding_box_2D(points, num_points);
-//   const double xmin = bbox[0];
-//   const double ymin = bbox[2];
-
-//   const double R_inv = 1.0/R;
-//   for (uint i = 0; i != num_points; ++i) {
-//     bin_x[i] = (uint)ceil((points[i][0] - xmin) * R_inv);
-//     bin_y[i] = (uint)ceil((points[i][1] - ymin) * R_inv);
-//   }
-//   return result;
-// }
-
-
 };

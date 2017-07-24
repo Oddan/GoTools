@@ -144,6 +144,16 @@ bool point_on_triangle(const P& p, const P& c1, const P& c2, const P& c3,
                        const double tol);
 // ----------------------------------------------------------------------------      
 
+// ----------------------------------------------------------------------------
+// Check if a perpendicular projection of a 3D point onto the plane of the
+// triangle falls inside the triangle.  If so, the output variables 'dist_2' and
+// 'sign' will respectively inform about the squared distance from the point to
+// the triangle, and whether the point is on the 'inside' (positive sign), or
+// 'outside' (negative sign).
+template<typename P> inline
+bool projects_to_triangle(const P& pt, const P* const tricorners, const double tol,
+                          double& dist_2, int& sign);
+// ----------------------------------------------------------------------------      
   
 // ----------------------------------------------------------------------------
 // Returns 'true' if the line through point 'p' that perpendicularly intersects
@@ -190,7 +200,7 @@ bool acute_angle(const P& a, const P& b, const P& c);
 template<typename P> inline
 P mirror_point_2D(P p, const P& a, const P& b);
 // ----------------------------------------------------------------------------
-  
+
   
 // ----------------------------------------------------------------------------
 // mirror the provided set of points across the line passing through a and b,
@@ -202,7 +212,17 @@ std::vector<P> mirror_points_2D(const P* const pts,
 				const P& b);
 // ----------------------------------------------------------------------------
 
-  
+// ----------------------------------------------------------------------------
+// mirror the provided set of points across the triangle given by the three
+// corners pointed to in 'tricorners', and pass the result (the mirror points)
+// as a vector.
+template<typename P> inline
+std::vector<P> mirror_points_3D(const P* const pts,
+                                const unsigned int num_pts,
+                                const P* const tricorners);
+// ----------------------------------------------------------------------------
+
+
 // ----------------------------------------------------------------------------    
 double random_uniform(double minval, double maxval);
 // ----------------------------------------------------------------------------    

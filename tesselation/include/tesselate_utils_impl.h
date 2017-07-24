@@ -446,6 +446,27 @@ bool projects_to_segment(const P& p, const P& a, const P&b)
   return acute_angle(p, a, b) && acute_angle(p, b, a);
 }
 
+// ----------------------------------------------------------------------------
+template<typename P> inline
+bool projects_to_triangle(const P& pt, const P* const tricorners,
+                          const double tol, double& dist_2, int& sign)
+// ----------------------------------------------------------------------------      
+{
+  // determine (not necessarily normalized) normal of plane in which triangle
+  // lies.
+  P v1 = tricorners[1]; v1 -= tricorners[0];
+  P v2 = tricorners[2]; v2 -= tricorners[0];
+  P d = pt; d -= tricorners[0];
+  P n; cross(v1, v2, n);
+
+  if ( (d * n) >  0)
+    n *= -1;
+
+  return ray_intersects_face(pt, n, tricorners[0], tricorners[1], tricorners[2],
+                             tol, dist_2, sign);
+}
+
+
 // ----------------------------------------------------------------------------    
 inline double random_uniform(double minval, double maxval)
 // ----------------------------------------------------------------------------    

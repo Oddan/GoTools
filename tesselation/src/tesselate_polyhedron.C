@@ -14,6 +14,8 @@ namespace {
 
 const double PI = 3.14159265358979323;
 
+// Class needed by the "optimize_interior_point" function for the call to
+// Go::minimise_conjugated_gradient.
 class PolygonEnergyFunctor
 {
 public:
@@ -36,11 +38,44 @@ private:
   const double r_; // radius
   const std::array<double, 4> bbox_; // bounding box
 
-  mutable ValAndDer cached_result_;
+  mutable ValAndDer<Point2D> cached_result_;
   mutable vector<double> cached_arg_;
 
 };
-  
+
+// Class needed by the "optimize_interior_point" function for the call to
+// Go::minimise_conjugated_gradient.
+class PolyhedronEnergyFunctor
+{
+public:
+  PolyhedronEnergyFunctor(const Point3D* const bpoints,
+                          const unsigned int num_bpoints,
+                          const Triangle* const btris,
+                          const unsigned int num_btris,
+                          const Point3D* const ipoints,
+                          const unsigned int num_ipoints,
+                          const double radius);
+
+  double operator()(const double* const arg) const;
+  void grad(const double* arg, double* grad) const;
+  double minPar(int n) const;
+  double maxPar(int n) const;
+private:
+
+  bool use_cached(const double* const arg) const;
+  void update_cache(const double* const arg) const;
+  const Point3D* const bpoints_;
+  const unsigned int nb_; // num boundary points
+  const Triangle* const btris_;
+  const unsigned int nt_; // num triangles
+  const unsigned int ni_; // num interior points
+  const double r_; // radius
+  const std::array<double, 6> bbox_; // bounding box
+
+  mutable ValAndDer<Point3D> cached_result_;
+  mutable vector<double> cached_arg_;
+};
+
 // ----------------------------------------------------------------------------  
 vector<Point2D> init_startpoints(const Point2D* const polygon,
 				 const unsigned int num_corners,
@@ -67,13 +102,13 @@ void optimize_interior_points(const Point2D* const polygon,
 
 
 // ----------------------------------------------------------------------------    
-vector<Point3D> optimize_interior_points(const Point3D* bpoints,
-                                         const unsigned int num_bpoints,
-                                         const Triangle* btris,
-                                         const unsigned int num_btris,
-                                         const Point3D* const ipoints,
-                                         const unsigned int num_ipoints,
-                                         const double vdist);
+void optimize_interior_points(const Point3D* bpoints,
+                              const unsigned int num_bpoints,
+                              const Triangle* const btris,
+                              const unsigned int num_btris,
+                              Point3D* const ipoints,
+                              const unsigned int num_ipoints,
+                              const double vdist);
 // ----------------------------------------------------------------------------    
   
 }; // end anonymous namespace
@@ -108,7 +143,7 @@ Mesh2D tesselatePolygon2D(const Point2D* const polygon,
   //Optimizing position of interior points
   optimize_interior_points(&bpoints[0], (uint)bpoints.size(),
   			   &ipoints[0], (uint)ipoints.size(),
-  			   vdist * 1.5); //1); // * 1.5
+  			   vdist * 1.5); //1); // * 1.5 @@
   
   // // @@computing and reporting internal energy
   // const double R = 2 * vdist;
@@ -144,9 +179,9 @@ Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
   // for (int i =0; i != (int)ipoints.size(); ++i)
   //   cout << ipoints[i]; @@
   
-  // // optimizing position of interior points
-  // optimize_interior_points(bpoints, num_bpoints, btris, num_btris,
-  //                          &ipoints[0], (uint)ipoints.size(), vdist * 1.5);
+  // optimizing position of interior points
+  optimize_interior_points(bpoints, num_bpoints, btris, num_btris,
+                           &ipoints[0], (uint)ipoints.size(), vdist * 1.5); // @@ vdist=1?
 
   // constructing tets from points
   vector<Point3D> points(bpoints, bpoints + num_bpoints);
@@ -249,16 +284,31 @@ vector<Point2D> init_startpoints(const Point2D* const polygon,
 }
 
 // ----------------------------------------------------------------------------
-  vector<Point3D> optimize_interior_points(const Point3D* bpoints,
-                                           const unsigned int num_bpoints,
-                                           const Triangle* btris,
-                                           const unsigned int num_btris,
-                                           const Point3D* const ipoints,
-                                           const unsigned int num_ipoints,
-                                           const double vdist)
+void optimize_interior_points(const Point3D* bpoints,
+                              const unsigned int num_bpoints,
+                              const Triangle* const btris,
+                              const unsigned int num_btris,
+                              Point3D* const ipoints,
+                              const unsigned int num_ipoints,
+                              const double vdist)
 // ----------------------------------------------------------------------------
 {
-  assert(false); // not implemented
+  // setting up function to minimize (energy function):
+  auto efun = PolyhedronEnergyFunctor(bpoints,num_bpoints, btris, num_btris,
+                                      ipoints, num_ipoints, vdist);
+
+  // setting up function minimizer
+  Go::FunctionMinimizer<PolyhedronEnergyFunctor>
+    funcmin(num_ipoints * 3, efun, (double* const)&ipoints[0], 1e-1); // @@ tolerance?
+
+  // do the minimization
+  Go::minimise_conjugated_gradient(funcmin);
+
+  // copying results back.  The cast is based on the knowledge that Points2D
+  // consist of POD and that point coordinates are stored contiguously in memory
+  // as (x1, y1, z1, x2, y2, z2, ...).
+  double* const target = (double* const) ipoints;
+  std::copy(funcmin.getPar(), funcmin.getPar() + funcmin.numPars(), target);
 }
   
 // ----------------------------------------------------------------------------
@@ -284,6 +334,72 @@ void optimize_interior_points(const Point2D* const polygon,
   // (as x1,y1,x2,y2, ...)
   double* const target = (double* const) ipoints;
   std::copy(funcmin.getPar(), funcmin.getPar() + funcmin.numPars(), target);
+}
+
+// ----------------------------------------------------------------------------
+PolyhedronEnergyFunctor::PolyhedronEnergyFunctor(const Point3D* const bpoints,
+                                                 const unsigned int num_bpoints,
+                                                 const Triangle* const btris,
+                                                 const unsigned int num_btris,
+                                                 const Point3D* const ipoints,
+                                                 const unsigned int num_ipoints,
+                                                 const double radius)
+// ----------------------------------------------------------------------------
+  : bpoints_(bpoints), nb_(num_bpoints), btris_(btris), nt_(num_btris),
+    ni_(num_ipoints), r_(radius), bbox_(bounding_box_3D(bpoints, num_bpoints))  
+{ }
+
+// ----------------------------------------------------------------------------
+double PolyhedronEnergyFunctor::operator()(const double* const arg) const
+// ----------------------------------------------------------------------------
+{
+  if (!use_cached(arg)) 
+    update_cache(arg);
+  return cached_result_.val;
+}
+
+// ----------------------------------------------------------------------------
+void PolyhedronEnergyFunctor::grad(const double* arg, double* grad) const
+// ----------------------------------------------------------------------------
+{
+  if (!use_cached(arg))
+    update_cache(arg);
+  const double* const dp = (const double* const)&cached_result_.der[0];
+  copy(dp, dp + 3 * ni_, grad);
+}
+
+// ----------------------------------------------------------------------------
+double PolyhedronEnergyFunctor::minPar(int n) const
+// ----------------------------------------------------------------------------
+{
+  return bbox_[(n % 3) * 2];
+}
+
+// ----------------------------------------------------------------------------
+double PolyhedronEnergyFunctor::maxPar(int n) const
+// ----------------------------------------------------------------------------
+{
+  return bbox_[(n % 3) * 2 + 1];
+}
+
+// ----------------------------------------------------------------------------
+bool PolyhedronEnergyFunctor::use_cached(const double* const arg) const
+// ----------------------------------------------------------------------------
+{
+  return (cached_arg_.size() > 0) &&
+         (std::equal(arg, arg + 3 * ni_, &cached_arg_[0]));
+}
+
+// ----------------------------------------------------------------------------  
+void PolyhedronEnergyFunctor::update_cache(const double* const arg) const
+// ----------------------------------------------------------------------------
+{
+  if (cached_arg_.empty())
+    cached_arg_.resize(3 * ni_);
+  copy(arg, arg + 3 * ni_, &cached_arg_[0]);
+  cached_result_ = polyhedron_energy(bpoints_, btris_, nt_,
+                                     (const Point3D* const) &cached_arg_[0],
+                                     ni_, r_);
 }
 
 // ----------------------------------------------------------------------------    

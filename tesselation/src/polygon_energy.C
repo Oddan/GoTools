@@ -11,21 +11,21 @@ namespace {
 // first entry in result array is the energy, the second the derivative
 array<double, 2> energy(double dist, double R);
 
-ValAndDer internal_energy(const Point2D* const ipoints,
-			  const unsigned int num_ipoints,
-			  const double vdist);
-ValAndDer boundary_energy(const Point2D* const bpoints,
-			  const unsigned int num_bpoints,
-			  const Point2D* const ipoints,
-			  const unsigned int num_ipoints,
-			  const double vdist);
+ValAndDer<Point2D> internal_energy(const Point2D* const ipoints,
+                                   const unsigned int num_ipoints,
+                                   const double vdist);
+ValAndDer<Point2D> boundary_energy(const Point2D* const bpoints,
+                                   const unsigned int num_bpoints,
+                                   const Point2D* const ipoints,
+                                   const unsigned int num_ipoints,
+                                   const double vdist);
 
 void add_boundary_contribution(const Point2D& bp1,
 			       const Point2D& bp2,
 			       const Point2D* const ipoints,
 			       const unsigned int num_ipoints,
 			       const double vdist,
-			       ValAndDer& result);
+                               ValAndDer<Point2D>& result);
 
 void accumulate_energy(const double dist,
 		       const Point2D& p1,
@@ -41,7 +41,7 @@ void accumulate_energy(const double dist,
 namespace TesselateUtils {
 
 // ----------------------------------------------------------------------------
-ValAndDer polygon_energy(const Point2D* const bpoints,
+ValAndDer<Point2D> polygon_energy(const Point2D* const bpoints,
 			 const unsigned int num_bpoints,
 			 const Point2D* const ipoints,
 			 const unsigned int num_ipoints,
@@ -50,15 +50,15 @@ ValAndDer polygon_energy(const Point2D* const bpoints,
 {
   
   // compute internal energy (potential energy between internal points)
-  const ValAndDer E_int = internal_energy(ipoints, num_ipoints, vdist);
+  const   ValAndDer<Point2D> E_int = internal_energy(ipoints, num_ipoints, vdist);
 
   // compute boundary energy (energy from interaction between internal points
   // and boundary points, and from internal points and their mirror points)
-  const ValAndDer E_bnd = boundary_energy(bpoints, num_bpoints,
+  const   ValAndDer<Point2D> E_bnd = boundary_energy(bpoints, num_bpoints,
   					  ipoints, num_ipoints, vdist);
 
   // Adding up components and returning results
-  ValAndDer E_tot = E_int;
+    ValAndDer<Point2D> E_tot = E_int;
 
   E_tot.val += E_bnd.val; 
   E_tot.der += E_bnd.der;
@@ -72,15 +72,15 @@ ValAndDer polygon_energy(const Point2D* const bpoints,
 namespace {
 
 // ----------------------------------------------------------------------------
-ValAndDer internal_energy(const Point2D* const ipoints,
-			  const unsigned int num_ipoints,
-			  const double vdist)
+ValAndDer<Point2D> internal_energy(const Point2D* const ipoints,
+                                   const unsigned int num_ipoints,
+                                   const double vdist)
 // ----------------------------------------------------------------------------
 {
   const auto dists = interpoint_distances(ipoints, num_ipoints, vdist, false);
 
   // accumulating energies and storing total value and partial derivatives in 'result'
-  ValAndDer result {0, vector<Point2D>(num_ipoints, {0.0, 0.0})};
+    ValAndDer<Point2D> result {0, vector<Point2D>(num_ipoints, {0.0, 0.0})};
   for (const auto& d : dists)
     accumulate_energy(d.dist, ipoints[d.p1_ix], ipoints[d.p2_ix], vdist, 
 		      result.val, result.der[d.p1_ix], result.der[d.p2_ix]);
@@ -113,14 +113,14 @@ void accumulate_energy(const double dist,
 }
 						 
 // ----------------------------------------------------------------------------
-ValAndDer boundary_energy(const Point2D* const bpoints,
+  ValAndDer<Point2D> boundary_energy(const Point2D* const bpoints,
 			  const unsigned int num_bpoints,
 			  const Point2D* const ipoints,
 			  const unsigned int num_ipoints,
 			  const double vdist)
 // ----------------------------------------------------------------------------
 {
-  ValAndDer result {0, vector<Point2D>(num_ipoints, {0.0, 0.0})};
+    ValAndDer<Point2D> result {0, vector<Point2D>(num_ipoints, {0.0, 0.0})};
 
   // looping across boundary segments and adding their energy contributions
   for (uint i = 0; i != num_bpoints; ++i)
@@ -135,7 +135,7 @@ void add_boundary_contribution(const Point2D& bp1,
 			       const Point2D* const ipoints,
 			       const unsigned int num_ipoints,
 			       const double vdist,
-			       ValAndDer& result)
+			         ValAndDer<Point2D>& result)
 // ----------------------------------------------------------------------------
 {
   // identify the points within reach of the boundary ("neighbor points"). 
@@ -145,8 +145,8 @@ void add_boundary_contribution(const Point2D& bp1,
   const auto& neigh_ixs    = npoints.second;   
   const auto& neigh_points = npoints.first; 
 
-  // Setting up a result structure only for the neigh poitns
-  ValAndDer result_local {0, vector<Point2D>(neigh_points.size(), {0.0, 0.0})};
+  // Setting up a result structure only for the neigh points
+    ValAndDer<Point2D> result_local {0, vector<Point2D>(neigh_points.size(), {0.0, 0.0})};
   Point2D dummy; // used to store values we don't want
   
   // compute the energy (and associated partial derivatives) between the
