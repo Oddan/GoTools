@@ -1,4 +1,6 @@
 #include <iostream> // for debugging
+#include <fstream> // for debugging
+#include <iterator> // for debugging
 #include <assert.h>
 #include <cmath>
 #include <algorithm>
@@ -139,18 +141,37 @@ Mesh2D tesselatePolygon2D(const Point2D* const polygon,
   // Choosing a set of interior points which we can later move around to optimal
   // locations 
   vector<Point2D> ipoints = init_startpoints(polygon, num_corners, vdist); 
+
+  //ipoints = vector<Point2D>(ipoints.begin(), ipoints.begin()+2); // @@@@
   
   //Optimizing position of interior points
   optimize_interior_points(&bpoints[0], (uint)bpoints.size(),
   			   &ipoints[0], (uint)ipoints.size(),
   			   vdist * 1.5); //1); // * 1.5 @@
   
-  // // @@computing and reporting internal energy
-  // const double R = 2 * vdist;
+  // // @@@@@@computing and reporting internal energy
+  // const double R = 1.5 * vdist;
   // const auto e = polygon_energy(&bpoints[0], (unsigned int)bpoints.size(),
   //       			&ipoints[0], (unsigned int)ipoints.size(), 
   //       			R);
 
+  // // @@@@@ computing numerical derivatives
+  // auto dpoints(ipoints);
+  // double tiny = 1e-7;
+  // dpoints[1][0] = dpoints[1][0] + tiny;
+  // const auto dxe = polygon_energy(&bpoints[0], (unsigned int)bpoints.size(),
+  //       			&dpoints[0], (unsigned int)dpoints.size(), 
+  //       			R);
+  // double numdiff_x = (e.val-dxe.val)/-tiny;
+  // dpoints = ipoints;
+  // dpoints[1][1] = dpoints[1][1] + tiny;
+  // const auto dye = polygon_energy(&bpoints[0], (unsigned int)bpoints.size(),
+  //                                 &dpoints[0], (unsigned int)dpoints.size(), 
+  //                                 R);
+  // double numdiff_y = (e.val-dye.val)/-tiny;
+
+  
+  
   // cout << "Energy is:" << e.val << endl;
 
   // Triangulating points
@@ -160,7 +181,7 @@ Mesh2D tesselatePolygon2D(const Point2D* const polygon,
   const auto tris = triangulate_domain(&points[0],
 				       (uint)bpoints.size(),
 				       (uint)points.size(),
-				       2*vdist);
+				       3*vdist);
   return {points, tris};
 }
 
@@ -176,19 +197,70 @@ Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
   vector<Point3D> ipoints = init_startpoints(bpoints, num_bpoints, btris,
                                              num_btris, vdist);
 
+  //ipoints = {{0.1, 0.1, 0.1}, {0.9, 0.1, 0.1}, {0.5, 0.5, 0.5}};
+  //ipoints = {{0.5, 0.5, 0.5}};//, {0.1, 0.1, 0.1}};
+  //ipoints = {{0.1, 0.1, 0.1}, {0.11, 0.11, 0.2}, {0.5, 0.5, 0.5}, {0.1, 0.2, 0.3}}; // @@@ hack  
   // for (int i =0; i != (int)ipoints.size(); ++i)
   //   cout << ipoints[i]; @@
+
+  ofstream os0("krull0.mat");
+  copy(ipoints.begin(), ipoints.end(), ostream_iterator<Point3D>(os0, " "));
+  os0.close(); // @@@
+  
   
   // optimizing position of interior points
   optimize_interior_points(bpoints, num_bpoints, btris, num_btris,
-                           &ipoints[0], (uint)ipoints.size(), vdist * 1.5); // @@ vdist=1?
+                           &ipoints[0], (uint)ipoints.size(), vdist*2); // @@ vdist=1?
 
+  // @@@@@@computing and reporting internal energy
+  const double R = 2 * vdist;
+  const auto e = polyhedron_energy(bpoints, btris, num_btris, 
+                                   &ipoints[0], (unsigned int)ipoints.size(), R);
+
+  // @@@@@ computing numerical derivatives
+  auto dpoints(ipoints);
+  double tiny = 1e-7;
+  dpoints[0][0] = dpoints[0][0] + tiny;
+  const auto dxe = polyhedron_energy(bpoints, btris, num_btris,
+        			&dpoints[0], (unsigned int)dpoints.size(), R);
+  double numdiff_x = (e.val-dxe.val)/-tiny;
+  dpoints = ipoints;
+  dpoints[0][1] = dpoints[0][1] + tiny;
+  const auto dye = polyhedron_energy(bpoints,btris, num_btris,
+                                  &dpoints[0], (unsigned int)dpoints.size(), R);
+  double numdiff_y = (e.val-dye.val)/-tiny;
+
+  dpoints = ipoints;
+  dpoints[0][2] = dpoints[0][2] + tiny;
+  const auto dze = polyhedron_energy(bpoints,btris, num_btris,
+                                  &dpoints[0], (unsigned int)dpoints.size(), R);
+  double numdiff_z = (e.val-dze.val)/-tiny;
+
+  
+  ofstream os("krull.mat");
+  copy(ipoints.begin(), ipoints.end(), ostream_iterator<Point3D>(os, " "));
+  os.close(); // @@@
+
+  // const auto tull = polyhedron_energy(bpoints, btris, num_btris,
+  //                                     &ipoints[0], (uint)ipoints.size(), vdist * 4);
+  
+  // In case boundary has much larger faces than 'vdist', we need to allow for
+  // larger distances when constructing the tetrahedrons.  We therefore run a
+  // check here, and adjust the 'vdist' parameter upwards if the boundary faces
+  // require it.
+  vector<double> lengths(num_btris, 0);
+  transform(btris, btris + num_btris, lengths.begin(), [bpoints] (const Triangle& t) {
+      return max({dist(bpoints[t[0]], bpoints[t[1]]),
+                  dist(bpoints[t[1]], bpoints[t[2]]),
+                  dist(bpoints[t[2]], bpoints[t[0]])});});
+  const double L = *max_element(lengths.begin(), lengths.end());
+  
   // constructing tets from points
   vector<Point3D> points(bpoints, bpoints + num_bpoints);
   points.insert(points.end(), ipoints.begin(), ipoints.end());
   const auto tets = construct_tets(&points[0], (uint)points.size(),
                                    btris, num_btris,
-                                   20 * vdist); //@@2*vdist);
+                                   10 * max(vdist,L)); 
   return{points, tets};
 }
 };
@@ -211,15 +283,18 @@ vector<Point3D> init_startpoints(const Point3D* const bpoints,
 
   // computing amount of points needed to approximately fill the bounding box,
   // where points are approximately equidistant by 'vdist'.
-  const double box_vol = bbox_lx * bbox_ly * bbox_lz;
-  const int N_bbox = (int)ceil(box_vol / (vdist * vdist * vdist));
-  const double Rxy = bbox_lx / bbox_ly;
-  const double Rxz = bbox_lx / bbox_lz;
-  const double Ryz = bbox_ly / bbox_lz;
-  const int nx = (int)ceil(pow(N_bbox * Rxy * Rxz, 1/3.));
-  const int ny = (int)ceil(pow(N_bbox / Rxy * Ryz, 1/3.));
-  const int nz = (int)ceil(pow(N_bbox / Rxz / Ryz, 1/3.));
-  
+  // const double box_vol = bbox_lx * bbox_ly * bbox_lz;
+  // const int N_bbox = (int)ceil(box_vol / (vdist * vdist * vdist));
+  // const double Rxy = bbox_lx / bbox_ly;
+  // const double Rxz = bbox_lx / bbox_lz;
+  // const double Ryz = bbox_ly / bbox_lz;
+  // const int nx = (int)ceil(pow(N_bbox * Rxy * Rxz, 1/3.));
+  // const int ny = (int)ceil(pow(N_bbox / Rxy * Ryz, 1/3.));
+  // const int nz = (int)ceil(pow(N_bbox / Rxz / Ryz, 1/3.));
+  const int nx = max((int)floor(bbox_lx/vdist), 1);
+  const int ny = max((int)floor(bbox_ly/vdist), 1);
+  const int nz = max((int)floor(bbox_lz/vdist), 1);
+
   // constructing regular grid of points within the bounding box
   const vector<Point3D> gridpoints =
     generate_grid_3D(Point3D {bbox[0] + vdist/2, bbox[2] + vdist/2, bbox[4] + vdist/2},
@@ -260,8 +335,8 @@ vector<Point2D> init_startpoints(const Point2D* const polygon,
   // computing amount of points needed to approximately cover the bounding box, where points
   // are approximately equidistant by 'vdist'
   const int N_bbox = (int)ceil(bbox_area * 3 / (PI * vdist * vdist));
-  const int nx = (int)ceil(sqrt(N_bbox * bbox_lx / bbox_ly));
-  const int ny = (int)ceil(N_bbox/nx);
+  const int nx = max((int)floor(sqrt(N_bbox * bbox_lx / bbox_ly)),1);
+  const int ny = max((int)floor(N_bbox/nx), 1);
 
   // constructing regular grid of points within the bounding box
   const vector<Point2D> gridpoints =
@@ -299,7 +374,7 @@ void optimize_interior_points(const Point3D* bpoints,
 
   // setting up function minimizer
   Go::FunctionMinimizer<PolyhedronEnergyFunctor>
-    funcmin(num_ipoints * 3, efun, (double* const)&ipoints[0], 1e-1); // @@ tolerance?
+    funcmin(num_ipoints * 3, efun, (double* const)&ipoints[0], 1e-8); // @@ tolerance?
 
   // do the minimization
   Go::minimise_conjugated_gradient(funcmin);
@@ -324,7 +399,7 @@ void optimize_interior_points(const Point2D* const polygon,
   
   // Setting up function minimizer
   Go::FunctionMinimizer<PolygonEnergyFunctor>
-    funcmin(num_ipoints * 2, efun, (double* const)&ipoints[0], 1e-1); // @@ TOLERANCE?
+    funcmin(num_ipoints * 2, efun, (double* const)&ipoints[0], 1e-1);//1e-1); // @@ TOLERANCE?
   
   // do the minimization
   Go::minimise_conjugated_gradient(funcmin);

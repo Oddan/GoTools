@@ -144,12 +144,17 @@ bool point_on_triangle(const P& p, const P& c1, const P& c2, const P& c3,
                        const double tol);
 // ----------------------------------------------------------------------------      
 
+// ----------------------------------------------------------------------------      
+template<typename P> inline
+bool triangle_area_3D(const P& c1, const P& c2, const P& c3);
+// ----------------------------------------------------------------------------      
+  
 // ----------------------------------------------------------------------------
 // Check if a perpendicular projection of a 3D point onto the plane of the
 // triangle falls inside the triangle.  If so, the output variables 'dist_2' and
 // 'sign' will respectively inform about the squared distance from the point to
-// the triangle, and whether the point is on the 'inside' (positive sign), or
-// 'outside' (negative sign).
+// the triangle, and whether the point is on the 'back' (positive sign), or
+// 'front' (negative sign) of the oriented triangle.
 template<typename P> inline
 bool projects_to_triangle(const P& pt, const P* const tricorners, const double tol,
                           double& dist_2, int& sign);
@@ -172,7 +177,12 @@ bool projects_to_segment(const P& p, const P& a, const P&b);
 // distance is returned in 'sign'.  A distance is positive if the ray and the
 // triangle normal point in the same direction (positive scalar product).  The
 // orientation of the triangle's normal is defined by the order of the triangle
-// corners, which should make a counterclockwise loop.
+// corners, which should make a counterclockwise loop.  If the ray is parallel
+// to the plane of the triangle, it is interpreted not to intersect, regardless
+// of whether it is in the plane or not.  However, this case will be flagged by
+// setting 'sign' to zero, whereas if the non-intersection was caused by the
+// intersection point falling outside the triangle, the 'sign' will be nonzero
+// (but otherwise meaningless).
 template<typename P> inline
 bool ray_intersects_face(const P& pt, const P& dir,
                          const P& p1, const P& p2, const P& p3,
@@ -185,7 +195,8 @@ bool ray_intersects_face(const P& pt, const P& dir,
 // plane defined by the oriented triangle face given by its corner points in
 // counterclockwise order, 'p1', 'p2', and 'p3'.
 template<typename P>
-bool point_on_inside_of_face(const P& pt, const P& p1, const P& p2, const P& p3);
+bool point_on_inside_of_face(const P& pt, const P& p1, const P& p2, const P& p3,
+                             const double tol);
 // ----------------------------------------------------------------------------  
   
 // ----------------------------------------------------------------------------
@@ -197,8 +208,7 @@ bool acute_angle(const P& a, const P& b, const P& c);
 // ----------------------------------------------------------------------------
 // Mirror point 'p' accross the line passing through 'a' and 'b', and return the
 // result.
-template<typename P> inline
-P mirror_point_2D(P p, const P& a, const P& b);
+template<typename P> inline P mirror_point_2D(P p, const P& a, const P& b);
 // ----------------------------------------------------------------------------
 
   
@@ -212,6 +222,12 @@ std::vector<P> mirror_points_2D(const P* const pts,
 				const P& b);
 // ----------------------------------------------------------------------------
 
+// ----------------------------------------------------------------------------
+// Mirror point 'p' across the plane containing the triangle whose corners are
+// given in 'tricorners', and return the result.
+template<typename P> inline P mirror_point_3D(P p, const P* const tricorners);
+// ----------------------------------------------------------------------------
+  
 // ----------------------------------------------------------------------------
 // mirror the provided set of points across the triangle given by the three
 // corners pointed to in 'tricorners', and pass the result (the mirror points)
@@ -347,7 +363,14 @@ bool segment_intersects_face(const P& seg_a, const P& seg_b,
                              const double tol);
 // ----------------------------------------------------------------------------
 
-  
+// ----------------------------------------------------------------------------
+// Transform a set of 3D points to a set of 2D points, by projecting on the
+// plane defined by the first three points in the set, and using the first point
+// as the origin in the plane.
+template<typename P2D, typename P3D>
+std::vector<P2D> transform_to_2D(const std::vector<P3D>& pts);
+// ----------------------------------------------------------------------------
+
 }; // end namespace TesselateUtils
 
 #include "tesselate_utils_impl.h"

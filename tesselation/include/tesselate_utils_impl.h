@@ -305,7 +305,8 @@ bool point_on_triangle(const P& p, const P& c1, const P& c2, const P& c3,
 // plane defined by the oriented triangle face given by its corner points in
 // counterclockwise order, 'p1', 'p2', and 'p3'.
 template<typename P>
-bool point_on_inside_of_face(const P& pt, const P& p1, const P& p2, const P& p3)
+bool point_on_inside_of_face(const P& pt, const P& p1, const P& p2, const P& p3,
+                             const double tol)
 // ----------------------------------------------------------------------------  
 {
   // If point is on 'inside' of the oriented triangle's plane, then (p1->p2),
@@ -313,7 +314,7 @@ bool point_on_inside_of_face(const P& pt, const P& p1, const P& p2, const P& p3)
   P dp = p1; dp -= pt;
   P v1 = p2; v1 -= p1;
   P v2 = p3; v2 -= p1;
-  return (determinant3D(v1, v2, dp) > 0);
+  return (determinant3D(v1, v2, dp) > tol);
 }
 
 // ----------------------------------------------------------------------------
@@ -331,38 +332,6 @@ std::vector<P> inside_shell(const P* const pts, const unsigned int num_pts,
                                                     num_tris, tol);});
   return result;
 }
-
-// ----------------------------------------------------------------------------
-template<typename P> inline
-bool ray_intersects_face(const P& pt, const P& dir,
-                         const P& p1, const P& p2, const P& p3,
-                         const double tol, double& dist_2, int& sign)
-// ----------------------------------------------------------------------------
-{
-  const P v1 = p2 - p1;
-  const P v2 = p3 - p1;
-  const P dp = pt - p1;
-
-  // we consider the system:
-  // pt + (-param[2]) * dir = p1 * param[0] v1 + p2 * param[1] v2
-  // and solve for the three unknown parameters
-  P param = solve_3D_matrix(v1, v2, dir, dp); 
-
-  if (std::isnan(param[0])) // degenerate system; ray perpendicular to normal
-    return false;
-
-  if ((param[2] > tol)     || (param[0] + tol < 0) ||
-      (param[1] + tol < 0) || (param[0] + param[1] > 1 + tol))
-    // intersection point falls outside triangle
-    return false;
-
-  // intersection point falls within triangle, compute signed distance
-  const P I = p1 + param[0] * v1 + param[1] * v2;
-  dist_2 = dist2(pt, I);
-  sign = determinant3D(dir, v1, v2) > 0 ? 1 : -1;
-
-  return true;
-} 
 
 // ----------------------------------------------------------------------------
 template<typename P>
@@ -466,6 +435,17 @@ bool projects_to_triangle(const P& pt, const P* const tricorners,
                              tol, dist_2, sign);
 }
 
+// ----------------------------------------------------------------------------    
+template<typename P> inline
+bool triangle_area_3D(const P& c1, const P& c2, const P& c3)
+// ----------------------------------------------------------------------------    
+{
+  P v1 = c2; v1 -= c1;
+  P v2 = c3; v2 -= c1;
+  P n; cross(v1, v2, n);
+  return 0.5 * sqrt(norm2(n));
+}
+
 
 // ----------------------------------------------------------------------------    
 inline double random_uniform(double minval, double maxval)
@@ -552,6 +532,32 @@ std::vector<P> mirror_points_2D(const P* const pts,
 	   [&a, &b] (const P& p) {return mirror_point_2D(p, a, b);});
   return result;
 }
+
+// ----------------------------------------------------------------------------
+template<typename P> inline P mirror_point_3D(P p, const P* const tricorners)
+// ----------------------------------------------------------------------------
+{
+  P u(tricorners[1]); u -= tricorners[0];
+  P v(tricorners[2]); v -= tricorners[0];
+  P d(p); d -= tricorners[0];  // vector from p to first triangle corner
+  P n; cross(u, v, n); n /= sqrt(norm2(n)); // unit vector normal to triangle plane
+  P result(p);
+  result -= n * 2 * (d * n);
+  return result;
+}
+
+// ----------------------------------------------------------------------------
+template<typename P> inline
+std::vector<P> mirror_points_3D(const P* const pts,
+                                const unsigned int num_pts,
+                                const P* const tricorners)
+// ----------------------------------------------------------------------------
+{
+  std::vector<P> result(num_pts);
+  transform(pts, pts + num_pts, result.begin(),
+            [&tricorners] (const P& p) { return mirror_point_3D(p, tricorners);});
+  return result;
+}  
 
 // ----------------------------------------------------------------------------
 template<typename P> inline
@@ -723,15 +729,20 @@ bool triangles_intersect_3D(const P& p1, const P& p2, const P& p3,
                             const P& q1, const P& q2, const P& q3, const double tol)
 // ----------------------------------------------------------------------------
 {
-  // first, compare bounding boxes to eliminate obvious non-matches
+  // first, compare bounding boxes to eliminate obvious non-matches.  Even if
+  // user requested negative tolerance, we will use positive tolerance here, to
+  // make sure we do not lose the case of coplanar, intersecting triangles.
+  // (This is just for the bounding box test.  For the actual intersection test,
+  // negative tolerance will be respected).
+  const double atol = fabs(tol);
   const std::array<P, 3> t1 {p1, p2, p3}, t2 {q1, q2, q3};
   const auto bbox1 = bounding_box_3D(&t1[0], 3);
   const auto bbox2 = bounding_box_3D(&t2[0], 3);
   const double L = std::max({bbox1[1] - bbox1[0], bbox1[3] - bbox1[2], bbox1[5] - bbox1[4],
                              bbox2[1] - bbox2[0], bbox2[3] - bbox2[2], bbox2[5] - bbox2[4]});  
-  if ( (bbox1[0] > bbox2[1] + L*tol) || (bbox2[0] > bbox1[1] + L*tol) ||
-       (bbox1[2] > bbox2[3] + L*tol) || (bbox2[2] > bbox1[3] + L*tol) ||
-       (bbox1[4] > bbox2[5] + L*tol) || (bbox2[4] > bbox1[5] + L*tol))
+  if ( (bbox1[0] > bbox2[1] + L*atol) || (bbox2[0] > bbox1[1] + L*atol) ||
+       (bbox1[2] > bbox2[3] + L*atol) || (bbox2[2] > bbox1[3] + L*atol) ||
+       (bbox1[4] > bbox2[5] + L*atol) || (bbox2[4] > bbox1[5] + L*atol))
     return false;
 
   // bounding boxes overlap, we must check for intesection.  Two triangles
@@ -758,9 +769,101 @@ bool segment_intersects_face(const P& seg_a, const P& seg_b,
   P dir(seg_b); dir -= seg_a;
   bool isect = ray_intersects_face(seg_a, dir, tri_a, tri_b, tri_c, tol, d2, sign);
 
+  if ((!isect) && sign == 0) {
+    // the ray did not intersect the face, but is parallel to its plane.  Check
+    // if it is in the same plane, and if so, do a planar intersection test.
+
+    // is the first segment point on the plane? (This is not the most efficient
+    // test, but as it is a degenrate case, the test is not expected to be run
+    // very often).
+    std::array<P, 3> tricorners {tri_a, tri_b, tri_c};
+    const P mpoint = mirror_point_3D(seg_a, &tricorners[0]);
+    // We are testing for co-planarity, in which case a negative tolerance
+    // doesn't make sense.  But in any case we are comparing against squared
+    // distance.
+    if (dist2(seg_a, mpoint) > 4 * (tol * tol) * norm2(dir))
+      // too far from plane to be considered "coplanar"
+      return false;
+    // if we got here, the segment is in the same 2D plane as the triangle.
+    // Check for 2D intersections.
+    const std::vector<Point2D> tmp =
+      transform_to_2D<Point2D, Point3D>( {tri_a, tri_b, tri_c, seg_a, seg_b});
+
+    const Point2D& tri_a_2D = tmp[0];
+    const Point2D& tri_b_2D = tmp[1];
+    const Point2D& tri_c_2D = tmp[2];
+    const Point2D& seg_a_2D = tmp[3];
+    const Point2D& seg_b_2D = tmp[4];            
+    
+    return segments_intersect_2D(seg_a_2D, seg_b_2D, tri_a_2D, tri_b_2D, tol) ||
+           segments_intersect_2D(seg_a_2D, seg_b_2D, tri_b_2D, tri_c_2D, tol) ||
+           segments_intersect_2D(seg_a_2D, seg_b_2D, tri_c_2D, tri_a_2D, tol);
+  }
+  
   return (isect) &&
          (d2 * rel_tol_2 < dist2(seg_a, seg_b));
 }
+
+// ----------------------------------------------------------------------------
+template<typename P2D, typename P3D>
+std::vector<P2D> transform_to_2D(const std::vector<P3D>& pts)
+// ----------------------------------------------------------------------------
+{
+  assert(pts.size() > 2);
+  P3D origin = pts[0];
+  P3D v1 = pts[1] - origin;  v1 /= sqrt(norm2(v1));
+  P3D v2 = pts[2] - origin;  v2 /= sqrt(norm2(v2));
+  P3D n; cross(v1, v2, n); n /= sqrt(norm2(n));
+
+  std::vector<P2D> result(pts.size());
+  std::transform(pts.begin(), pts.end(), result.begin(),
+                 [v1, v2, n, origin] (P3D p) {
+                   p -= origin;
+                   P3D tmp = solve_3D_matrix(v1, v2, n, p);
+                   // throw away normal component, just returns coordinates in
+                   // the plane.
+                   return P2D {tmp[0], tmp[1]};
+                 });
+  return result;
+}
+
+// ----------------------------------------------------------------------------
+template<typename P> inline
+bool ray_intersects_face(const P& pt, const P& dir,
+                         const P& p1, const P& p2, const P& p3,
+                         const double tol, double& dist_2, int& sign)
+// ----------------------------------------------------------------------------
+{
+  const P v1 = p2 - p1;
+  const P v2 = p3 - p1;
+  const P dp = pt - p1;
+
+  // we consider the system:
+  // pt + (-param[2]) * dir = p1 * param[0] v1 + p2 * param[1] v2
+  // and solve for the three unknown parameters
+  P param = solve_3D_matrix(v1, v2, dir, dp); 
+
+  if (std::isnan(param[0])) { // degenerate system; ray perpendicular to normal
+    sign = 0;
+    return false;
+  }
+  if ((param[2] > tol)     || (param[0] + tol < 0) ||
+      (param[1] + tol < 0) || (param[0] + param[1] > 1 + tol)) {
+    // intersection point falls outside triangle
+    sign = 1;  // just return something different from zero, to distinguish from
+               // previous case
+    return false;
+  }
+
+  // intersection point falls within triangle, compute signed distance
+  const P I = p1 + param[0] * v1 + param[1] * v2;
+  dist_2 = dist2(pt, I);
+  sign = determinant3D(dir, v1, v2) > 0 ? 1 : -1;
+
+  return true;
+} 
+
+
 
 }; // end namespace
 

@@ -35,7 +35,8 @@ void accumulate_energy(const double dist,
 		       const double vdist,
 		       double& energy_acc,
 		       Point3D& p1_der_acc,
-		       Point3D& p2_der_acc);
+		       Point3D& p2_der_acc,
+                       const bool are_mirror_points = false);
 
 }; // end anonymous namespace 
 
@@ -98,7 +99,8 @@ void accumulate_energy(const double dist,
 		       const double vdist,
 		       double& energy_acc,
 		       Point3D& p1_der_acc,
-		       Point3D& p2_der_acc)
+		       Point3D& p2_der_acc,
+                       const bool are_mirror_points)
 // ----------------------------------------------------------------------------  
 {
   const array<double,2> e = energy(dist, vdist);
@@ -109,7 +111,13 @@ void accumulate_energy(const double dist,
   // adding contribution to partial derivatives for the two points involved.
   // @@ Creation of temporary object on the line below.  If bottleneck, should
   // be rewritten.
-  const Point3D dvec = (p2 - p1) * (e[1] / dist);
+
+  //If the points are mirror points of each other, all contributions to partial
+  //derivatives should be doubled (and the accumulated values for the mirror
+  //points are irrelevant)
+  const double fac = are_mirror_points ? 2 : 1;
+  
+  const Point3D dvec = (p2 - p1) * (fac * e[1] / dist);
   p1_der_acc -= dvec;
   p2_der_acc += dvec;
   
@@ -142,14 +150,18 @@ void add_boundary_contribution(const Point3D* const bpts, // boundary points
                                ValAndDer<Point3D>& result)
 {
   // identify the points within reach of the face
-  const array<Point3D, 3> tripts { bpts[btri[1]], bpts[btri[2]], bpts[btri[3]]};
+  const array<Point3D, 3> tripts { bpts[btri[0]], bpts[btri[1]], bpts[btri[2]]};
   const auto npoints = extract_from_range(ipoints, num_ipoints,
                                           [&tripts, &vdist] (const Point3D& p) {
-                                            return point_on_triangle(p, tripts[0], tripts[1], tripts[2], vdist);});
+                                            return point_on_triangle(p,
+                                                                     tripts[0],
+                                                                     tripts[1],
+                                                                     tripts[2],
+                                                                     vdist);});
   const auto& neigh_ixs = npoints.second;
   const auto& neigh_pts = npoints.first;
 
-  // setting up a resul structure only for the neigh points
+  // setting up a result structure only for the neigh points
   ValAndDer<Point3D> result_local {0, vector<Point3D>(neigh_pts.size(),
                                                       {0.0, 0.0, 0.0})};
 
@@ -170,6 +182,7 @@ void add_boundary_contribution(const Point3D* const bpts, // boundary points
   // value for a regular mesh, which is why we divide it here.  @@ If this
   // simplification leads to bad results close to high valence (or low valence)
   // points, consider a more rigorous treatment.
+
   result.val += result_local.val * 0.1667; // 1/6
   for (uint i = 0; i != neigh_ixs.size(); ++i)
     result.der[neigh_ixs[i]] += result_local.der[i] * 0.1667;
@@ -195,10 +208,10 @@ void add_boundary_contribution(const Point3D* const bpts, // boundary points
   const auto mpoints = mirror_points_3D(&per_pts[0], (uint)per_pts.size(), &tripts[0]);
   const auto dvec = interpoint_distances(&per_pts[0], (uint)per_pts.size(),
                                          &mpoints[0], (uint)mpoints.size(), vdist);
-  for (const DistanceEntry& d : dvec)
+  for (const DistanceEntry& d : dvec)  
     accumulate_energy(d.dist, per_pts[d.p1_ix], mpoints[d.p2_ix], vdist,
-                      result_local.val, result_local.der[d.p1_ix], dummy);
-
+                      result_local.val, result_local.der[d.p1_ix], dummy, true);
+  
   // Remapping results from 'results_local' to 'result'
   result.val += result_local.val;
   for (uint i = 0; i != per_pts.size(); ++i) 

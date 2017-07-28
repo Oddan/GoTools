@@ -33,7 +33,9 @@ void accumulate_energy(const double dist,
 		       const double vdist,
 		       double& energy_acc,
 		       Point2D& p1_der_acc,
-		       Point2D& p2_der_acc);
+		       Point2D& p2_der_acc,
+                       const bool are_mirror_points= false);
+                       
 
   
 }; // end anonymous namespace 
@@ -58,7 +60,7 @@ ValAndDer<Point2D> polygon_energy(const Point2D* const bpoints,
   					  ipoints, num_ipoints, vdist);
 
   // Adding up components and returning results
-    ValAndDer<Point2D> E_tot = E_int;
+  ValAndDer<Point2D> E_tot = E_int;
 
   E_tot.val += E_bnd.val; 
   E_tot.der += E_bnd.der;
@@ -95,7 +97,8 @@ void accumulate_energy(const double dist,
 		       const double vdist,
 		       double& energy_acc,
 		       Point2D& p1_der_acc,
-		       Point2D& p2_der_acc)
+		       Point2D& p2_der_acc,
+                       const bool are_mirror_points)
 // ----------------------------------------------------------------------------  
 {
   const array<double,2> e = energy(dist, vdist);
@@ -103,10 +106,17 @@ void accumulate_energy(const double dist,
   // accumulating total energy
   energy_acc += e[0];
   
-  // adding contribution to partial derivatives for the two points involved.
-  // @@ Creation of temporary object on the line below.  If bottleneck, should
-  // be rewritten.
-  const Point2D dvec = (p2 - p1) * (e[1] / dist);
+  // adding contribution to partial derivatives for the two points involved.  @@
+  // Creation of temporary object on the line below.  If bottleneck, should be
+  // rewritten.
+
+  //If the points are mirror points of each other, all contributions to partial
+  //derivatives should be doubled (and the accumulated values for the mirror
+  //points are irrelevant)
+  const double fac = are_mirror_points ? 2 : 1;
+
+  // computing partial derivatives
+  const Point2D dvec = (p2 - p1) * (fac * e[1] / dist);
   p1_der_acc -= dvec;
   p2_der_acc += dvec;
   
@@ -180,9 +190,9 @@ void add_boundary_contribution(const Point2D& bp1,
   dvec = interpoint_distances(&per_pts[0], (uint)per_pts.size(),
 			      &mpoints[0], (uint)per_pts.size(), vdist);
 
-  for (const auto& d : dvec)
-    accumulate_energy(d.dist, per_pts[d.p1_ix], mpoints[d.p2_ix], vdist,
-		      result_local.val, result_local.der[d.p1_ix], dummy);
+  for (const auto& d : dvec) 
+      accumulate_energy(d.dist, per_pts[d.p1_ix], mpoints[d.p2_ix], vdist,
+                        result_local.val, result_local.der[d.p1_ix], dummy, true);
 
   // remapping results from result_local to result
   result.val += result_local.val;

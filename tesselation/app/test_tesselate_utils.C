@@ -11,6 +11,7 @@
 #include "SimplePolyhedronTesselation.h"
 #include "tesselate_polyhedron.h"
 #include "fit_points_to_plane.h"
+#include "basic_intersections.h"
 
 using namespace Go;
 using namespace std;
@@ -31,6 +32,8 @@ namespace Test {
   void test_fit_to_plane();
   void test_linear_system();
   void test_polyhedron3D_tesselation();
+  void test_circumsphere();
+  void test_triangle_intersection();
 };
 
 // ============================================================================
@@ -60,8 +63,8 @@ int main() {
   // cout << "testing segment intersection: " << endl;
   // Test::test_segment_intersection();
   
-  cout << "testing triangulation generation: " << endl;
-  Test::test_triangulation();
+  // cout << "testing triangulation generation: " << endl;
+  // Test::test_triangulation();
 
   // cout << "testing plane fitting: " << endl;
   // Test::test_fit_to_plane();
@@ -72,8 +75,13 @@ int main() {
   // cout << "testing linear system solving: " << endl;
   // Test::test_linear_system();
 
-  // cout << "Testing tesselation of 3D polyhedron: " << endl;
-  // Test::test_polyhedron3D_tesselation();
+  cout << "Testing tesselation of 3D polyhedron: " << endl;
+  Test::test_polyhedron3D_tesselation();
+
+  // cout << "Testing circumsphere: " << endl;
+  // Test::test_circumsphere();
+  
+  //Test::test_triangle_intersection();
   
   return 0;
 };
@@ -400,11 +408,24 @@ void test_linear_system()
 void test_polyhedron3D_tesselation()
 // ----------------------------------------------------------------------------
 {
-  // simplex corners
+  //simplex corners
+  // const vector<Point3D> bpoints { {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {1, 1, 0},
+  //                                 {0, 0, 1}, {1, 0, 1}, {0, 1, 1}, {1, 1, 1}};
+  
+  // const vector<Triangle> btris {
+  //   {0, 3, 1}, {0, 2, 3}, // bottom
+  //   {4, 5, 7}, {4, 7, 6}, // top
+  //   {0, 4, 2}, {4, 6, 2}, // left
+  //   {1, 3, 5}, {3, 7, 5}, // right
+  //   {0, 5, 4}, {0, 1, 5}, // front
+  //   {2, 7, 3}, {2, 6, 7}}; // back
+        
   const vector<Point3D> bpoints { {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
   const vector<Triangle> btris { {0, 2, 1}, {0, 1, 3}, {1, 2, 3}, {2, 0, 3} };
-  const  double vdist = 0.3;
+  const  double vdist = 0.25;//0.15;
+  
 
+  
   const auto mesh = tesselatePolyhedron3D(&bpoints[0], (uint)bpoints.size(),
                                           &btris[0], (uint)btris.size(),
                                           vdist);
@@ -416,6 +437,71 @@ void test_polyhedron3D_tesselation()
   for (const auto t : mesh.tets) os_tets << t;
   os_points.close();
   os_tets.close();
+  
+}
+// ----------------------------------------------------------------------------
+void test_circumsphere()
+// ----------------------------------------------------------------------------
+{
+  // base triangle
+  array<Point3D, 3> tri { Point3D { 0, 0, 0}, Point3D { 1, 0, 0}, Point3D{1, 1, 0} };
+
+  // bunch of random points
+  const int N = 3000;
+  vector<double> coords(3 * N);
+  generate(coords.begin(), coords.end(), [] () {return random_uniform(-500, 500);});
+  vector<Point3D> points;
+  for (uint i = 0; i != N; ++i) 
+    points.push_back( {coords[3*i], coords[3*i+1], coords[3*i+2]});
+
+  // testing circumsphere on the generated points
+  Point3D center;
+  double rad2;
+  for (uint i = 0; i != N; ++i) 
+    if (fitting_sphere(tri[0], tri[1], tri[2], points[i], center, rad2)) {
+      if (!(center[2] * points[i][2] > 0)) {
+        cout << "Assumption failed for point " << i << ", which is: " << points[i];
+        cout << " and has center: " << center << endl;
+      }
+    } else {
+      throw runtime_error("failed to fit sphere");
+    }
+}
+
+// ----------------------------------------------------------------------------
+void test_triangle_intersection()
+// ----------------------------------------------------------------------------
+{
+  // enum IsectCase {
+  //   DISJOINT,         // no intersection
+  //   AT_POINT,         // share a common point only
+  //   ALONG_BOUNDARY,   // boundary of one intersects interior or boundary of other
+  //   OVERLAPPING,      // interiors of A and B intersect
+  //   CONTAINING,       // one fully contained in other
+  //   COLINEAR_OVERLAP  // two 2D segments overlap colinearly 
+  // };
+
+  
+  vector<Point3D> ref = { {0,0,0}, {1, 0, 0}, {1, 1, 0}};
+  vector<Point3D> t1 = { {0,0,0}, {0.9,0,0}, {1, 1.1, 0}}; // should be overlapping (3)
+  vector<Point3D> t2 = { {0,0,0.001}, {1, 0, 0.001}, {1, 1, 0.001}};// should not intersect (0)
+  vector<Point3D> t3 = { {0,0,0.01}, {1, 0, -0.01}, {1, 1, 0.01}}; // should cut across (3)!
+  vector<Point3D> t4 = { {0, 0, 0}, {1.1, 1.1, 0}, {0, 1, 0}}; // should be boundary intersect (2)
+  vector<Point3D> t5 = { {0.01, 0.01, 0}, {0.99, 0.01, 0}, {0.99, 0.99, 0}}; // contained (4)
+  vector<Point3D> t6 = { {0.5, 0.5, 0}, {1, 0, 0}, {1, 0, 1}}; // should cut  across (2)!
+
+  const double tol = 1e-6;
+  cout << "t1: " << isect_triangle_triangle_3D(&ref[0], &t1[0], tol) << endl;
+  cout << "t2: " << isect_triangle_triangle_3D(&ref[0], &t2[0], tol) << endl;
+  cout << "t3: " << isect_triangle_triangle_3D(&ref[0], &t3[0], tol) << endl;
+  cout << "t4: " << isect_triangle_triangle_3D(&ref[0], &t4[0], tol) << endl;
+  cout << "t5: " << isect_triangle_triangle_3D(&ref[0], &t5[0], tol) << endl;
+  cout << "t6: " << isect_triangle_triangle_3D(&ref[0], &t6[0], tol) << endl;
+
+  
+
+  
+
   
 }
 

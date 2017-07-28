@@ -1,9 +1,12 @@
+#include <iostream> /// @@ debug
 #include <fstream> // @@ debug purposes
+#include <stdexcept> // @@ debug
 #include <algorithm>
 #include <assert.h>
 #include <stdexcept>
 #include "triangulate_domain.h"
 #include "tesselate_utils.h"
+#include "basic_intersections.h"
 
 using namespace std;
 using namespace TesselateUtils;
@@ -81,8 +84,8 @@ namespace {
   bool search_and_erase_segment(const Segment& seg, vector<Segment>& segvec);
   bool search_and_erase_face(const Triangle& tri, vector<Triangle>& trivec);
 
-  
-  
+  // bool share_edge(const Triangle& t1, const Triangle t2);
+
 };
 
 namespace TesselateUtils {
@@ -153,7 +156,7 @@ vector<Tet> construct_tets(const Point3D* const points,
   // are no remaining points on the workign front nor in the interior.
   vector<Tet> result;
 
-  while (ntris.size() + dtris.size() > 0)
+  while (ntris.size() + dtris.size() > 0) 
     result.push_back(add_tet(ntris, dtris, unused_pts, points, vdist));
 
   // sanity check: there should be no unused nodes left by now
@@ -167,6 +170,99 @@ vector<Tet> construct_tets(const Point3D* const points,
 
 namespace {
 
+// ----------------------------------------------------------------------------  
+uint best_point(const Triangle& tri,
+                const vector<Triangle>& triangles,
+                const vector<uint>& active_pts, 
+                const Point3D* const points)
+// ----------------------------------------------------------------------------  
+{
+  // get indices of 
+  vector<uint> candidates;
+  for (uint i = 0; i != (uint)active_pts.size(); ++i)
+    if (active_pts[i])
+      candidates.push_back(i);
+
+  if (candidates.size() == 0)
+    throw runtime_error("zero candidates.");
+  
+  // eliminate candidates until only one remain
+  // @@ poorly implemented.  Fix algorithm when working.
+  const Point3D& t0 = points[tri[0]];
+  const Point3D& t1 = points[tri[1]];
+  const Point3D& t2 = points[tri[2]];
+  const Point3D normal = (t1-t0) ^ (t2-t0);
+
+  const double TOL = 1e6;
+  const double TOLFACMIN2 = (1-TOL) * (1-TOL);
+  const double TOLFACMAX2 = (1+TOL) * (1+TOL);
+  auto excluded = candidates.end();
+  Point3D center;
+  double radius2;
+  while (excluded != candidates.begin()) {
+    const Point3D& pt = points[*(candidates.begin())];
+    if (fitting_sphere(pt, t0, t1, t2, center, radius2) &&
+        (center - pt) * normal < 0) {
+      excluded = std::partition(candidates.begin(), excluded,
+                     [center, radius2, points, TOLFACMIN2]
+                     (uint ix) { return dist2(points[ix], center) < (radius2 * TOLFACMIN2);});
+    }
+  }
+  // best point is now the first one in candidates.  But we must check if it
+  // conflicts with other points that may be just as good, considering the tolerance
+  excluded = partition(candidates.begin(), candidates.end(),
+                       [center, radius2, points, TOLFACMAX2] (uint ix) {
+                         return dist2(points[ix], center) < (radius2 * TOLFACMAX2);});
+
+  assert (excluded != candidates.begin());
+  // return a point that does not introduce intersections with existing triangles
+  for (auto iter = candidates.begin(); iter != excluded; ++iter) {
+    array<Point3D, 3> tri1 = {points[tri[0]], points[tri[1]], points[*iter]};
+    array<Point3D, 3> tri2 = {points[tri[1]], points[tri[2]], points[*iter]};
+    array<Point3D, 3> tri3 = {points[tri[2]], points[tri[0]], points[*iter]};
+
+    for (const auto t : triangles) {
+      array<Point3D, 3> cur_tri = {points[t[0]], points[t[1]], points[t[2]]};
+      
+      if (isect_triangle_triangle_3D(&tri1[0], &cur_tri[0], TOL) != OVERLAPPING &&
+          isect_triangle_triangle_3D(&tri2[0], &cur_tri[0], TOL) != OVERLAPPING &&
+          isect_triangle_triangle_3D(&tri3[0], &cur_tri[0], TOL) != OVERLAPPING)
+        return *iter;
+    }
+  }
+  // no candidate worked
+  throw runtime_error("no suitable candidate");
+  
+}
+
+// ----------------------------------------------------------------------------
+Tet add_tet_failsafe(vector<Triangle>& tris,
+                     vector<uint>& active_points,
+                     const Point3D* const points)
+// ----------------------------------------------------------------------------
+{
+  // choosing the largest triangle on the boundary
+  vector<double> areas(tris.size(), 0);
+  transform(tris.begin(), tris.end(), areas.begin(), [points] (const Triangle& t) {
+      return triangle_area_3D(points[t[0]], points[t[1]], points[t[2]]);
+    });
+  const long int largest_ix = (max_element(areas.begin(), areas.end()) - areas.begin());
+  const Triangle cur_tri = tris[largest_ix];
+  tris.erase(tris.begin() + largest_ix);
+
+  // finding the unique point that creates a tet with a circumsphere containing
+  // no other points, and (in the case of degenerate situations) chooses a point
+  // that does not introduce intersections
+  const uint ix = best_point(cur_tri, tris, active_points, points);
+  
+  
+    
+
+  
+  
+// }
+
+  
 // ----------------------------------------------------------------------------
 Tet add_tet(vector<Triangle>& ntris,
             vector<Triangle>& dtris,
@@ -175,24 +271,19 @@ Tet add_tet(vector<Triangle>& ntris,
             const double vdist)
 // ----------------------------------------------------------------------------
 {
-  // // @@ write current status to file
-  // ofstream points_os("points.mat");
-  // ofstream unused_os("unused.mat");
-  // for (uint i = 0; i != (uint)unused_pts.size(); ++i) {
-  //   points_os << points[i];
-  //   unused_os << unused_pts[i] << " ";
-  // }
-  // points_os.close();
-  // unused_os.close();
-  // ofstream tris_os("triangles.mat");
-  // for (uint i = 0; i != ntris.size(); ++i)
-  //   tris_os << ntris[i] << '\n';
-  // for (uint i = 0; i != dtris.size(); ++i)
-  //   tris_os << dtris[i] << '\n';
-  // tris_os.close();
-
   // Choose the next triangle to work with, aiming to deplete the non-delaunay
   // triangles as quickly as possible
+
+
+  // // the below is a hack @@
+  // vector<double> areas(ntris.size(), 0);
+  // transform(ntris.begin(), ntris.end(), areas.begin(), [points] (const Triangle& t) {
+  //     return triangle_area_3D(points[t[0]], points[t[1]], points[t[2]]);
+  //   });
+  // const long int largest_ix = (max_element(areas.begin(), areas.end()) - areas.begin());
+  // const Triangle cur_tri = ntris[largest_ix];
+  // ntris.erase(ntris.begin() + largest_ix);
+  
   const Triangle cur_tri = (ntris.size() > 0) ? ntris.back() : dtris.back();
   (ntris.size() > 0) ? ntris.pop_back() : dtris.pop_back();
 
@@ -208,7 +299,7 @@ Tet add_tet(vector<Triangle>& ntris,
   // the circumscribing sphere of the generated tet.
   const uint chosen_pt = best_candidate_point(cand_pts, cur_tri, points);
 
-  // Determine whether teh generated tet is a "delaunay tet" or if it contains
+  // Determine whether the generated tet is a "delaunay tet" or if it contains
   // other points caused by nonconvexity of the working front (or if it is
   // semi-delaunay by having other points exactly on its circumscription
   const bool is_del = is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points);
@@ -228,7 +319,25 @@ Tet add_tet(vector<Triangle>& ntris,
   for(const auto t : ntris) { for (uint i = 0; i != 3; ++i) unused_pts[t[i]] = 1; }
   for(const auto t : dtris) { for (uint i = 0; i != 3; ++i) unused_pts[t[i]] = 1; }
 
-  return Tet {cur_tri[0], cur_tri[1], cur_tri[2], chosen_pt};
+  // @@ write current status to file
+  ofstream points_os("points.mat");
+  ofstream unused_os("unused.mat");
+  for (uint i = 0; i != (uint)unused_pts.size(); ++i) {
+    points_os << points[i];
+    unused_os << unused_pts[i] << " ";
+  }
+  points_os.close();
+  unused_os.close();
+  ofstream tris_os("triangles.mat");
+  for (uint i = 0; i != ntris.size(); ++i)
+    tris_os << ntris[i] << '\n';
+  for (uint i = 0; i != dtris.size(); ++i)
+    tris_os << dtris[i] << '\n';
+  tris_os.close();
+
+
+  
+  return Tet {cur_tri[1], cur_tri[0], cur_tri[2], chosen_pt};
 }
 
 
@@ -305,7 +414,7 @@ void find_candidate_points(const Triangle& tri,
     if (point_on_triangle(points[i], p1, p2, p3, vdist)) {
       // point is close enough to triangle to be considered a neighbor point.
       all_neigh_pts[i] = 1;
-      if ((point_on_inside_of_face(points[i], p1, p2, p3)) &&
+      if ((point_on_inside_of_face(points[i], p1, p2, p3, TOL)) &&
           (!introduces_intersection(tri, i, ntris, points, TOL))) {
         cand_pts[i] = 1; // point is a candidate point
       }
@@ -324,21 +433,39 @@ bool introduces_intersection(const Triangle& tri,
   // checking each non-delaunay triangle for intersection against the triangles
   // that would be introduced if the point indiced by 'pt_ix' were to form a tet
   // with the already-existing triangle 'tri'.
-  for (const auto& nt : ntris) 
-    if ((nt[0] == pt_ix) || (nt[1] == pt_ix) || (nt[2] == pt_ix))
-      // candidate point is one of the corners of this triangle, no new
-      // intersection possible
-      continue;
-    else if (nt == tri)
-      // the two triangles are actually the same - no new intersection created
-      continue;
-    else if (triangles_intersect_3D(points[tri[0]], points[tri[1]], points[pt_ix],
-                                    points[nt[0]], points[nt[1]], points[nt[2]], -tol) ||
-             triangles_intersect_3D(points[tri[1]], points[tri[2]], points[pt_ix],
-                                    points[nt[0]], points[nt[1]], points[nt[2]], -tol) ||
-             triangles_intersect_3D(points[tri[2]], points[tri[0]], points[pt_ix],
-                                    points[nt[0]], points[nt[1]], points[nt[2]], -tol))
+  array<Point3D, 3> t1 {points[tri[0]], points[tri[1]], points[pt_ix]};
+  array<Point3D, 3> t2 {points[tri[1]], points[tri[2]], points[pt_ix]};
+  array<Point3D, 3> t3 {points[tri[2]], points[tri[0]], points[pt_ix]};
+  
+  for (const auto& nt : ntris)  {
+    // if ((nt[0] == pt_ix) || (nt[1] == pt_ix) || (nt[2] == pt_ix))
+    //   // candidate point is one of the corners of this triangle, no new
+    //   // intersection possible
+    //   continue;
+    // if (nt == tri)
+    //   // the two triangles are actually the same - no new intersection created
+    //   continue;
+    // else if (share_edge(nt, tri))
+    //   // the two triangles share an edge - this is not considered an interesction
+    //   continue;
+    array<Point3D, 3> tripoints {points[nt[0]], points[nt[1]], points[nt[2]]};
+    if ( (isect_triangle_triangle_3D(&t1[0], &tripoints[0], fabs(tol)) == OVERLAPPING) ||
+         (isect_triangle_triangle_3D(&t2[0], &tripoints[0], fabs(tol)) == OVERLAPPING) ||
+         (isect_triangle_triangle_3D(&t3[0], &tripoints[0], fabs(tol)) == OVERLAPPING))
       return true;
+         
+    
+    // if (triangles_intersect_3D(points[tri[0]], points[tri[1]], points[pt_ix],
+    //                                 points[nt[0]], points[nt[1]], points[nt[2]], -tol) ||
+    //          triangles_intersect_3D(points[tri[1]], points[tri[2]], points[pt_ix],
+    //                                 points[nt[0]], points[nt[1]], points[nt[2]], -tol) ||
+    //          triangles_intersect_3D(points[tri[2]], points[tri[0]], points[pt_ix],
+    //                                 points[nt[0]], points[nt[1]], points[nt[2]], -tol))
+    //   // negative tolerance used here to ensure that a mere touch of triangle
+    //   // corners does not qualify as an intersection.  So if we get here, the
+    //   // intersection should be of finite length.
+    //  return true;
+  }
   return false;
 }
   
@@ -514,7 +641,7 @@ bool is_delaunay(const Triangle& tri,
 {
   Point2D circ_center;
   double radius2;
-  const double tol = 1e-5; //@@ OK?  In the worst case, we risk classifying a
+  const double tol = 1e-3; //@@ OK?  In the worst case, we risk classifying a
 			   //delaunay edge as non-delaunay, which would not do
 			   //any harm to the final result, but slightly increase
 			   //the computational cost (since there is now one more
@@ -541,9 +668,10 @@ bool is_delaunay(const Triangle& tri, const uint chosen_pt,
                  const vector<uint>& neigh_pts, const Point3D* const points)
 // ----------------------------------------------------------------------------
 {
+  return false; // @@@ 
   Point3D center;
   double radius2;
-  const double tol = 1e-5; // same comment as for the 2D version of 'is_delaunay above
+  const double tol = 1e-2; // same comment as for the 2D version of 'is_delaunay above
   fitting_sphere(points[tri[0]], points[tri[1]], points[tri[2]], points[chosen_pt],
                  center, radius2);
   radius2 *= (1+tol); // slightly increase radius to ensure points on the boundary are captured
@@ -640,6 +768,14 @@ bool search_and_erase_face(const Triangle& tri, vector<Triangle>& trivec)
           return true;
         rotate(t.begin(), t.begin()+1,t.end());
       }
+      // // debug @@@
+      // reverse(t.begin(), t.end());
+      // for (uint i = 0; i!=3; ++i) {
+      //   if (equal(t.begin(), t.end(), tri.begin()))
+      //     throw runtime_error("logically one should never be here.");
+      //   rotate(t.begin(), t.begin()+1,t.end());
+      // }
+      
       return false;
     });
   if (iter != trivec.end()) {
@@ -649,5 +785,19 @@ bool search_and_erase_face(const Triangle& tri, vector<Triangle>& trivec)
   return false;
 }
 
+// // ----------------------------------------------------------------------------
+// bool share_edge(const Triangle& t1, const Triangle t2)
+// // ----------------------------------------------------------------------------
+// {
+//   // if the triangles have two corners in common, they share an edge
+//   uint count = 0;
+//   for (uint i = 0; i != 3; ++i) 
+//     for (uint j = 0; j != 3; ++j)  
+//       if (t1[i] == t2[j])
+//         if (++count == 2)
+//           return true;
+//   return false;
+// }
+  
 }; // end anonymous namespace
 

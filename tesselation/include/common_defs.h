@@ -3,6 +3,7 @@
 
 #include <array>
 #include <vector>
+#include <cmath>
 #include <ostream>
 
 namespace TesselateUtils {
@@ -127,6 +128,13 @@ inline double norm2(const Point2D& p)
 {
   return p[0] * p[0] + p[1] * p[1];
 }
+
+// ----------------------------------------------------------------------------
+  inline double norm(const Point2D& p)
+// ----------------------------------------------------------------------------
+{
+  return std::sqrt(norm2(p));
+}
   
 // ----------------------------------------------------------------------------
 inline double dist2(const Point2D& p1, const Point2D& p2)
@@ -144,6 +152,15 @@ inline bool acute_angle(const Point2D& a, const Point2D& b, const Point2D& c)
   // angle is acute if scalar product of vectors ba and bc is positive
   return (c[0] - b[0]) * (a[0] - b[0]) + (c[1] - b[1]) * (a[1] - b[1]) > 0;
 }
+
+// ----------------------------------------------------------------------------
+// scalar product
+inline double operator*(const Point2D& p, const Point2D& q)
+// ----------------------------------------------------------------------------
+{
+  return p[0] * q[0] + p[1] * q[1];
+}
+
   
 // =============================== 3D operators ===============================
 
@@ -241,6 +258,13 @@ inline std::ostream& operator<<(std::ostream& os, const Point3D& p)
 // ----------------------------------------------------------------------------
 {
   return p[0] * p[0] + p[1] * p[1] + p[2] * p[2];
+}
+
+// ----------------------------------------------------------------------------
+  inline double norm(const Point3D& p)
+// ----------------------------------------------------------------------------
+{
+  return std::sqrt(norm2(p));
 }
   
 // ----------------------------------------------------------------------------

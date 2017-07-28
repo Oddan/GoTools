@@ -1,4 +1,4 @@
-function plot_tri(pts, tri, color)
+function plot_tri(pts, tri, color, alpha)
 
    hold on
    
@@ -11,7 +11,7 @@ function plot_tri(pts, tri, color)
       else
          %plot3(pts(ixs,1), pts(ixs,2), pts(ixs, 3), '*-r');
          plot3(pts(ixs,1), pts(ixs,2), pts(ixs, 3), ['-' color]);
-         patch(pts(ixs,1), pts(ixs,2), pts(ixs,3), color);
+         patch(pts(ixs,1), pts(ixs,2), pts(ixs,3), color, 'facealpha', alpha);
       end
    end
    
