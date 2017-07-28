@@ -200,10 +200,7 @@ ParallelState check_coplanar_state(const Point3D* const tri1,
     // point in each plane, and see if it has a non-neglible component along the
     // normal vector.
     Point3D dp = tri1[0] - tri2[0];
-    const double sprod = sqrt(dp[0] * n1[0] +
-                              dp[1] * n1[1] +
-                              dp[2] * n1[2]);
-
+    const double sprod = dp * n1;
     return (fabs(sprod) < tol) ? IDENTICAL : PARALLEL;
   } 
   return REGULAR;

@@ -160,9 +160,39 @@ vector<Tet> construct_tets(const Point3D* const points,
   // are no remaining points on the workign front nor in the interior.
   vector<Tet> result;
 
-  while (ntris.size() + dtris.size() > 0)
-    result.push_back(add_tet_failsafe(ntris, unused_pts, points));
-  //result.push_back(add_tet(ntris, dtris, unused_pts, points, vdist));
+  // @DEBUG
+  vector<array<uint, 4>> facit;
+  ifstream is("tri_c");
+  assert(is);
+  while (!is.eof()) {
+    array<uint, 4> tmp;
+    is >> tmp[0] >> tmp[1] >> tmp[2] >> tmp[3];
+    facit.push_back(tmp);
+  }
+   
+  
+  while (ntris.size() + dtris.size() > 0) {
+    //result.push_back(add_tet_failsafe(ntris, unused_pts, points));
+    const auto tet = add_tet(ntris, dtris, unused_pts, points, vdist);
+    const auto it = find_if(facit.begin(), facit.end(), [tet] (const array<uint,4>& aa) {
+        auto a = aa;
+        array<uint, 4> tmp {tet[0], tet[1], tet[2], tet[3]};
+        sort(tmp.begin(), tmp.end());
+        sort(a.begin(), a.end());
+        return ((a[0] == tmp[0]) &&
+                (a[1] == tmp[1]) &&
+                (a[2] == tmp[2]) &&
+                (a[3] == tmp[3]));
+      });
+    if (it == facit.end()) {
+
+      cout<< "Not found: " << tet << ". Result size is: " << result.size() << endl;
+      //throw runtime_error("not foudn.");
+    }
+
+    
+    result.push_back(tet);
+  }
 
   // sanity check: there should be no unused nodes left by now
   assert(accumulate(unused_pts.begin(), unused_pts.end(), 0) == 0);
@@ -397,7 +427,7 @@ uint best_candidate_point(const vector<uint>& cand_pts,
   double radius2; // squared radius of the containing sphere
 
   // @@ It may be faster to eliminate neighbors as one goes along (any neighbour
-  // otuside the sphere could be immediately disregarded and removed from the
+  // outside the sphere could be immediately disregarded and removed from the
   // vector).  This would however introduce a bit of extra logic.
   for (const auto ix : cand_ixs) {
     if (fitting_sphere(points[ix], points[cur_tri[0]], points[cur_tri[1]],
