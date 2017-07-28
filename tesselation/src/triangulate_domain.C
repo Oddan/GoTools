@@ -206,8 +206,8 @@ uint best_point(const Triangle& tri,
   double radius2;
   while (excluded != candidates.begin()) {
     const Point3D& pt = points[*(candidates.begin())];
-    if (fitting_sphere(pt, t0, t1, t2, center, radius2) &&
-        (center - t0) * normal < 0) {
+    if ( (pt - t0) * normal < 0 &&
+         (fitting_sphere(pt, t0, t1, t2, center, radius2))) {
       auto it =  std::partition(candidates.begin(), excluded,
                                 [center, radius2, points, TOLFACMIN2]
                                 (uint ix) { return dist2(points[ix], center) < (radius2 * TOLFACMIN2);});
