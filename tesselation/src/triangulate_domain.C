@@ -85,6 +85,10 @@ namespace {
   bool search_and_erase_face(const Triangle& tri, vector<Triangle>& trivec);
 
   // bool share_edge(const Triangle& t1, const Triangle t2);
+  Tet add_tet_failsafe(vector<Triangle>& tris,
+                       vector<uint>& active_points,
+                       const Point3D* const points); // @@ Debug
+  
 
 };
 
@@ -156,8 +160,9 @@ vector<Tet> construct_tets(const Point3D* const points,
   // are no remaining points on the workign front nor in the interior.
   vector<Tet> result;
 
-  while (ntris.size() + dtris.size() > 0) 
-    result.push_back(add_tet(ntris, dtris, unused_pts, points, vdist));
+  while (ntris.size() + dtris.size() > 0)
+    result.push_back(add_tet_failsafe(ntris, unused_pts, points));
+  //result.push_back(add_tet(ntris, dtris, unused_pts, points, vdist));
 
   // sanity check: there should be no unused nodes left by now
   assert(accumulate(unused_pts.begin(), unused_pts.end(), 0) == 0);
@@ -193,7 +198,7 @@ uint best_point(const Triangle& tri,
   const Point3D& t2 = points[tri[2]];
   const Point3D normal = (t1-t0) ^ (t2-t0);
 
-  const double TOL = 1e6;
+  const double TOL = 1e-6;
   const double TOLFACMIN2 = (1-TOL) * (1-TOL);
   const double TOLFACMAX2 = (1+TOL) * (1+TOL);
   auto excluded = candidates.end();
@@ -202,10 +207,15 @@ uint best_point(const Triangle& tri,
   while (excluded != candidates.begin()) {
     const Point3D& pt = points[*(candidates.begin())];
     if (fitting_sphere(pt, t0, t1, t2, center, radius2) &&
-        (center - pt) * normal < 0) {
-      excluded = std::partition(candidates.begin(), excluded,
-                     [center, radius2, points, TOLFACMIN2]
-                     (uint ix) { return dist2(points[ix], center) < (radius2 * TOLFACMIN2);});
+        (center - t0) * normal < 0) {
+      auto it =  std::partition(candidates.begin(), excluded,
+                                [center, radius2, points, TOLFACMIN2]
+                                (uint ix) { return dist2(points[ix], center) < (radius2 * TOLFACMIN2);});
+      excluded = it;
+    } else {
+      // @@ really ugly and inefficient implementation
+      candidates.erase(candidates.begin());
+      excluded = candidates.end();
     }
   }
   // best point is now the first one in candidates.  But we must check if it
@@ -254,13 +264,35 @@ Tet add_tet_failsafe(vector<Triangle>& tris,
   // no other points, and (in the case of degenerate situations) chooses a point
   // that does not introduce intersections
   const uint ix = best_point(cur_tri, tris, active_points, points);
-  
-  
-    
+  vector<Triangle> dummy;
+  add_or_remove_face({cur_tri[0], cur_tri[1], ix}, tris, dummy, active_points, false);
+  add_or_remove_face({cur_tri[1], cur_tri[2], ix}, tris, dummy, active_points, false);
+  add_or_remove_face({cur_tri[2], cur_tri[0], ix}, tris, dummy, active_points, false);
 
+  // Verify the four corners of the inserted tet - how many of them remain on
+  // the active front?  We set them to 0, and add back those that are still
+  // found on the front.
+  active_points[ix] = 0;
+  for (uint i = 0; i != 3; ++i) active_points[cur_tri[i]] = 0;
+  for(const auto t : tris) { for (uint i = 0; i != 3; ++i) active_points[t[i]] = 1; }
   
+  // @@ write current status to file
+  ofstream points_os("points.mat");
+  ofstream unused_os("unused.mat");
+  for (uint i = 0; i != (uint)active_points.size(); ++i) {
+    points_os << points[i];
+    unused_os << active_points[i] << " ";
+  }
+  points_os.close();
+  unused_os.close();
+  ofstream tris_os("triangles.mat");
+  for (uint i = 0; i != tris.size(); ++i)
+    tris_os << tris[i] << '\n';
+  tris_os.close();
+
+  return Tet {cur_tri[1], cur_tri[0], cur_tri[2], ix};
   
-// }
+}
 
   
 // ----------------------------------------------------------------------------

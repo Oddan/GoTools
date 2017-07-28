@@ -81,7 +81,7 @@ int main() {
   // cout << "Testing circumsphere: " << endl;
   // Test::test_circumsphere();
   
-  //Test::test_triangle_intersection();
+  // Test::test_triangle_intersection();
   
   return 0;
 };
@@ -485,10 +485,11 @@ void test_triangle_intersection()
   vector<Point3D> ref = { {0,0,0}, {1, 0, 0}, {1, 1, 0}};
   vector<Point3D> t1 = { {0,0,0}, {0.9,0,0}, {1, 1.1, 0}}; // should be overlapping (3)
   vector<Point3D> t2 = { {0,0,0.001}, {1, 0, 0.001}, {1, 1, 0.001}};// should not intersect (0)
-  vector<Point3D> t3 = { {0,0,0.01}, {1, 0, -0.01}, {1, 1, 0.01}}; // should cut across (3)!
+  vector<Point3D> t3 = { {0,0,0.01}, {1, 0, -0.01}, {1, 1, 0.01}}; // should cut across (3)
   vector<Point3D> t4 = { {0, 0, 0}, {1.1, 1.1, 0}, {0, 1, 0}}; // should be boundary intersect (2)
   vector<Point3D> t5 = { {0.01, 0.01, 0}, {0.99, 0.01, 0}, {0.99, 0.99, 0}}; // contained (4)
-  vector<Point3D> t6 = { {0.5, 0.5, 0}, {1, 0, 0}, {1, 0, 1}}; // should cut  across (2)!
+  vector<Point3D> t6 = { {0.5, 0.5, 0}, {1, 0, 0}, {1, 0, 1}}; // should cut  across (2)
+  vector<Point3D> t7 = { {0.5, 0, -1}, {1, 1, 0}, {0.5, 0, 1}}; // should overlap (2)
 
   const double tol = 1e-6;
   cout << "t1: " << isect_triangle_triangle_3D(&ref[0], &t1[0], tol) << endl;
@@ -497,7 +498,7 @@ void test_triangle_intersection()
   cout << "t4: " << isect_triangle_triangle_3D(&ref[0], &t4[0], tol) << endl;
   cout << "t5: " << isect_triangle_triangle_3D(&ref[0], &t5[0], tol) << endl;
   cout << "t6: " << isect_triangle_triangle_3D(&ref[0], &t6[0], tol) << endl;
-
+  cout << "t7: " << isect_triangle_triangle_3D(&ref[0], &t7[0], tol) << endl;
   
 
   
