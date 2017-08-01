@@ -198,48 +198,97 @@ Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
                                              num_btris, vdist);
 
   //ipoints = {{0.1, 0.1, 0.1}, {0.9, 0.1, 0.1}, {0.5, 0.5, 0.5}};
-  //ipoints = {{0.5, 0.5, 0.5}};//, {0.1, 0.1, 0.1}};
-  //ipoints = {{0.1, 0.1, 0.1}, {0.11, 0.11, 0.2}, {0.5, 0.5, 0.5}, {0.1, 0.2, 0.3}}; // @@@ hack  
+  //ipoints = {{0.1, 0.1, 0.1}}; //,{0.5, 0.5, 0.5}};//,
+  //ipoints = {{0.0, 0.1, 0.1}}; //,{0.5, 0.5, 0.5}};//, 
+  //ipoints = {{0.5, 0.5, 0.5}, {0.11, 0.11, 0.2}, {0.51, 0.5, 0.5}, {0.1, 0.2, 0.3}}; // @@@ hack  
   // for (int i =0; i != (int)ipoints.size(); ++i)
   //   cout << ipoints[i]; @@
 
-  ofstream os0("krull0.mat");
-  copy(ipoints.begin(), ipoints.end(), ostream_iterator<Point3D>(os0, " "));
-  os0.close(); // @@@
+  // ofstream os0("krull0.mat");
+  // copy(ipoints.begin(), ipoints.end(), ostream_iterator<Point3D>(os0, " "));
+  // os0.close(); // @@@
   
   
-  // optimizing position of interior points
+  // optimizing position of interior points.  We use a value of 'vdist' slightly
+  // higher than what the interpoint distance goal is, to avoid points becoming
+  // 'completely disconnected' from each other.
   optimize_interior_points(bpoints, num_bpoints, btris, num_btris,
-                           &ipoints[0], (uint)ipoints.size(), vdist*2); // @@ vdist=1?
+                           &ipoints[0], (uint)ipoints.size(), vdist*2);
 
-  // @@@@@@computing and reporting internal energy
-  const double R = 2 * vdist;
-  const auto e = polyhedron_energy(bpoints, btris, num_btris, 
-                                   &ipoints[0], (unsigned int)ipoints.size(), R);
+  cout << "Finished optimization of " << ipoints.size() << " internal points." << endl;
 
-  // @@@@@ computing numerical derivatives
-  auto dpoints(ipoints);
-  double tiny = 1e-7;
-  dpoints[0][0] = dpoints[0][0] + tiny;
-  const auto dxe = polyhedron_energy(bpoints, btris, num_btris,
-        			&dpoints[0], (unsigned int)dpoints.size(), R);
-  double numdiff_x = (e.val-dxe.val)/-tiny;
-  dpoints = ipoints;
-  dpoints[0][1] = dpoints[0][1] + tiny;
-  const auto dye = polyhedron_energy(bpoints,btris, num_btris,
-                                  &dpoints[0], (unsigned int)dpoints.size(), R);
-  double numdiff_y = (e.val-dye.val)/-tiny;
+  // ofstream os("krull.mat");
+  // copy(ipoints.begin(), ipoints.end(), ostream_iterator<Point3D>(os, " "));
+  // os.close(); // @@@
 
-  dpoints = ipoints;
-  dpoints[0][2] = dpoints[0][2] + tiny;
-  const auto dze = polyhedron_energy(bpoints,btris, num_btris,
-                                  &dpoints[0], (unsigned int)dpoints.size(), R);
-  double numdiff_z = (e.val-dze.val)/-tiny;
 
   
-  ofstream os("krull.mat");
-  copy(ipoints.begin(), ipoints.end(), ostream_iterator<Point3D>(os, " "));
-  os.close(); // @@@
+  // // @@@@@@computing and reporting internal energy
+  // const double R = 2 * vdist;
+  // const auto e = polyhedron_energy(bpoints, num_bpoints, btris, num_btris, 
+  //                                  &ipoints[0], (unsigned int)ipoints.size(), R);
+
+
+  // optimize_interior_points(bpoints, num_bpoints, btris, num_btris,
+  //                          &ipoints[0], (uint)ipoints.size(), vdist*2); // @@ vdist=1?
+
+  // cout << "Finished optimization of " << ipoints.size() << " internal points." << endl;
+
+
+  
+  // // @@@@@@computing and reporting internal energy
+  // const auto e2 = polyhedron_energy(bpoints, num_bpoints, btris, num_btris, 
+  //                                  &ipoints[0], (unsigned int)ipoints.size(), R);
+
+  // double tiny2 = 1e-5;
+  // vector<Point3D> krull(ipoints);
+  // for (int i = 1; i != 2; ++i)
+  //   for (int d = 0; d != 3; ++d)
+  //     krull[i][d] -= e2.der[i][d] * tiny2;
+
+  // //const auto e3 = polyhedron_energy(bpoints, num_bpoints, btris, num_btris, &krull[0], krull.size(), R);
+  
+  
+  // // optimize_interior_points(bpoints, num_bpoints, btris, num_btris,
+  // //                          &ipoints[0], (uint)ipoints.size(), vdist*2); // @@ vdist=1?
+
+  // // cout << "Finished optimization of " << ipoints.size() << " internal points." << endl;
+
+
+  
+  // // // @@@@@@computing and reporting internal energy
+  // // const auto e3 = polyhedron_energy(bpoints, num_bpoints, btris, num_btris, 
+  // //                                  &ipoints[0], (unsigned int)ipoints.size(), R);
+
+
+
+
+
+  
+  // // @@@@@ computing numerical derivatives
+  // auto dpoints(ipoints);
+  // int pt_ix = 1; // 0;
+  // double tiny = 1e-7;
+  // dpoints[pt_ix][0] = dpoints[pt_ix][0] + tiny;
+  // const auto dxe = polyhedron_energy(bpoints, num_bpoints, btris, num_btris,
+  //       			&dpoints[0], (unsigned int)dpoints.size(), R);
+  // double numdiff_x = (e.val-dxe.val)/-tiny;
+  // dpoints = ipoints;
+  // dpoints[pt_ix][1] = dpoints[pt_ix][1] + tiny;
+  // const auto dye = polyhedron_energy(bpoints, num_bpoints, btris, num_btris,
+  //                                 &dpoints[0], (unsigned int)dpoints.size(), R);
+  // double numdiff_y = (e.val-dye.val)/-tiny;
+
+  // dpoints = ipoints;
+  // dpoints[pt_ix][2] = dpoints[pt_ix][2] + tiny;
+  // const auto dze = polyhedron_energy(bpoints, num_bpoints, btris, num_btris,
+  //                                 &dpoints[0], (unsigned int)dpoints.size(), R);
+  // double numdiff_z = (e.val-dze.val)/-tiny;
+
+  
+  // ofstream os("krull.mat");
+  // copy(ipoints.begin(), ipoints.end(), ostream_iterator<Point3D>(os, " "));
+  // os.close(); // @@@
 
   // const auto tull = polyhedron_energy(bpoints, btris, num_btris,
   //                                     &ipoints[0], (uint)ipoints.size(), vdist * 4);
@@ -291,15 +340,19 @@ vector<Point3D> init_startpoints(const Point3D* const bpoints,
   // const int nx = (int)ceil(pow(N_bbox * Rxy * Rxz, 1/3.));
   // const int ny = (int)ceil(pow(N_bbox / Rxy * Ryz, 1/3.));
   // const int nz = (int)ceil(pow(N_bbox / Rxz / Ryz, 1/3.));
-  const int nx = max((int)floor(bbox_lx/vdist), 1);
-  const int ny = max((int)floor(bbox_ly/vdist), 1);
-  const int nz = max((int)floor(bbox_lz/vdist), 1);
+  const int nx = (int)floor(bbox_lx/vdist);
+  const int ny = (int)floor(bbox_ly/vdist);
+  const int nz = (int)floor(bbox_lz/vdist);
 
   // constructing regular grid of points within the bounding box
   const vector<Point3D> gridpoints =
-    generate_grid_3D(Point3D {bbox[0] + vdist/2, bbox[2] + vdist/2, bbox[4] + vdist/2},
-                     Point3D {bbox[1] - vdist/2, bbox[3] - vdist/2, bbox[5] - vdist/2},
+    generate_grid_3D(Point3D {bbox[0], bbox[2], bbox[4]},
+                     Point3D {bbox[1], bbox[3], bbox[5]},
                      nx, ny, nz);
+
+    // generate_grid_3D(Point3D {bbox[0] + vdist/2, bbox[2] + vdist/2, bbox[4] + vdist/2},
+    //                  Point3D {bbox[1] - vdist/2, bbox[3] - vdist/2, bbox[5] - vdist/2},
+    //                  nx, ny, nz);
 
   // keeping the points that fall within the shell
   const double TOL_FAC = 0.25 * vdist; // do not keep points too close to boundary
@@ -335,8 +388,8 @@ vector<Point2D> init_startpoints(const Point2D* const polygon,
   // computing amount of points needed to approximately cover the bounding box, where points
   // are approximately equidistant by 'vdist'
   const int N_bbox = (int)ceil(bbox_area * 3 / (PI * vdist * vdist));
-  const int nx = max((int)floor(sqrt(N_bbox * bbox_lx / bbox_ly)),1);
-  const int ny = max((int)floor(N_bbox/nx), 1);
+  const int nx = (int)floor(sqrt(N_bbox * bbox_lx / bbox_ly));
+  const int ny = (int)floor(N_bbox/nx);
 
   // constructing regular grid of points within the bounding box
   const vector<Point2D> gridpoints =
@@ -374,7 +427,7 @@ void optimize_interior_points(const Point3D* bpoints,
 
   // setting up function minimizer
   Go::FunctionMinimizer<PolyhedronEnergyFunctor>
-    funcmin(num_ipoints * 3, efun, (double* const)&ipoints[0], 1e-8); // @@ tolerance?
+    funcmin(num_ipoints * 3, efun, (double* const)&ipoints[0], 1e-1); // @@ tolerance?
 
   // do the minimization
   Go::minimise_conjugated_gradient(funcmin);
@@ -472,7 +525,7 @@ void PolyhedronEnergyFunctor::update_cache(const double* const arg) const
   if (cached_arg_.empty())
     cached_arg_.resize(3 * ni_);
   copy(arg, arg + 3 * ni_, &cached_arg_[0]);
-  cached_result_ = polyhedron_energy(bpoints_, btris_, nt_,
+  cached_result_ = polyhedron_energy(bpoints_, nb_, btris_, nt_,
                                      (const Point3D* const) &cached_arg_[0],
                                      ni_, r_);
 }

@@ -227,7 +227,7 @@ std::vector<P> inpolygon(const P* const pts, const unsigned int num_pts,
 // Check if a 3D point is inside a closed shell consisting of triangles
 template<typename P, typename T>
 bool inside_shell(const P& pt, const P* const bpoints, const T* const tris,
-                  const unsigned int num_tris, const double tol)
+                  const unsigned int num_tris, const double tol, bool& on_bnd)
 // ----------------------------------------------------------------------------    
 {
   // Checking horizontal ray against all triangles and determining the closest
@@ -235,6 +235,7 @@ bool inside_shell(const P& pt, const P* const bpoints, const T* const tris,
   // If there are one or more intersections, the sign of the closest
   // intersection determines whether the point is inside or outside.
   double dist_2 = std::numeric_limits<double>::infinity();
+  on_bnd = false; // only true if we detect the point to be exactly on boundary
   int sign = -1; // positive sign: ray is "piercing out of" shell
   for (auto t = tris; t != tris + num_tris; ++t) {
 
@@ -245,8 +246,10 @@ bool inside_shell(const P& pt, const P* const bpoints, const T* const tris,
     
     // first, check if point is _on_ triangle, in which case we exclude it (we
     // only seek true interior points)
-    if (point_on_triangle(pt, tri_p1, tri_p2, tri_p3, tol))
+    if (point_on_triangle(pt, tri_p1, tri_p2, tri_p3, tol)) {
+      on_bnd = true;
       return false;
+    }
 
     // check if horizontal ray intersect with this triangle, and if so, what the
     // signed distance to the intersection is.
@@ -264,6 +267,146 @@ bool inside_shell(const P& pt, const P* const bpoints, const T* const tris,
       }
   }
   return sign > 0;
+}
+
+// ----------------------------------------------------------------------------
+template<typename P, typename T>
+P closest_point_on_triangle_surface(const P& p,
+                                    const P* const surf_pts,
+                                    const unsigned int num_surf_pts,
+                                    const T* const surf_tris,
+                                    const uint num_tris,
+                                    uint& tri_ix)
+// ----------------------------------------------------------------------------
+{
+  // check distance to each node and find the closest one
+  std::vector<double> node_dists(num_surf_pts);
+  transform(surf_pts, surf_pts + num_surf_pts, node_dists.begin(),
+            [&p] (const P& p_cur) { return dist(p_cur, p); });
+  
+  const auto ix_min = min_element(node_dists.begin(), node_dists.end());
+  const uint pt_ix = uint(ix_min - node_dists.begin());
+  P closest_pt = surf_pts[pt_ix];
+  double closest_dist_2 = (*ix_min) * (*ix_min);
+  tri_ix = uint(find_if(surf_tris, surf_tris + num_tris,
+                        [pt_ix] (const Triangle& t) {
+                          return (t[0] == pt_ix) || (t[1] == pt_ix) || (t[2] == pt_ix);
+                        }) - surf_tris);
+  assert(tri_ix < num_tris); // there should be at least one triangle with this vertex
+  
+  // check distance to each face the point projects onto and see if there are
+  // any closer points than the corner point candidate we just found
+  const double num_tol = sqrt(std::numeric_limits<double>::epsilon());
+  double dist_2, area;
+  int sign;
+  std::array<P, 3> tricorners;
+  for (uint i = 0; i != num_tris; ++i) {
+    for (uint ii = 0; ii != 3; ++ii)
+      tricorners[ii] = surf_pts[surf_tris[i][ii]];
+    
+    if (projects_to_triangle(p, &tricorners[0], num_tol, dist_2, sign) &&
+        (dist_2 < closest_dist_2)) {
+      closest_dist_2 = dist_2;
+      closest_pt = p - sqrt(closest_dist_2) * triangle_normal(&tricorners[0], area);
+      tri_ix = i;
+    }
+  }
+  return closest_pt;
+}
+
+
+// ----------------------------------------------------------------------------
+template<typename P> inline
+P triangle_normal(const P* const tripoints, double& area)
+// ----------------------------------------------------------------------------
+{
+  P v1(tripoints[1]); v1 -= tripoints[0];
+  P v2(tripoints[2]); v2 -= tripoints[0];
+  P n; cross(v1, v2, n);
+  area = norm(n) / 2; // triangle area is half the parallelogram area
+  n /= (2*area); // normalize normal
+  return n;
+}
+
+
+// ----------------------------------------------------------------------------      
+template<typename P> inline
+bool point_on_triangle(const P& p, const P* const tripoints,
+                       const double tol, P& proj_pt, double& dist_to_plane,
+                       ProjectionType& ptype, P& edge_dir)
+// ----------------------------------------------------------------------------      
+{
+  // bounding box check
+  const auto bbox = bounding_box_3D(tripoints, 3);
+  for (uint i = 0; i != 3; ++i)
+    if ( (p[i] + tol < bbox[2*i]) || (p[i] - tol > bbox[2*i+1]))
+      return false;
+
+  // point is within bounding box.  What is its projection to the plane containing the
+  // triangle?
+  Point3D v1 = tripoints[1]; v1 -= tripoints[0];
+  Point3D v2 = tripoints[2]; v2 -= tripoints[0];
+  Point3D dp = p;            dp -= tripoints[0];
+  Point3D n; cross(v1, v2, n); n /= norm(n);  // n is normalized, but not v1 or v2
+  
+  const P param = solve_3D_matrix(v1, v2, n, dp);
+  dist_to_plane = param[2];
+  proj_pt = tripoints[0]; proj_pt += (v1 * param[0]); proj_pt += (v2 * param[1]);
+  
+  if (fabs(dist_to_plane) > tol)
+    return false; // too far from the plane containing the triangle
+  if (param[0] >= 0 && param[1] >= 0 && (param[0] + param[1]) <= 1) {
+    // point is inside triangle
+    ptype = INSIDE;
+    return true;
+  }
+  // point is sufficiently close to plane, but did not fall strictly inside the
+  // triangle. Check if it is sufficiently close to a boundary/corner.
+  std::array<Point3D, 3> proj_bnd;
+  std::array<double, 3> proj_dist2;
+  std::array<bool, 3> at_corner;
+  for (uint i = 0; i != 3; ++i) {
+    proj_bnd[i] = projected_point_on_segment(p,
+                                             tripoints[i], tripoints[(i+1)%3],
+                                             at_corner[i]);
+    proj_dist2[i] = dist2(p, proj_bnd[i]);
+  }
+  const auto dmin = std::min_element(proj_dist2.begin(), proj_dist2.end());
+  if (*dmin > tol*tol)
+    return false;// too far away from the boundary
+
+  // we are close enough to the boundary.
+  uint ix = uint(dmin - proj_dist2.begin());
+  edge_dir = tripoints[(ix+1)%3]; edge_dir -= tripoints[ix];
+  edge_dir = edge_dir / norm(edge_dir);
+  ptype = at_corner[ix] ? AT_CORNER : ON_EDGE;
+  proj_pt = proj_bnd[ix];
+  return true;
+}
+
+// ----------------------------------------------------------------------------    
+template<typename P> inline
+P projected_point_on_segment(const P& p, const P& a, const P&b, bool& at_corner)
+// ----------------------------------------------------------------------------    
+{
+  // find the projected point on the line the segment lies on
+  P dir = b; dir -= a;
+  double ba_dist = norm(dir); // remember the distance between b and a
+  dir /= ba_dist; // normalize vector pointing from a to b
+  P dp = p; dp -= a;
+  const double scalprod = dir[0] * dp[0] + dir[1] * dp[1] + dir[2] * dp[2];
+  if (scalprod <= 0 ) {
+    at_corner = true;
+    return a;
+  } else if (scalprod >= ba_dist) {
+    at_corner = true;
+    return b;
+  }
+      
+  // projection falls in interior of segmetn
+  at_corner = false;
+  P proj_on_line = a; proj_on_line += dir * scalprod;
+  return proj_on_line;
 }
 
 // ----------------------------------------------------------------------------      
@@ -327,9 +470,10 @@ std::vector<P> inside_shell(const P* const pts, const unsigned int num_pts,
 // ----------------------------------------------------------------------------    
 {
   std::vector<P> result;
+  bool on_bnd; // not used here
   std::copy_if(pts, pts + num_pts, std::back_inserter(result),
                [&](const P& p) {return inside_shell(p, bpoints, tris,
-                                                    num_tris, tol);});
+                                                    num_tris, tol, on_bnd);});
   return result;
 }
 
@@ -369,6 +513,26 @@ double projected_distance_to_line_3D(P p, P a, P b)
 
 }
 
+// ----------------------------------------------------------------------------
+template<typename P> inline
+double projected_distance_to_plane(const P& pt, const P* const tricorners, P& dir)
+// ----------------------------------------------------------------------------
+{
+  P v1 = tricorners[1]; v1 -= tricorners[0];
+  P v2 = tricorners[2]; v2 -= tricorners[0];
+  P n; cross(v1, v2, n); n /= norm(n); // normalized normal vector
+
+  P d = tricorners[0]; d -= pt;
+  double dist = -(d * n);
+
+  // determining direction vector FROM point TO triangle plane
+  dir = n;
+  if (dist > 0)
+    dir *= -1;
+
+  return dist;
+}
+  
 // ----------------------------------------------------------------------------    
 // Check if the point p is within distance 'tol' of the line segment defined by
 // points a and b

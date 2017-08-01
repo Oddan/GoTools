@@ -408,7 +408,7 @@ void test_linear_system()
 void test_polyhedron3D_tesselation()
 // ----------------------------------------------------------------------------
 {
-  //simplex corners
+  // cube corners
   // const vector<Point3D> bpoints { {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {1, 1, 0},
   //                                 {0, 0, 1}, {1, 0, 1}, {0, 1, 1}, {1, 1, 1}};
   
@@ -419,10 +419,12 @@ void test_polyhedron3D_tesselation()
   //   {1, 3, 5}, {3, 7, 5}, // right
   //   {0, 5, 4}, {0, 1, 5}, // front
   //   {2, 7, 3}, {2, 6, 7}}; // back
-        
+  // const double vdist = 0.25; //0.5;//1;//0.5;
+
+  // simplex corners
   const vector<Point3D> bpoints { {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
   const vector<Triangle> btris { {0, 2, 1}, {0, 1, 3}, {1, 2, 3}, {2, 0, 3} };
-  const  double vdist = 0.25;//0.15;
+  const  double vdist = 0.15;//0.15;
   
 
   

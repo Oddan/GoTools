@@ -17,6 +17,7 @@ ValAndDer<Point2D> polygon_energy(const Point2D* const bpoints,
 
 // ============================================================================
 ValAndDer<Point3D> polyhedron_energy(const Point3D* const bpoints,
+                                     const unsigned int num_bpoints,
                                      const Triangle* const btris,
                                      const unsigned int num_btris,
                                      const Point3D* const ipoints,

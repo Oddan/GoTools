@@ -16,6 +16,7 @@ ValAndDer<Point3D> internal_energy(const Point3D* const ipoints,
                                    const double vdist);
   
 ValAndDer<Point3D> boundary_energy(const Point3D* const bpoints,
+                                   const uint num_bpoints,
                                    const Triangle* const btris,
                                    const unsigned int num_btris,
                                    const Point3D* const ipoints,
@@ -26,6 +27,7 @@ void add_boundary_contribution(const Point3D* const bpoints,
 			       const Triangle& btri,
 			       const Point3D* const ipoints,
 			       const unsigned int num_ipoints,
+                               const int* const is_outside,
 			       const double vdist,
                                ValAndDer<Point3D>& result);
 
@@ -38,12 +40,31 @@ void accumulate_energy(const double dist,
 		       Point3D& p2_der_acc,
                        const bool are_mirror_points = false);
 
+
+void add_outside_penalty_energy(const uint ipoint_ix,
+                                const Point3D* const ipoints,
+                                const Point3D* const bpoints,
+                                const uint num_bpoints,
+                                const Triangle* const btris,
+                                const uint num_btris,
+                                const double vdist,
+                                ValAndDer<Point3D>& result);
+
+// ValAndDer<Point3D> boundary_energy_2(const Point3D* const bpoints,
+//                                      const uint num_bpoints,
+//                                      const Triangle* const btris,
+//                                      const unsigned int num_btris,
+//                                      const Point3D* const ipoints,
+//                                      const unsigned int num_ipoints,
+//                                      const double vdist);
+  
 }; // end anonymous namespace 
 
 namespace TesselateUtils {
 
 // ----------------------------------------------------------------------------
 ValAndDer<Point3D> polyhedron_energy(const Point3D* const bpoints,
+                                     const unsigned int num_bpoints,
                                      const Triangle* const btris,
                                      const unsigned int num_btris,
                                      const Point3D* const ipoints,
@@ -55,22 +76,33 @@ ValAndDer<Point3D> polyhedron_energy(const Point3D* const bpoints,
   //compute internal energy (potential energy between internal points)
   const ValAndDer<Point3D> E_int = internal_energy(ipoints, num_ipoints, vdist);
 
-  // compute boundary energy (energy from interaction between internal points
-  // and boundary points, and from internal points and their mirror points)
-  const ValAndDer<Point3D> E_bnd = boundary_energy(bpoints, btris, num_btris,
-                                                   ipoints, num_ipoints,
-                                                   vdist);
+  // // compute boundary energy (energy from interaction between internal points
+  // // and boundary points, and from internal points and their mirror points)
+
+  // compute boundary energy.  Divide 'vdist' by two to allow points to get a
+  // bit closer to boundary than to each other (and tighten penalty for getting
+  // even closer or trespassing boundary).
+  const ValAndDer<Point3D> E_bnd = boundary_energy(bpoints, num_bpoints, btris,
+                                                   num_btris, ipoints, num_ipoints,
+                                                   vdist/2); 
 
   // Adding up components and returning results
   ValAndDer<Point3D> E_tot = E_int;
 
+  // const double FAC = 5; // if number of internal points and 'vdist' is well
+  //                       // adjusted, this penalty factor should prevent
+  //                       // trespassing of outer boundaries.
+  // E_tot.val += FAC * E_bnd.val; 
+  // for (uint i = 0; i != (uint)E_tot.der.size(); ++i)
+  //   E_tot.der[i] += FAC * E_bnd.der[i];
+
   E_tot.val += E_bnd.val; 
   E_tot.der += E_bnd.der;
-
+  
   return E_tot;
 }
 
-}; // end namespace Go
+}; // end namespace TesselateUtils
 
 
 namespace {
@@ -123,8 +155,85 @@ void accumulate_energy(const double dist,
   
 }
 
+// // ----------------------------------------------------------------------------
+// uint dist_to_closest_tri(const Point3D& pt,
+//                          const Point3D* const bpoints,
+//                          uint num_bpoints,
+//                          const Triangle* const btris,
+//                          const unsigned int num_btris,
+//                          Point3D& dir,
+//                          double& dist)
+// // ----------------------------------------------------------------------------  
+// {
+//   // find closest bpoint
+//   const auto it = min_element(bpoints, bpoints + num_bpoints,
+//                               [&pt] (const Point3D& p1, const Point3D& p2) {
+//                                 return (dist2(p1, pt) < dist2(p2, pt));
+//                               });
+//   const uint pt_ix = uint(it - bpoints);
+
+//   // find all triangles sharing this point  @@ Large potential for optimization!
+//   vector<uint> neigh_tris;
+//   for (uint i = 0; i != num_btris; ++i) 
+//     if (find(btris[i].begin(), btris[i].end(), pt_ix) != btris[i].end())
+//       neigh_tris.push_back(i);
+
+//   // compute distances to the plane of these triangles
+//   assert(neigh_tris.size() > 0);
+//   array<Point3D, 3> tricorners;
+//   dist = numeric_limits<double>::infinity();
+//   uint closest_tri_ix = -1;
+//   for (uint i = 0; i != (uint)neigh_tris.size(); ++i) {
+//     const auto n = btris[neigh_tris[i]];
+//     for (uint i = 0; i != 3; ++i)
+//       tricorners[i] = bpoints[n[i]];
+
+//     Point3D cur_dir;
+//     double cur_dist = projected_distance_to_plane(pt, &tricorners[0], dir);
+//     if (cur_dist < dist) {
+//       dist = cur_dist;
+//       dir = cur_dir;
+//       closest_tri_ix = i;
+//     }
+//   }
+//   return closest_tri_ix;
+// }
+  
+// // ----------------------------------------------------------------------------
+// ValAndDer<Point3D> boundary_energy_2(const Point3D* const bpoints,
+//                                      const uint num_bpoints,
+//                                      const Triangle* const btris,
+//                                      const unsigned int num_btris,
+//                                      const Point3D* const ipoints,
+//                                      const unsigned int num_ipoints,
+//                                      const double vdist)
+// // ----------------------------------------------------------------------------
+// {
+//   ValAndDer<Point3D> result {0, vector<Point3D>(num_ipoints, {0.0, 0.0, 0.0})};
+//   for (uint i = 0; i != num_ipoints; ++i) {
+//     double dist;
+//     Point3D dir; // normalized direction vector from point to closest point on triangle plane
+//     dist_to_closest_tri(ipoints[i], bpoints, num_bpoints, btris, num_btris, dir, dist);
+    
+//     if (dist < 0) { // we are inside.  Compute energy as normal
+
+//       const array<double, 2> e = energy(fabs(dist), vdist);
+//       result.val += e[0];
+//       result.der[i]  += dir * (-e[1]);
+      
+//     } else { // we are outside
+
+//       const array<double, 2> e = energy(0, vdist);
+//       result.val += e[0]  - dist * e[1];
+//       result.der[i] -= dir * e[1];
+//     }
+//   }
+//   return result;
+// }
+  
 // ----------------------------------------------------------------------------
 ValAndDer<Point3D> boundary_energy(const Point3D* const bpoints,
+                                   const uint num_bpoints,
                                    const Triangle* const btris,
                                    const unsigned int num_btris,
                                    const Point3D* const ipoints,
@@ -134,15 +243,154 @@ ValAndDer<Point3D> boundary_energy(const Point3D* const bpoints,
 {
   ValAndDer<Point3D> result {0, vector<Point3D>(num_ipoints, {0.0, 0.0, 0.0})};
 
+  // detect points lying outside
+  vector<int> outside(num_ipoints);
+  transform(ipoints, ipoints + num_ipoints, outside.begin(), [&] (const Point3D& p) {
+      bool on_bnd = false;
+      bool inside = inside_shell(p, bpoints, btris, num_btris, 0, on_bnd);
+      return (!inside) && (!on_bnd);
+    });
+  
   // looping across boundary faces and adding their energy contributions
   for (uint i = 0; i != num_btris; ++i) 
-    add_boundary_contribution(bpoints, btris[i], ipoints, num_ipoints, vdist, result);
+    add_boundary_contribution(bpoints, btris[i], ipoints, num_ipoints,
+                              &outside[0], vdist, result);
+
+  // adding energy for points having exited the domain
+  for (uint i = 0; i != num_ipoints; ++i) {
+    if (outside[i])
+      add_outside_penalty_energy(i, ipoints, bpoints, num_bpoints, btris,
+                                 num_btris, vdist, result);
+  }
   
   return result;
 }
 
+// ----------------------------------------------------------------------------  
+void add_outside_penalty_energy(const uint ipoint_ix,
+                                const Point3D* const ipoints,
+                                const Point3D* const bpoints,
+                                const uint num_bpoints,
+                                const Triangle* const btris,
+                                const uint num_btris,
+                                const double vdist,
+                                ValAndDer<Point3D>& result)
+// ----------------------------------------------------------------------------
+{
+  // find the closest triangle the outside point projects to
+  const double NUMTOL = sqrt(numeric_limits<double>::epsilon());
+  const Point3D& p = ipoints[ipoint_ix];
+  uint tri_ix;
+  const Point3D cp = closest_point_on_triangle_surface(p, bpoints, num_bpoints,
+                                                       btris, num_btris, tri_ix);
+
+  // computing the derivative to be used
+  const auto e = energy(0, vdist);
+  const double der = fabs(e[1]); // derivative
+  Point3D d = p - cp;
+  const double dist = norm(d);
+  if (dist < NUMTOL * vdist) {
+    // we are basically on the triangle.  use triangle normal as direction vector
+    array<Point3D, 3> tripts {bpoints[btris[tri_ix][0]],
+                              bpoints[btris[tri_ix][1]],
+                              bpoints[btris[tri_ix][2]]};
+    cross(tripts[1] - tripts[0], tripts[2] - tripts[0], d);
+    d /= norm(d);
+  } else {
+    d /= dist; // normalize direction vector
+  }
+  const double penalty = e[0] + dist * der;
+
+  result.val += penalty;
+  result.der[ipoint_ix] += d * der;
+  
+}
+  
 // ----------------------------------------------------------------------------
 void add_boundary_contribution(const Point3D* const bpts, // boundary points
+			       const Triangle& btri,
+			       const Point3D* const ipoints,
+			       const unsigned int num_ipoints,
+                               const int* const is_outside,
+			       const double vdist,
+                               ValAndDer<Point3D>& result)
+// ----------------------------------------------------------------------------
+{
+  // identify the points within reach of the face
+  const array<Point3D, 3> tripts { bpts[btri[0]], bpts[btri[1]], bpts[btri[2]]};
+  const double NUMTOL = sqrt(numeric_limits<double>::epsilon());
+
+  for (uint i = 0; i != num_ipoints; ++i) {
+    if (is_outside[i])
+      continue;
+    
+    double dist_to_plane;
+    Point3D proj_pt, edge_dir;
+    ProjectionType ptype;
+    if (point_on_triangle(ipoints[i], &tripts[0], vdist, proj_pt,
+                          dist_to_plane, ptype, edge_dir)) {
+      // this point is sufficiently close to the triangle that there will be an
+      // energy involved.
+      Point3D dir = proj_pt - ipoints[i];
+      const double dist = norm(dir);
+      if (dist < NUMTOL * vdist) {
+        // direction 'dir' is degenerate.  We are basically on the triangle.  Use
+        // triangle normal as direction vector.
+        cross(tripts[1]-tripts[0], tripts[2] - tripts[0], dir);
+        dir /= norm(dir); // normal points out of plane, which is the same
+                          // direction as from point to plane, assuming the
+                          // point is on the 'inside'
+      } else {
+        dir /= dist; // normalize direction vector
+      }
+      const array<double, 2> e = energy(dist, vdist);
+      result.val += e[0];
+      result.der[i] -= (dir * e[1]);
+      
+      // switch (ptype) {
+      // case INSIDE:
+      //   result.der[i] += (dir * e[1]);
+      //   break;
+      // case ON_EDGE:
+      //   __FILL ME OUT__;
+      //   break;
+      // case AT_CORNER:
+      //   result.der 
+      //   break
+      // default:
+      //   throw logic_error("Should never get here.");
+      // }
+    }
+  }
+  
+    
+
+  // we need to know
+  // - in front or in back?
+  // - projects to triangle or outside triangle
+  // - if projects outside, what point on the boundary does it project to, and what is the
+  //   angle netween the point-projection and the face normal
+
+  
+}
+
+//     if (dist < 0) { // we are inside.  Compute energy as normal
+
+//       const array<double, 2> e = energy(fabs(dist), vdist);
+//       result.val += e[0];
+//       result.der[i]  += dir * (-e[1]);
+      
+//     } else { // we are outside
+
+//       const array<double, 2> e = energy(0, vdist);
+//       result.val += e[0]  - dist * e[1];
+//       result.der[i] -= dir * e[1];
+//     }
+//   }
+
+
+// ----------------------------------------------------------------------------
+void add_boundary_contribution_old(const Point3D* const bpts, // boundary points
 			       const Triangle& btri,
 			       const Point3D* const ipoints,
 			       const unsigned int num_ipoints,
@@ -225,7 +473,8 @@ array<double, 2> energy(double dist, double R)
 {
   const double tmp = max(R-dist, double(0));
   const double tmp2 = tmp*tmp;
-  return {tmp2 * tmp2, -4 * tmp*tmp*tmp}; // energy and derivative
+  const double R4 = R*R*R*R; // normalizing factor so that E(0) = 1
+  return {tmp2 * tmp2/R4, -4 * tmp*tmp*tmp/R4}; // energy and derivative
 }
 
 }; // end namespace Go

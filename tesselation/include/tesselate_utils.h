@@ -109,7 +109,7 @@ std::vector<P> inpolygon(const P* const pts, const unsigned int num_pts,
 // Check if a 3D point is inside a closed shell consisting of triangles
 template<typename P, typename T>
 bool inside_shell(const P& pt, const P* const bpoints, const T* const tris,
-                  const unsigned int num_tris, const double tol);
+                  const unsigned int num_tris, const double tol, bool& on_bnd);
 // ----------------------------------------------------------------------------    
 
 // ----------------------------------------------------------------------------
@@ -120,7 +120,20 @@ std::vector<P> inside_shell(const P* const pts, const unsigned int num_pts,
                             const P* const bpoints, const T* const tris,
                             const unsigned int num_tris, const double tol);
 // ----------------------------------------------------------------------------    
-  
+
+// ----------------------------------------------------------------------------
+// Find the point on the triangulated surface that is closest to the point 'p'.
+// The index to one triangle containing this point (which may not be unique) is
+// returned in 'tri_ix'.
+template<typename P, typename T>
+P closest_point_on_triangle_surface(const P& p,
+                                    const P* const surf_pts,
+                                    const unsigned int num_surf_pts,
+                                    const T* const surf_tris,
+                                    const uint num_tris,
+                                    uint& tri_ix);
+// ----------------------------------------------------------------------------
+
 // ----------------------------------------------------------------------------
 // 'p' is the point we want to compute distance from.  'a' and 'b' are two
 // distinct points on the infinite line (thus defining the line).  The returned
@@ -129,6 +142,15 @@ std::vector<P> inside_shell(const P* const pts, const unsigned int num_pts,
 template<typename P> double projected_distance_to_line_2D(P p, P a, P b);
 template<typename P> double projected_distance_to_line_3D(P p, P a, P b);
 // ----------------------------------------------------------------------------    
+
+// ----------------------------------------------------------------------------
+// Return the projected distance from the point to the plane defined by the
+// three points in 'tricorners'.  The normalized direction vector from the point
+// to the plane will be written to 'dir'.
+template<typename P> inline
+double projected_distance_to_plane(const P& pt, const P* const tricorners, P& dir);
+// ----------------------------------------------------------------------------
+
 
 // ----------------------------------------------------------------------------    
 // Check if the point p is within distance 'tol' of the line segment defined by
@@ -142,13 +164,39 @@ bool point_on_line_segment(const P& p, const P& a, const P& b, double tol, bool 
 template<typename P> inline
 bool point_on_triangle(const P& p, const P& c1, const P& c2, const P& c3,
                        const double tol);
+// ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+template<typename P> inline
+P triangle_normal(const P* const tripoints, double& area);
+// ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+enum ProjectionType { // whether the projected point on the triangle falls
+  INSIDE,             // inside the triangle, on its edge or in one of its corners
+  ON_EDGE,
+  AT_CORNER
+};
+// Report whether or not a given point 'p' is within distance 'tol' of a
+// triangle specified by corners 'tripoints'.  If it is the case, a certain
+// amount of additional information is provided.  This includes the position of
+// the projected point itself ('proj_pt'), the signed, normal distance from 'p' the
+// plane containing the triangle, the projection type (whether 'proj_pt' is
+// found inside the triangle, along one of its edges or at one of its corners),
+// and in the case of a projected point located on an edge, the normalized
+// direction vector of that edge.
+template<typename P> inline
+bool point_on_triangle(const P& p, const P* const tripoints,
+                       const double tol, P& proj_pt, double& dist_to_plane,
+                       ProjectionType& ptype, P& edge_dir);
 // ----------------------------------------------------------------------------      
 
 // ----------------------------------------------------------------------------      
 template<typename P> inline
 bool triangle_area_3D(const P& c1, const P& c2, const P& c3);
 // ----------------------------------------------------------------------------      
-  
+
+
 // ----------------------------------------------------------------------------
 // Check if a perpendicular projection of a 3D point onto the plane of the
 // triangle falls inside the triangle.  If so, the output variables 'dist_2' and
@@ -166,6 +214,11 @@ bool projects_to_triangle(const P& pt, const P* const tricorners, const double t
 // segment ab.
 template<typename P> inline
 bool projects_to_segment(const P& p, const P& a, const P&b);
+// ----------------------------------------------------------------------------    
+
+// ----------------------------------------------------------------------------    
+template<typename P> inline  // only makes sense in 3D!
+P projected_point_on_segment(const P& p, const P& a, const P&b, bool& at_corner);
 // ----------------------------------------------------------------------------    
 
 // ----------------------------------------------------------------------------

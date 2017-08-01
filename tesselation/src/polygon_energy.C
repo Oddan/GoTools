@@ -208,7 +208,8 @@ array<double, 2> energy(double dist, double R)
 {
   const double tmp = max(R-dist, double(0));
   const double tmp2 = tmp*tmp;
-  return {tmp2 * tmp2, -4 * tmp*tmp*tmp}; // energy and derivative
+  const double R4 = R*R*R*R; // normalizing factor so that E(0) = 1
+  return {tmp2 * tmp2/R4, -4 * tmp*tmp*tmp/R4}; // energy and derivative
 }
 
 }; // end namespace Go

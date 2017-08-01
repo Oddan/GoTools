@@ -189,13 +189,14 @@ ParallelState check_coplanar_state(const Point3D* const tri1,
                                    double tol)
 // ----------------------------------------------------------------------------
 {
+  const double ANGLE_TOL = 1e-6; // This is not a distance tolerance, so we don't use 'tol'
   Point3D n1; cross(tri1[1] - tri1[0], tri1[2] - tri1[0], n1);
   n1 /= norm(n1);
   Point3D n2; cross(tri2[1] - tri2[0], tri2[2] - tri2[0], n2);
   n2 /= norm(n2);
 
   Point3D tmp; cross(n1, n2, tmp);
-  if (norm(tmp) < tol) {
+  if (norm(tmp) < ANGLE_TOL) {
     // plane are parallel - but are they identical?  take the distance from one
     // point in each plane, and see if it has a non-neglible component along the
     // normal vector.
@@ -213,11 +214,12 @@ ParallelState check_colinear_state(const Point2D* const seg1,
                                    double tol)
 // ----------------------------------------------------------------------------
 {
+  const double ANGLE_TOL = 1e-6; // This is not a distance tolerance, so we don't use 'tol'
   Point2D u = seg1[1] - seg1[0]; u /= norm(u);
   Point2D v = seg2[1] - seg2[0]; v /= norm(v);
   const double tmp = u[0] * v[1] - u[1] * v[0];
 
-  if (fabs(tmp) < tol) {
+  if (fabs(tmp) < ANGLE_TOL) {
     // lines defined by segments are parallel - but are they identical?
     Point2D w = seg2[0] - seg1[0];
     const double tmp2 = u[0] * w[1] - u[1] * w[0];
@@ -233,10 +235,11 @@ ParallelState check_colinear_state(const Point3D* const seg1,
                                    double tol)
 // ----------------------------------------------------------------------------
 {
+  const double ANGLE_TOL = 1e-6; // This is not a distance tolerance, so we don't use 'tol'
   Point3D u = seg1[1] - seg1[0]; u /= norm(u);
   Point3D v = seg2[1] - seg2[0]; v /= norm(v);
   const double tmp = norm(u ^ v);
-  if (tmp < tol) {
+  if (tmp < ANGLE_TOL) {
     // lines defined by segments are paralel - but are they colinear?
     Point3D w = seg2[0] - seg1[0];
     const double tmp2 = norm(u ^ w);
