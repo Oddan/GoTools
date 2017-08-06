@@ -3,6 +3,7 @@
 
 #include <utility>
 #include "common_defs.h"
+#include "clip_grid.h"
 
 namespace TesselateUtils {
 
@@ -11,7 +12,8 @@ ValAndDer<Point2D> polygon_energy(const Point2D* const bpoints,
                                   const unsigned int num_bpoints,
                                   const Point2D* const ipoints,
                                   const unsigned int num_ipoints,
-                                  const double vdist);
+                                  const double vdist,
+                                  const ClippedGrid<2>* const = nullptr); // optional
 // ============================================================================
 
 

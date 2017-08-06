@@ -256,6 +256,7 @@ ValAndDer<Point3D> boundary_energy(const Point3D* const bpoints,
     add_boundary_contribution(bpoints, btris[i], ipoints, num_ipoints,
                               &outside[0], vdist, result);
 
+  
   // adding energy for points having exited the domain
   for (uint i = 0; i != num_ipoints; ++i) {
     if (outside[i])

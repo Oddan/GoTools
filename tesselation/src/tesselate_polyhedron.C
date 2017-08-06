@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <cmath>
 #include <algorithm>
+#include "clip_grid.h"
 #include "tesselate_utils.h"
 #include "tesselate_polyhedron.h"
 #include "polyhedral_energies.h"
@@ -39,6 +40,10 @@ private:
   const unsigned int ni_; // num interior points
   const double r_; // radius
   const std::array<double, 4> bbox_; // bounding box
+  const ClippedGrid<2> cgrid_; // precomputed classification of subdivided
+                               // domain parts, according to their relationship
+                               // to the polygon boundary (inside, outside,
+                               // etc.).  Used to improve computational efficiency.
 
   mutable ValAndDer<Point2D> cached_result_;
   mutable vector<double> cached_arg_;
@@ -217,9 +222,9 @@ Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
 
   cout << "Finished optimization of " << ipoints.size() << " internal points." << endl;
 
-  // ofstream os("krull.mat");
-  // copy(ipoints.begin(), ipoints.end(), ostream_iterator<Point3D>(os, " "));
-  // os.close(); // @@@
+  ofstream os("krull.mat");
+  copy(ipoints.begin(), ipoints.end(), ostream_iterator<Point3D>(os, " "));
+  os.close(); // @@@
 
 
   
@@ -455,7 +460,10 @@ void optimize_interior_points(const Point2D* const polygon,
     funcmin(num_ipoints * 2, efun, (double* const)&ipoints[0], 1e-1);//1e-1); // @@ TOLERANCE?
   
   // do the minimization
-  Go::minimise_conjugated_gradient(funcmin);
+  const double STOPTOL = 1e-4; // @@ is this always sufficiently good?  (Default
+                               // in 'minimise_conjugated_gradient' is machine
+                               // precision) for this tolerance.
+  Go::minimise_conjugated_gradient(funcmin, STOPTOL);
 
   // copying results back.  The cast is based on the knowledge that Points2D
   // consists of POD and that points are stored contiguously in memory
@@ -537,7 +545,8 @@ PolygonEnergyFunctor::PolygonEnergyFunctor(const Point2D* const polygon,
 					   const double radius)
 // ----------------------------------------------------------------------------    
   : poly_(polygon), nc_(num_corners), ni_(num_ipoints), r_(radius),
-    bbox_(bounding_box_2D(polygon, num_corners))
+    bbox_(bounding_box_2D(polygon, num_corners)),
+    cgrid_(clip_grid_polygon_2D(polygon, num_corners, radius, 100, 100)) // @@ 80 hard-coded here
 {}
 
 // ----------------------------------------------------------------------------    
@@ -548,9 +557,10 @@ void PolygonEnergyFunctor::update_cache(const double* const arg) const
     cached_arg_.resize(2*ni_);
 
   copy(arg, arg + 2 * ni_, &cached_arg_[0]);
+  //cout << "updating cache." << endl;
   cached_result_ = polygon_energy(poly_, nc_,
 				  (const Point2D* const) &cached_arg_[0],
-				  ni_, r_);
+				  ni_, r_, &cgrid_);
 }
 
 // ----------------------------------------------------------------------------    

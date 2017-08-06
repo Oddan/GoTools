@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <cmath>
 #include <random>
+#include <iostream> // @@ just for debuging
 #include "common_defs.h"
 #include "lu.h"
 namespace TesselateUtils
@@ -153,7 +154,7 @@ std::vector<T> flatten(const std::vector<std::vector<T>>& arg)
 // Check if a point is inside a polygon
 template<typename P>
 bool inpolygon(const P& pt, const P* const poly, 
-	       const unsigned int num_corners, const double tol)
+	       const unsigned int num_corners, const double tol, bool& on_boundary)
 // ----------------------------------------------------------------------------      
 {
   // count the number of intersections of polygonal line segments and the ray
@@ -167,8 +168,10 @@ bool inpolygon(const P& pt, const P* const poly,
 
     // First, check if point is _on_ the edge, in which case we exclude it (we
     // only seek those that are true interior points)
-    if (point_on_line_segment(pt, p1, p2, tol, false))
+    if (point_on_line_segment(pt, p1, p2, tol, false)) {
+      on_boundary = true;
       return false;
+    }
     
     // case where startpoint of segment is exactly on the ray
     if (p1[1] == pt[1]) {
@@ -205,8 +208,8 @@ bool inpolygon(const P& pt, const P* const poly,
     }
   }
   
-  return (isects % 2 == 1);
-  
+  on_boundary = false;
+  return (isects % 2 == 1);  
 }
   
 // ----------------------------------------------------------------------------
@@ -217,9 +220,10 @@ std::vector<P> inpolygon(const P* const pts, const unsigned int num_pts,
 			 const double tol)
 // ----------------------------------------------------------------------------    
 {
+  bool on_bnd; // % we don't use it here
   std::vector<P> result;
   std::copy_if(pts, pts + num_pts, std::back_inserter(result),
-	       [&](const P& p) {return inpolygon(p, poly, num_corners, tol);});
+	       [&](const P& p) {return inpolygon(p, poly, num_corners, tol, on_bnd);});
   return result;
 }
 
@@ -366,7 +370,7 @@ bool point_on_triangle(const P& p, const P* const tripoints,
   std::array<double, 3> proj_dist2;
   std::array<bool, 3> at_corner;
   for (uint i = 0; i != 3; ++i) {
-    proj_bnd[i] = projected_point_on_segment(p,
+    proj_bnd[i] = projected_point_on_segment<Point3D, 3>(p,
                                              tripoints[i], tripoints[(i+1)%3],
                                              at_corner[i]);
     proj_dist2[i] = dist2(p, proj_bnd[i]);
@@ -384,8 +388,75 @@ bool point_on_triangle(const P& p, const P* const tripoints,
   return true;
 }
 
+// ----------------------------------------------------------------------------  
+template<typename P>
+P closest_point_on_2D_boundary(const P& p,
+                               const P* const bpoints,
+                               const unsigned int num_bpoints,
+                               uint& seg_ix)
+// ----------------------------------------------------------------------------  
+{
+  // check distance to each node and find the closest one
+  std::vector<double> node_dists(num_bpoints);
+  transform(bpoints, bpoints + num_bpoints, node_dists.begin(),
+            [&p] (const P& p_cur) { return dist(p_cur, p);});
+
+  const auto ix_min = min_element(node_dists.begin(), node_dists.end());
+  seg_ix = uint(ix_min - node_dists.begin());
+  P closest_pt = bpoints[seg_ix];
+  double closest_dist_2 = (*ix_min) * (*ix_min);
+
+  // check distance to each segment the point projects onto, and see if there
+  // are any closer points than the corner points we just searched in
+  //const double num_tol = sqrt(std::numeric_limits<double>::epsilon());
+  for (uint i = 0; i != num_bpoints; ++i) {
+    if (projects_to_segment(p, bpoints[i], bpoints[(i+1) % num_bpoints])) {
+      bool at_corner; // set in function call below
+      const P proj_pt = projected_point_on_segment<Point2D, 2>(p,
+                                                               bpoints[i],
+                                                               bpoints[(i+1)%num_bpoints],
+                                                               at_corner);
+      const double d2 = dist2(p, proj_pt);
+      if (d2 < closest_dist_2) {
+        closest_dist_2 = d2;
+        closest_pt = proj_pt;
+        seg_ix = i;
+      }
+    }
+  }
+  return closest_pt;
+}
+
+// // ----------------------------------------------------------------------------    
+// template<typename P, int Dim> inline 
+// P projected_point_on_segment(const P p, const P& a, const P&b, bool& at_corner)
+// // ----------------------------------------------------------------------------    
+// {
+//   // find the projected point on the line the segment lies on
+//   P dir = b; dir -= a;
+//   double ba_dist_2 = norm2(dir); // remember the distance between b and a
+//   //dir /= ba_dist; // normalize vector pointing from a to b
+//   p -= a; // becomes 'dp'
+//   double scalprod = 0;
+//   for (uint i = 0; i != 3; ++i)
+//     scalprod += dir[i] * p[i];
+
+//   if (scalprod <= 0 ) {
+//     at_corner = true;
+//     return a;
+//   } else if (scalprod >= ba_dist_2) {
+//     at_corner = true;
+//     return b;
+//   }
+      
+//   // projection falls in interior of segment
+//   at_corner = false;
+//   P proj_on_line = a; proj_on_line += dir * (scalprod / ba_dist_2);
+//   return proj_on_line;
+// }
+
 // ----------------------------------------------------------------------------    
-template<typename P> inline
+template<typename P, int Dim> inline 
 P projected_point_on_segment(const P& p, const P& a, const P&b, bool& at_corner)
 // ----------------------------------------------------------------------------    
 {
@@ -394,7 +465,10 @@ P projected_point_on_segment(const P& p, const P& a, const P&b, bool& at_corner)
   double ba_dist = norm(dir); // remember the distance between b and a
   dir /= ba_dist; // normalize vector pointing from a to b
   P dp = p; dp -= a;
-  const double scalprod = dir[0] * dp[0] + dir[1] * dp[1] + dir[2] * dp[2];
+  double scalprod = 0;
+  for (uint i = 0; i != 3; ++i)
+    scalprod += dir[i] * dp[i];
+
   if (scalprod <= 0 ) {
     at_corner = true;
     return a;
@@ -403,7 +477,7 @@ P projected_point_on_segment(const P& p, const P& a, const P&b, bool& at_corner)
     return b;
   }
       
-  // projection falls in interior of segmetn
+  // projection falls in interior of segment
   at_corner = false;
   P proj_on_line = a; proj_on_line += dir * scalprod;
   return proj_on_line;
@@ -540,6 +614,16 @@ template<typename P> inline
 bool point_on_line_segment(const P& p, const P& a, const P& b, double tol, bool in_3D)
 // ----------------------------------------------------------------------------    
 {
+  // bounding box check
+  if ((p[0] < a[0] - tol) && (p[0] < b[0] - tol)) return false;
+  if ((p[0] > a[0] + tol) && (p[0] > b[0] + tol)) return false;
+  if ((p[1] < a[1] - tol) && (p[1] < b[1] - tol)) return false;
+  if ((p[1] > a[1] + tol) && (p[1] > b[1] + tol)) return false;
+  if (in_3D) {
+    if ((p[2] < a[2] - tol) && (p[2] < b[2] - tol)) return false;
+    if ((p[2] > a[2] + tol) && (p[2] > b[2] + tol)) return false;
+  }
+  
   const double tol2 = tol * tol;
   const double dpa2 = dist2(p,a);
   if (dpa2 < tol2) return true;
@@ -765,14 +849,14 @@ P solve_3D_matrix(const P& c1, const P& c2, const P& c3, const P& rhs)
 // ----------------------------------------------------------------------------
 // Solve N-sized linear system.  Result vector will be written to array pointed
 // to by 'result'.  Function returns 'true' if success.
-template<int N> inline
+template<int N> 
 bool solve_linear_system(const double* const m,
                          const double* const rhs,
                          double* const result)
 // ----------------------------------------------------------------------------  
 {
   // compute LU decomposition
-  std::array<double, N*N> coefs; std::copy(m, m + N * N, coefs.begin());
+  std::vector<double> coefs(N*N, 0); std::copy(m, m + N * N, coefs.begin());
   std::array<int, N> perm;
   bool parity;
   bool success = lu(N, &coefs[0], &perm[0], parity);

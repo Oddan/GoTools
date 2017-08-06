@@ -94,7 +94,9 @@ std::vector<T> flatten(const std::vector<std::vector<T>>& arg);
 // ----------------------------------------------------------------------------
 // Check if a point is inside a polygon
 template<typename P> bool inpolygon(const P& pt, const P* const poly, 
-				    const unsigned int num_corners, const double tol);
+				    const unsigned int num_corners,
+                                    const double tol,
+                                    bool& on_boundary);
 // ----------------------------------------------------------------------------      
   
 // ----------------------------------------------------------------------------
@@ -134,6 +136,15 @@ P closest_point_on_triangle_surface(const P& p,
                                     uint& tri_ix);
 // ----------------------------------------------------------------------------
 
+// ----------------------------------------------------------------------------  
+template<typename P>
+P closest_point_on_2D_boundary(const P& p,
+                               const P* const bpoints,
+                               const unsigned int num_bpoints,
+                               uint& seg_ix);
+// ----------------------------------------------------------------------------  
+
+  
 // ----------------------------------------------------------------------------
 // 'p' is the point we want to compute distance from.  'a' and 'b' are two
 // distinct points on the infinite line (thus defining the line).  The returned
@@ -217,7 +228,7 @@ bool projects_to_segment(const P& p, const P& a, const P&b);
 // ----------------------------------------------------------------------------    
 
 // ----------------------------------------------------------------------------    
-template<typename P> inline  // only makes sense in 3D!
+template<typename P, int Dim> inline  
 P projected_point_on_segment(const P& p, const P& a, const P&b, bool& at_corner);
 // ----------------------------------------------------------------------------    
 

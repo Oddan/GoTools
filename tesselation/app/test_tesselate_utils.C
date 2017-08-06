@@ -12,6 +12,7 @@
 #include "tesselate_polyhedron.h"
 #include "fit_points_to_plane.h"
 #include "basic_intersections.h"
+#include "clip_grid.h"
 
 using namespace Go;
 using namespace std;
@@ -34,6 +35,8 @@ namespace Test {
   void test_polyhedron3D_tesselation();
   void test_circumsphere();
   void test_triangle_intersection();
+  void test_solve_linear_system();
+  void test_clip_grid();  
 };
 
 // ============================================================================
@@ -63,8 +66,8 @@ int main() {
   // cout << "testing segment intersection: " << endl;
   // Test::test_segment_intersection();
   
-  // cout << "testing triangulation generation: " << endl;
-  // Test::test_triangulation();
+  cout << "testing triangulation generation: " << endl;
+  Test::test_triangulation();
 
   // cout << "testing plane fitting: " << endl;
   // Test::test_fit_to_plane();
@@ -75,13 +78,17 @@ int main() {
   // cout << "testing linear system solving: " << endl;
   // Test::test_linear_system();
 
-  cout << "Testing tesselation of 3D polyhedron: " << endl;
-  Test::test_polyhedron3D_tesselation();
+  // cout << "Testing tesselation of 3D polyhedron: " << endl;
+  // Test::test_polyhedron3D_tesselation();
 
   // cout << "Testing circumsphere: " << endl;
   // Test::test_circumsphere();
   
   // Test::test_triangle_intersection();
+
+  //Test::test_solve_linear_system();
+
+  // Test::test_clip_grid();
   
   return 0;
 };
@@ -422,12 +429,26 @@ void test_polyhedron3D_tesselation()
   // const double vdist = 0.25; //0.5;//1;//0.5;
 
   // simplex corners
-  const vector<Point3D> bpoints { {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
-  const vector<Triangle> btris { {0, 2, 1}, {0, 1, 3}, {1, 2, 3}, {2, 0, 3} };
-  const  double vdist = 0.15;//0.15;
+  // const vector<Point3D> bpoints { {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+  // const vector<Triangle> btris { {0, 2, 1}, {0, 1, 3}, {1, 2, 3}, {2, 0, 3} };
+  // const  double vdist = 0.15;//0.15;
   
-
-  
+  // extruded "hexagon"
+  const double C = sqrt(3)* 0.5;
+  const vector<Point3D> bpoints {
+    {1, 0, 0}, {0.5, C, 0}, {-0.5, C, 0}, {-1, 0, 0}, {-0.5, -C, 0}, {0.5, -C, 0},
+    {1, 0, 1}, {0.5, C, 1}, {-0.5, C, 1}, {-1, 0, 1}, {-0.5, -C, 1}, {0.5, -C, 1}};
+  const vector<Triangle> btris 
+    { {0, 6, 5}, {6, 11, 5},
+      {1, 7, 0}, {7,  6, 0},
+      {2, 8, 1}, {8, 7, 1},
+      {2, 9, 8}, {9, 2, 3},
+      {3, 4, 10}, {3, 10, 9},
+      {4, 5, 10}, {5, 11, 10},
+      {11, 6, 7}, {11,7,8}, {11, 8, 10}, {10, 8, 9},
+      {5, 1, 0}, {5, 2, 1}, {5, 4, 2}, {4, 3, 2}};
+    const double vdist = 0.4;
+                                
   const auto mesh = tesselatePolyhedron3D(&bpoints[0], (uint)bpoints.size(),
                                           &btris[0], (uint)btris.size(),
                                           vdist);
@@ -502,10 +523,45 @@ void test_triangle_intersection()
   cout << "t6: " << isect_triangle_triangle_3D(&ref[0], &t6[0], tol) << endl;
   cout << "t7: " << isect_triangle_triangle_3D(&ref[0], &t7[0], tol) << endl;
   
+}
 
-  
+// ----------------------------------------------------------------------------
+void test_solve_linear_system()
+// ----------------------------------------------------------------------------
+{
+  const int N = 2000;
+  vector<double> m(N*N, 0);
+  vector<double> rhs(N,0);
+  vector<double> result(N,0);
+  generate(m.begin(), m.end(), []() {return random_uniform(-1, 1);});
+  generate(rhs.begin(), rhs.end(), []() {return random_uniform(-1, 1);});
 
+  const bool succeed = solve_linear_system<N>(&m[0], &rhs[0], &result[0]);
+}
+
+// ----------------------------------------------------------------------------
+void test_clip_grid()
+// ----------------------------------------------------------------------------
+{
+  // vector<Point2D> corners = {{0, 1}, {1, 0}, {2, 1}, {1, 2}};
+  // vector<Point2D> corners = {{0, 0}, {1, 0}, {1, 1}, {0, 1}};
+  vector<Point2D> corners = {{0,1}, {0.5, 1}, {0.5, 0}, {1, 0}, {1, 1}, {1.5, 1},
+                             {0.75, 2}};
   
+  const double vdist = 0.21;
+  const uint res_x = 43;
+  const uint res_y = 43;
+  
+  const ClippedGrid<2> cg = clip_grid_polygon_2D(&corners[0], (uint)corners.size(),
+                                                 vdist, res_x, res_y);
+
+  cout << "bbox:\n";
+  copy(cg.bbox.begin(), cg.bbox.end(), ostream_iterator<double>(cout, ", "));
+  cout << "\nres:\n";
+  copy(cg.res.begin(), cg.res.end(), ostream_iterator<double>(cout, ", "));
+  cout << "\ntype:\n";
+  copy(cg.type.begin(), cg.type.end(), ostream_iterator<double>(cout, ", "));
+  cout << endl;
 }
 
 };
