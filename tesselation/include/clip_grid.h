@@ -32,6 +32,21 @@ ClippedGrid<2> clip_grid_polygon_2D(const Point2D* const pcorners,
                                     const uint res_x,
                                     const uint res_y);
 // ----------------------------------------------------------------------------
+
+
+// ----------------------------------------------------------------------------
+ClippedGrid<3> clip_grid_shell_3D(const Point3D* const pcorners,
+                                  const uint num_pcorners,
+                                  const Triangle* const tris,
+                                  const uint num_tris,
+                                  const double vdist,
+                                  const uint res_x,
+                                  const uint res_y,
+                                  const uint res_z);
+// ----------------------------------------------------------------------------
+  
+
+
   
 }; // end namespace TesselateUtils
 

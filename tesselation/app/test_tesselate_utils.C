@@ -36,7 +36,8 @@ namespace Test {
   void test_circumsphere();
   void test_triangle_intersection();
   void test_solve_linear_system();
-  void test_clip_grid();  
+  void test_clip_grid_2D();
+  void test_clip_grid_3D();    
 };
 
 // ============================================================================
@@ -66,8 +67,8 @@ int main() {
   // cout << "testing segment intersection: " << endl;
   // Test::test_segment_intersection();
   
-  cout << "testing triangulation generation: " << endl;
-  Test::test_triangulation();
+  // cout << "testing triangulation generation: " << endl;
+  // Test::test_triangulation();
 
   // cout << "testing plane fitting: " << endl;
   // Test::test_fit_to_plane();
@@ -88,7 +89,9 @@ int main() {
 
   //Test::test_solve_linear_system();
 
-  // Test::test_clip_grid();
+  //Test::test_clip_grid_2D();
+
+  Test::test_clip_grid_3D();
   
   return 0;
 };
@@ -540,7 +543,7 @@ void test_solve_linear_system()
 }
 
 // ----------------------------------------------------------------------------
-void test_clip_grid()
+void test_clip_grid_2D()
 // ----------------------------------------------------------------------------
 {
   // vector<Point2D> corners = {{0, 1}, {1, 0}, {2, 1}, {1, 2}};
@@ -562,6 +565,29 @@ void test_clip_grid()
   cout << "\ntype:\n";
   copy(cg.type.begin(), cg.type.end(), ostream_iterator<double>(cout, ", "));
   cout << endl;
+}
+
+// ----------------------------------------------------------------------------
+void test_clip_grid_3D()
+// ----------------------------------------------------------------------------
+{
+  //vector<Point3D> corners = { {0, 0, 0}, {1, 0, 0}, {0, 1, 0} };
+  vector<Point3D> corners = { {1, 0, 0}, {0, 1, 0}, {0, 0, 1} };
+  Triangle tri = {0, 1, 2};
+
+  uint res_x = 20;//70; //4;
+  uint res_y = 20;//70; //4;
+  uint res_z = 20;//70; //8;
+  
+  const auto cg = clip_grid_shell_3D(&corners[0], 3, &tri, 1, 0.1, res_x, res_y, res_z);
+
+  cout << "bbox:\n";
+  copy(cg.bbox.begin(), cg.bbox.end(), ostream_iterator<double>(cout, ", "));
+  cout << "\nres:\n";
+  copy(cg.res.begin(), cg.res.end(), ostream_iterator<double>(cout, ", "));
+  cout << "\ntype:\n";
+  copy(cg.type.begin(), cg.type.end(), ostream_iterator<double>(cout, ", "));
+  cout << endl;  
 }
 
 };
