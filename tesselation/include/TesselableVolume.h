@@ -198,13 +198,13 @@ void TesselableVolume<BoundedSpaceTraits>::update_triangle_indices()
   }
 }
 
-// ----------------------------------------------------------------------------    
-template<typename BoundedSpaceTraits> inline
-void TesselableVolume<BoundedSpaceTraits>::update_tet_indices()
-// ----------------------------------------------------------------------------    
-{
-  std::cout << "Warning: update_tet_indices() not yet implemented.  Skipping." << std::endl;
-}
+// // ----------------------------------------------------------------------------    
+// template<typename BoundedSpaceTraits> inline
+// void TesselableVolume<BoundedSpaceTraits>::update_tet_indices()
+// // ----------------------------------------------------------------------------    
+// {
+//   std::cout << "Warning: update_tet_indices() not yet implemented.  Skipping." << std::endl;
+// }
   
 // ----------------------------------------------------------------------------  
 template<typename BoundedSpaceTraits>
@@ -238,8 +238,12 @@ inline void TesselableVolume<BoundedSpaceTraits>::tesselate(const double vdist)
   compute_tesselation(facePoints(), flatten(face_triangles_),
                       volume_, vdist, volume_ipoints_, volume_tets_);
 
-  // make globally consistent indexing of points for the triangles
-  update_tet_indices();
+  // remove already-existing boundary points from volume_ipoints_
+  volume_ipoints_ = std::vector<PointType>(volume_ipoints_.begin() + numFacePoints(),
+                                           volume_ipoints_.end());
+  
+  // // make globally consistent indexing of points for the triangles
+  // update_tet_indices();
 }
   
 // ----------------------------------------------------------------------------
@@ -412,7 +416,15 @@ template<typename BoundedSpaceTraits> inline
 void TesselableVolume<BoundedSpaceTraits>::writeTesselatedVolume(std::ostream& os) const
 // ----------------------------------------------------------------------------
 {
-  std::cout << "Warning: writeTesselatedVolume() unimplemented.  Skipping." << std::endl;  
+  // writing points
+  os << "Points: " << '\n';
+  const auto vpoints  = volumePoints();
+  std::copy(vpoints.begin(), vpoints.end(), std::ostream_iterator<PointType>(os, " "));
+
+  // writing tets
+  os << "Tets: " << '\n';
+  for (const auto& t : volume_tets_)
+    os << t[0] << ' ' << t[1] << ' ' << t[2] << ' ' << t[3] << '\n';
 }
 
 

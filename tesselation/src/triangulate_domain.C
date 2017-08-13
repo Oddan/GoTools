@@ -156,6 +156,7 @@ vector<Tet> construct_tets(const Point3D* const points,
 
   while (ntris.size() + dtris.size() > 0) {
     result.push_back(add_tet(ntris, dtris, unused_pts, points, vdist));
+    cout << "Current number of tets: " << result.size() << endl; // @@@@
   }
 
   // sanity check: there should be no unused nodes left by now
@@ -231,8 +232,6 @@ Tet add_tet(vector<Triangle>& ntris,
   //   tris_os << dtris[i] << '\n';
   // tris_os.close();
 
-
-  
   return Tet {cur_tri[1], cur_tri[0], cur_tri[2], chosen_pt};
 }
 
@@ -412,12 +411,30 @@ Triangle add_triangle(vector<Segment>& nsegs,
 					      unused_pts, is_del, false);
   const bool removed2 = add_or_remove_segment({chosen_pt, cur_seg[1]}, nsegs, dsegs,
 					      unused_pts, is_del, true);
-  if (removed1 && removed2) {
-    // both segments already existed.  The triangle just filled in a triangular
-    // hole in the mesh.  This means the chosen point will not be on the working
-    // front and we should remove it from the active list as well
-    unused_pts[chosen_pt] = 0;
+
+  if (removed1 || removed2) {
+    // at least one segment was removed. We update the list of active points
+    unused_pts[cur_seg[0]] =  unused_pts[cur_seg[1]] = unused_pts[chosen_pt] = false;
+    for (auto e : nsegs) 
+      unused_pts[e[0]] = unused_pts[e[1]] = true;
+    for (auto e : dsegs) 
+      unused_pts[e[0]] = unused_pts[e[1]] = true;
   }
+  
+  // if (removed1 && removed2) {
+  //   // both segments already existed.  The triangle just filled in a triangular
+  //   // hole in the mesh.  This means the chosen point may no longer be on the
+  //   // working front, in which case we should remove it as well.
+  //   bool found = false;  // check if point is still found on working front
+  //   for (auto e : nsegs) 
+  //     if ((e[0] == chosen_pt) || (e[1] == chosen_pt))
+  //       found = true;
+  //   for (auto e : dsegs) 
+  //     if ((e[0] == chosen_pt) || (e[1] == chosen_pt))
+  //       found = true;
+  //   if (!found)
+  //     unused_pts[chosen_pt] = 0; 
+  // }
   return Triangle {cur_seg[0], cur_seg[1], chosen_pt};
 }
 
@@ -600,9 +617,12 @@ bool add_or_remove_segment(const Segment& seg,
 
   if (segment_found) {
     // segment already existed and has been removed (since both its triangles
-    // have now been located).  We must remove the point that is no longer on the
-    // working boundary
-    unused_pts[orientation ? seg[1] : seg[0]] = 0;
+    // have now been located).  We must remove the point that is no longer on
+    // the working boundary.  @@ No!  That's not always the case.  There may be
+    // other segments refering to this point if it connects two or more separate
+    // 'holes' in the mesh.  Do not carry out the instruction below.
+
+    //unused_pts[orientation ? seg[1] : seg[0]] = 0;
     return true;
   } else {
     // this is a newly introduced segment.  Add it to the respective list of

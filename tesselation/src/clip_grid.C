@@ -327,7 +327,8 @@ void classify_remaining_cells(const array<double, 4>& bbox,
       const uint ix = y_ix * res[0] + x_ix;
       if (result[ix] == UNDETERMINED) {
         // This cell is not intersected by the polygon.  Check if it falls outside.
-        const Point2D centroid { (0.5 + (double)x_ix) * dx, (0.5 + (double)y_ix) * dy};
+        const Point2D centroid { bbox[0] + (0.5 + (double)x_ix) * dx,
+                                 bbox[2] + (0.5 + (double)y_ix) * dy};
         uint dummy = 0; //we do not need this value, but required for function call below
         const double r = max(dx, dy);
         result[ix] =

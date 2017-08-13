@@ -151,9 +151,10 @@ Mesh2D tesselatePolygon2D(const Point2D* const polygon,
   //ipoints = vector<Point2D>(ipoints.begin(), ipoints.begin()+2); // @@@@
   
   //Optimizing position of interior points
-  optimize_interior_points(&bpoints[0], (uint)bpoints.size(),
-  			   &ipoints[0], (uint)ipoints.size(),
-  			   vdist * 1.5); //1); // * 1.5 @@
+  if (!ipoints.empty())
+    optimize_interior_points(&bpoints[0], (uint)bpoints.size(),
+                             &ipoints[0], (uint)ipoints.size(),
+                             vdist * 1.5); //1); // * 1.5 @@
   
   // // @@@@@@computing and reporting internal energy
   // const double R = 1.5 * vdist;
@@ -219,14 +220,15 @@ Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
   // higher than what the interpoint distance goal is, to avoid points becoming
   // 'completely disconnected' from each other.
   cout << "Optimizing interior points..." << endl;
-  optimize_interior_points(bpoints, num_bpoints, btris, num_btris,
-                           &ipoints[0], (uint)ipoints.size(), vdist*2);
+  if (!ipoints.empty())
+    optimize_interior_points(bpoints, num_bpoints, btris, num_btris,
+                             &ipoints[0], (uint)ipoints.size(), vdist*2);
 
   cout << "Finished optimization of " << ipoints.size() << " internal points." << endl;
 
-  ofstream os("krull.mat");
-  copy(ipoints.begin(), ipoints.end(), ostream_iterator<Point3D>(os, " "));
-  os.close(); // @@@
+  // ofstream os("krull.mat");
+  // copy(ipoints.begin(), ipoints.end(), ostream_iterator<Point3D>(os, " "));
+  // os.close(); // @@@
 
 
   
@@ -343,27 +345,15 @@ vector<Point3D> init_startpoints(const Point3D* const bpoints,
 
   // computing amount of points needed to approximately fill the bounding box,
   // where points are approximately equidistant by 'vdist'.
-  // const double box_vol = bbox_lx * bbox_ly * bbox_lz;
-  // const int N_bbox = (int)ceil(box_vol / (vdist * vdist * vdist));
-  // const double Rxy = bbox_lx / bbox_ly;
-  // const double Rxz = bbox_lx / bbox_lz;
-  // const double Ryz = bbox_ly / bbox_lz;
-  // const int nx = (int)ceil(pow(N_bbox * Rxy * Rxz, 1/3.));
-  // const int ny = (int)ceil(pow(N_bbox / Rxy * Ryz, 1/3.));
-  // const int nz = (int)ceil(pow(N_bbox / Rxz / Ryz, 1/3.));
-  const int nx = (int)floor(bbox_lx/vdist);
-  const int ny = (int)floor(bbox_ly/vdist);
-  const int nz = (int)floor(bbox_lz/vdist);
+  const int nx = max((int)floor(bbox_lx/vdist), 0);
+  const int ny = max((int)floor(bbox_ly/vdist), 0);
+  const int nz = max((int)floor(bbox_lz/vdist), 0);
 
   // constructing regular grid of points within the bounding box
   const vector<Point3D> gridpoints =
     generate_grid_3D(Point3D {bbox[0], bbox[2], bbox[4]},
                      Point3D {bbox[1], bbox[3], bbox[5]},
                      nx, ny, nz);
-
-    // generate_grid_3D(Point3D {bbox[0] + vdist/2, bbox[2] + vdist/2, bbox[4] + vdist/2},
-    //                  Point3D {bbox[1] - vdist/2, bbox[3] - vdist/2, bbox[5] - vdist/2},
-    //                  nx, ny, nz);
 
   // keeping the points that fall within the shell
   const double TOL_FAC = 0.25 * vdist; // do not keep points too close to boundary
@@ -398,14 +388,13 @@ vector<Point2D> init_startpoints(const Point2D* const polygon,
 
   // computing amount of points needed to approximately cover the bounding box, where points
   // are approximately equidistant by 'vdist'
-  const int N_bbox = (int)ceil(bbox_area * 3 / (PI * vdist * vdist));
-  const int nx = (int)floor(sqrt(N_bbox * bbox_lx / bbox_ly));
-  const int ny = (int)floor(N_bbox/nx);
-
+  const int nx = max((int)floor(bbox_lx/vdist), 0);
+  const int ny = max((int)floor(bbox_ly/vdist), 0);
+  
   // constructing regular grid of points within the bounding box
   const vector<Point2D> gridpoints =
-    generate_grid_2D(Point2D {bbox[0] + vdist/2, bbox[2] + vdist/2},
-		     Point2D {bbox[1] - vdist/2, bbox[3] - vdist/2},
+    generate_grid_2D(Point2D {bbox[0], bbox[2]},
+		     Point2D {bbox[1], bbox[3]},
 		     nx, ny);
   
   // keeping the points that fall within the original polygon
@@ -466,8 +455,8 @@ void optimize_interior_points(const Point2D* const polygon,
   // Setting up function minimizer
   Go::FunctionMinimizer<PolygonEnergyFunctor>
     funcmin(num_ipoints * 2, efun, (double* const)&ipoints[0], 1e-1);//1e-1); // @@ TOLERANCE?
-  
-  // do the minimization
+
+  // do the minimization 
   const double STOPTOL = 1e-4; // @@ is this always sufficiently good?  (Default
                                // in 'minimise_conjugated_gradient' is machine
                                // precision) for this tolerance.
@@ -556,8 +545,13 @@ PolygonEnergyFunctor::PolygonEnergyFunctor(const Point2D* const polygon,
 // ----------------------------------------------------------------------------    
   : poly_(polygon), nc_(num_corners), ni_(num_ipoints), r_(radius),
     bbox_(bounding_box_2D(polygon, num_corners)),
-    cgrid_(clip_grid_polygon_2D(polygon, num_corners, radius, 100, 100)) // @@ 80 hard-coded here
-{}
+    cgrid_(clip_grid_polygon_2D(polygon, num_corners, radius, 80, 80)) // @@ 80 hard-coded here
+{
+  // ofstream os("krull.mat");
+  // copy(cgrid_.type.begin(), cgrid_.type.end(), ostream_iterator<int>(os, ", "));
+  // os.close(); // @@
+  
+}
 
 // ----------------------------------------------------------------------------    
 void PolygonEnergyFunctor::update_cache(const double* const arg) const
