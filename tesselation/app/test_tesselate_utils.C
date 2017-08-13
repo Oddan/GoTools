@@ -73,8 +73,8 @@ int main() {
   // cout << "testing plane fitting: " << endl;
   // Test::test_fit_to_plane();
 
-  // cout << "testing volume tesselation: " << endl;
-  // Test::test_volume_tesselation();
+  cout << "testing volume tesselation: " << endl;
+  Test::test_volume_tesselation();
 
   // cout << "testing linear system solving: " << endl;
   // Test::test_linear_system();
@@ -91,7 +91,7 @@ int main() {
 
   //Test::test_clip_grid_2D();
 
-  Test::test_clip_grid_3D();
+  //Test::test_clip_grid_3D();
   
   return 0;
 };
@@ -362,7 +362,7 @@ void test_volume_tesselation()
   cout << "Polyhedron:\n" << endl;
   cout << spoly << endl << endl;
 
-  const double vdist = 0.1;
+  const double vdist = 0.8;
   spoly.tesselate(vdist);
 
   cout << "Writing wirefame: " << endl;
@@ -434,9 +434,9 @@ void test_polyhedron3D_tesselation()
   // simplex corners
   // const vector<Point3D> bpoints { {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
   // const vector<Triangle> btris { {0, 2, 1}, {0, 1, 3}, {1, 2, 3}, {2, 0, 3} };
-  // const  double vdist = 0.15;//0.15;
+  // const  double vdist = 0.2;//0.15;//0.15;
   
-  // extruded "hexagon"
+  // // extruded "hexagon"
   const double C = sqrt(3)* 0.5;
   const vector<Point3D> bpoints {
     {1, 0, 0}, {0.5, C, 0}, {-0.5, C, 0}, {-1, 0, 0}, {-0.5, -C, 0}, {0.5, -C, 0},
@@ -450,7 +450,7 @@ void test_polyhedron3D_tesselation()
       {4, 5, 10}, {5, 11, 10},
       {11, 6, 7}, {11,7,8}, {11, 8, 10}, {10, 8, 9},
       {5, 1, 0}, {5, 2, 1}, {5, 4, 2}, {4, 3, 2}};
-    const double vdist = 0.4;
+    const double vdist = 0.2;
                                 
   const auto mesh = tesselatePolyhedron3D(&bpoints[0], (uint)bpoints.size(),
                                           &btris[0], (uint)btris.size(),

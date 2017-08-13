@@ -78,6 +78,7 @@ private:
   const unsigned int ni_; // num interior points
   const double r_; // radius
   const std::array<double, 6> bbox_; // bounding box
+  const ClippedGrid<3> cgrid_; // precomputed classification of subdivided domain parts
 
   mutable ValAndDer<Point3D> cached_result_;
   mutable vector<double> cached_arg_;
@@ -217,6 +218,7 @@ Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
   // optimizing position of interior points.  We use a value of 'vdist' slightly
   // higher than what the interpoint distance goal is, to avoid points becoming
   // 'completely disconnected' from each other.
+  cout << "Optimizing interior points..." << endl;
   optimize_interior_points(bpoints, num_bpoints, btris, num_btris,
                            &ipoints[0], (uint)ipoints.size(), vdist*2);
 
@@ -310,11 +312,15 @@ Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
   const double L = *max_element(lengths.begin(), lengths.end());
   
   // constructing tets from points
+  cout << "Constructing tets" << endl;
   vector<Point3D> points(bpoints, bpoints + num_bpoints);
   points.insert(points.end(), ipoints.begin(), ipoints.end());
   const auto tets = construct_tets(&points[0], (uint)points.size(),
-                                   btris, num_btris,
-                                   10 * max(vdist,L)); 
+                                   btris, num_btris, 5 * max(vdist,L));
+  // //10 * max(vdist,L));
+  //  vector<Tet> tets;
+  
+  cout << "Finished constructing tets" << endl;
   return{points, tets};
 }
 };
@@ -434,8 +440,10 @@ void optimize_interior_points(const Point3D* bpoints,
   Go::FunctionMinimizer<PolyhedronEnergyFunctor>
     funcmin(num_ipoints * 3, efun, (double* const)&ipoints[0], 1e-1); // @@ tolerance?
 
+  const double STOPTOL = 1e-4;
+
   // do the minimization
-  Go::minimise_conjugated_gradient(funcmin);
+  Go::minimise_conjugated_gradient(funcmin, STOPTOL);
 
   // copying results back.  The cast is based on the knowledge that Points2D
   // consist of POD and that point coordinates are stored contiguously in memory
@@ -482,8 +490,10 @@ PolyhedronEnergyFunctor::PolyhedronEnergyFunctor(const Point3D* const bpoints,
                                                  const double radius)
 // ----------------------------------------------------------------------------
   : bpoints_(bpoints), nb_(num_bpoints), btris_(btris), nt_(num_btris),
-    ni_(num_ipoints), r_(radius), bbox_(bounding_box_3D(bpoints, num_bpoints))  
-{ }
+    ni_(num_ipoints), r_(radius), bbox_(bounding_box_3D(bpoints, num_bpoints)),
+    cgrid_(clip_grid_shell_3D(bpoints, num_bpoints, btris, num_btris, radius, 10, 10, 10))
+    // @@ 50 hard-coded here
+{}
 
 // ----------------------------------------------------------------------------
 double PolyhedronEnergyFunctor::operator()(const double* const arg) const
@@ -535,7 +545,7 @@ void PolyhedronEnergyFunctor::update_cache(const double* const arg) const
   copy(arg, arg + 3 * ni_, &cached_arg_[0]);
   cached_result_ = polyhedron_energy(bpoints_, nb_, btris_, nt_,
                                      (const Point3D* const) &cached_arg_[0],
-                                     ni_, r_);
+                                     ni_, r_, &cgrid_);
 }
 
 // ----------------------------------------------------------------------------    

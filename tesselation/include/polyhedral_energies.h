@@ -24,7 +24,8 @@ ValAndDer<Point3D> polyhedron_energy(const Point3D* const bpoints,
                                      const unsigned int num_btris,
                                      const Point3D* const ipoints,
                                      const unsigned int num_ipoints,
-                                     const double vdist);
+                                     const double vdist,
+                                     const ClippedGrid<3>* const = nullptr); // optional
 // ============================================================================  
   
 

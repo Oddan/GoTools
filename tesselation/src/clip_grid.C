@@ -97,6 +97,10 @@ ClippedGrid<3> clip_grid_shell_3D(const Point3D* const pcorners,
                                   const uint res_z)
 // ----------------------------------------------------------------------------
 {
+  assert(res_x > 1 || res_y > 1 || res_z > 1); // necessary for this function to
+                                               // work properly, since only
+                                               // internal planes will be
+                                               // checked for intersections
   const auto bbox = bounding_box_3D(pcorners, num_pcorners);
   ClippedGrid<3> result {bbox,
                          {res_x, res_y, res_z},
@@ -115,7 +119,6 @@ ClippedGrid<3> clip_grid_shell_3D(const Point3D* const pcorners,
 
   return result;
 }
-
   
 }; //end namespace TesselateUtils
 
@@ -177,12 +180,12 @@ void identify_intersected_cells(const array<double, 6>& bbox,
       mm.first -= tol;
       mm.second += tol;
       const pair<uint, uint> range
-        { min ((uint)floor(max(mm.first  - bbox[dim], 0.0)/dlen), dres - 1),
-          min ((uint)floor(max(mm.second - bbox[dim], 0.0)/dlen), dres - 1) };
+        { min ((uint)floor(max(mm.first  - bbox[2*dim], 0.0)/dlen), dres - 1),
+          min ((uint)floor(max(mm.second - bbox[2*dim], 0.0)/dlen), dres - 1) };
 
       for (uint pl_ix = range.first; pl_ix != range.second; ++pl_ix) {
         // we deal with the interface betweens cells in plane pl_ix and pl_ix+1
-        const double plane_pval = (pl_ix+1) * dlen;
+        const double plane_pval = bbox[2*dim] + (pl_ix+1) * dlen;
         const array<Point2D, 2> isect_seg = tri_plane_isect_line(tc, plane_pval, dim);
 
         // identifying the intersected cells in plane 'pl_ix'
@@ -213,22 +216,25 @@ array<Point2D, 2> tri_plane_isect_line(const array<Point3D, 3>& tc, // triangle 
 {
   const double EPS = sqrt(numeric_limits<double>::epsilon());
   const auto bbox = bounding_box_3D(&tc[0], 3);
-  const double TOL = EPS * plane_pval; // @@ appropriate tolerance?
+  const double TOL = EPS * max(1.0, fabs(plane_pval)); // @@ appropriate tolerance?
   
   // If two corners lie in the plane, return the segment between the two
   // corners.  Otherwise, if one corner lies in the plane, return a degenerated
   // segment consisting of that point twice.  (If this function was called, we
   // assume that not all three points are found in the plane).
-  for (uint i = 0; i != 3; ++i) 
-    if (fabs(tc[i][dim] - plane_pval) < TOL) 
+  for (uint i = 0; i != 3; ++i) {
+    if (fabs(tc[i][dim] - plane_pval) < TOL) {
       // is there another point touching the plane?
-      for (uint j = i+1; j != 3; ++j) 
-        if (fabs(tc[j][dim] - plane_pval) < TOL)  
+      for (uint j = i+1; j != 3; ++j) {
+        if (fabs(tc[j][dim] - plane_pval) < TOL) {
           return array<Point2D, 2> { Point2D {tc[i][(dim+1)%3], tc[i][(dim+2)%3]},
                                      Point2D {tc[j][(dim+1)%3], tc[j][(dim+2)%3]} };
-        else // degenerated segment
-          return array<Point2D, 2> { Point2D {tc[i][(dim+1)%3], tc[i][(dim+2)%3]},
-                                     Point2D {tc[i][(dim+1)%3], tc[i][(dim+2)%3]} }; 
+        }
+      }
+      return array<Point2D, 2> { Point2D {tc[i][(dim+1)%3], tc[i][(dim+2)%3]},
+                                     Point2D {tc[i][(dim+1)%3], tc[i][(dim+2)%3]} };
+    }
+  }
 
   // If we got here, no corner lies in the plane, yet since this function was
   // called, there should be an intersection.  This means that there should be

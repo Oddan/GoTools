@@ -21,13 +21,14 @@ ValAndDer<Point3D> boundary_energy(const Point3D* const bpoints,
                                    const unsigned int num_btris,
                                    const Point3D* const ipoints,
                                    const unsigned int num_ipoints,
-                                   const double vdist);
+                                   const double vdist,
+                                   const ClippedGrid<3>* const cgrid);
 
 void add_boundary_contribution(const Point3D* const bpoints,
 			       const Triangle& btri,
 			       const Point3D* const ipoints,
 			       const unsigned int num_ipoints,
-                               const int* const is_outside,
+                               const ClippedDomainType* const point_status,
 			       const double vdist,
                                ValAndDer<Point3D>& result);
 
@@ -57,6 +58,12 @@ void add_outside_penalty_energy(const uint ipoint_ix,
 //                                      const Point3D* const ipoints,
 //                                      const unsigned int num_ipoints,
 //                                      const double vdist);
+
+ClippedDomainType point_domain_type(const Point3D& pt,
+                                    const Point3D* const bpoints,
+                                    const Triangle* btris,
+                                    const uint num_btris,
+                                    const ClippedGrid<3>& cgrid);
   
 }; // end anonymous namespace 
 
@@ -69,8 +76,9 @@ ValAndDer<Point3D> polyhedron_energy(const Point3D* const bpoints,
                                      const unsigned int num_btris,
                                      const Point3D* const ipoints,
                                      const unsigned int num_ipoints,
-                                     const double vdist)
-  // ----------------------------------------------------------------------------
+                                     const double vdist,
+                                     const ClippedGrid<3>* const cgrid)
+// ----------------------------------------------------------------------------
 {
   
   //compute internal energy (potential energy between internal points)
@@ -84,20 +92,20 @@ ValAndDer<Point3D> polyhedron_energy(const Point3D* const bpoints,
   // even closer or trespassing boundary).
   const ValAndDer<Point3D> E_bnd = boundary_energy(bpoints, num_bpoints, btris,
                                                    num_btris, ipoints, num_ipoints,
-                                                   vdist/2); 
+                                                   vdist/1.5, cgrid); 
 
   // Adding up components and returning results
   ValAndDer<Point3D> E_tot = E_int;
 
-  // const double FAC = 5; // if number of internal points and 'vdist' is well
-  //                       // adjusted, this penalty factor should prevent
-  //                       // trespassing of outer boundaries.
-  // E_tot.val += FAC * E_bnd.val; 
-  // for (uint i = 0; i != (uint)E_tot.der.size(); ++i)
-  //   E_tot.der[i] += FAC * E_bnd.der[i];
+  const double BND_FAC = 2; // if number of internal points and 'vdist' is well
+                        // adjusted, this penalty factor should prevent
+                        // trespassing of outer boundaries.
+  E_tot.val += BND_FAC * E_bnd.val; 
+  for (uint i = 0; i != (uint)E_tot.der.size(); ++i)
+    E_tot.der[i] += BND_FAC * E_bnd.der[i];
 
-  E_tot.val += E_bnd.val; 
-  E_tot.der += E_bnd.der;
+  // E_tot.val += E_bnd.val; 
+  // E_tot.der += E_bnd.der;
   
   return E_tot;
 }
@@ -230,6 +238,31 @@ void accumulate_energy(const double dist,
 //   }
 //   return result;
 // }
+
+// ----------------------------------------------------------------------------
+ClippedDomainType point_domain_type(const Point3D& pt,
+                                    const Point3D* const bpoints,
+                                    const Triangle* btris,
+                                    const uint num_btris,
+                                    const ClippedGrid<3>& cgrid)
+// ----------------------------------------------------------------------------
+{
+  array<uint, 3> ix;
+  for (uint i = 0; i != 3; ++i)
+    ix[i] = min((uint)max(floor(pt[i] - cgrid.bbox[i]/cgrid.cell_len[i]), 0.0),
+                cgrid.res[i] - 1);
+
+  const auto type = cgrid.type[ix[0] + cgrid.res[0] * (ix[1] + cgrid.res[1] * ix[2])];
+
+  if (type == FAR_INSIDE || type == CLOSE_INSIDE || type == OUTSIDE)
+    return type;
+
+  // if we got here, type is either UNDETERMINED or INTERSECTED. We must do an
+  // explicit computation to determine its status vis-a-vis the boundary.
+  bool on_bnd = false;
+  const bool inside = inside_shell(pt, bpoints, btris, num_btris, 0, on_bnd);
+  return ((!inside) && (!on_bnd)) ? OUTSIDE : UNDETERMINED;
+}
   
 // ----------------------------------------------------------------------------
 ValAndDer<Point3D> boundary_energy(const Point3D* const bpoints,
@@ -238,28 +271,43 @@ ValAndDer<Point3D> boundary_energy(const Point3D* const bpoints,
                                    const unsigned int num_btris,
                                    const Point3D* const ipoints,
                                    const unsigned int num_ipoints,
-                                   const double vdist)
+                                   const double vdist,
+                                   const ClippedGrid<3>* const cgrid)
 // ----------------------------------------------------------------------------
 {
   ValAndDer<Point3D> result {0, vector<Point3D>(num_ipoints, {0.0, 0.0, 0.0})};
 
   // detect points lying outside
-  vector<int> outside(num_ipoints);
-  transform(ipoints, ipoints + num_ipoints, outside.begin(), [&] (const Point3D& p) {
-      bool on_bnd = false;
-      bool inside = inside_shell(p, bpoints, btris, num_btris, 0, on_bnd);
-      return (!inside) && (!on_bnd);
+  vector<ClippedDomainType> point_status(num_ipoints);
+
+  if (cgrid == nullptr) {
+    // brute-force method that only distiguishes between points clearly outside
+    // the shell and other points
+    transform(ipoints, ipoints + num_ipoints, point_status.begin(), [&] (const Point3D& p) {
+        bool on_bnd = false;
+        bool inside = inside_shell(p, bpoints, btris, num_btris, 0, on_bnd);
+        return ((!inside) && (!on_bnd)) ? OUTSIDE : UNDETERMINED;
     });
-  
+  } else {
+    // benefit from the precomputed information found in 'cgrid' to
+    // significantly speed up computations
+    transform(ipoints,
+              ipoints + num_ipoints,
+              point_status.begin(),
+              [&] (const Point3D& p) {
+                return point_domain_type(p, bpoints, btris, num_btris, *cgrid);
+              });
+  }
+    
   // looping across boundary faces and adding their energy contributions
   for (uint i = 0; i != num_btris; ++i) 
     add_boundary_contribution(bpoints, btris[i], ipoints, num_ipoints,
-                              &outside[0], vdist, result);
+                              &point_status[0], vdist, result);
 
   
   // adding energy for points having exited the domain
   for (uint i = 0; i != num_ipoints; ++i) {
-    if (outside[i])
+    if (point_status[i] == OUTSIDE)
       add_outside_penalty_energy(i, ipoints, bpoints, num_bpoints, btris,
                                  num_btris, vdist, result);
   }
@@ -312,7 +360,7 @@ void add_boundary_contribution(const Point3D* const bpts, // boundary points
 			       const Triangle& btri,
 			       const Point3D* const ipoints,
 			       const unsigned int num_ipoints,
-                               const int* const is_outside,
+                               const ClippedDomainType* const point_status,
 			       const double vdist,
                                ValAndDer<Point3D>& result)
 // ----------------------------------------------------------------------------
@@ -322,7 +370,7 @@ void add_boundary_contribution(const Point3D* const bpts, // boundary points
   const double NUMTOL = sqrt(numeric_limits<double>::epsilon());
 
   for (uint i = 0; i != num_ipoints; ++i) {
-    if (is_outside[i])
+    if ((point_status[i] == OUTSIDE) || (point_status[i] == FAR_INSIDE))
       continue;
     
     double dist_to_plane;
@@ -348,46 +396,11 @@ void add_boundary_contribution(const Point3D* const bpts, // boundary points
       result.val += e[0];
       result.der[i] -= (dir * e[1]);
       
-      // switch (ptype) {
-      // case INSIDE:
-      //   result.der[i] += (dir * e[1]);
-      //   break;
-      // case ON_EDGE:
-      //   __FILL ME OUT__;
-      //   break;
-      // case AT_CORNER:
-      //   result.der 
-      //   break
-      // default:
-      //   throw logic_error("Should never get here.");
-      // }
     }
   }
   
-    
-
-  // we need to know
-  // - in front or in back?
-  // - projects to triangle or outside triangle
-  // - if projects outside, what point on the boundary does it project to, and what is the
-  //   angle netween the point-projection and the face normal
-
-  
 }
 
-//     if (dist < 0) { // we are inside.  Compute energy as normal
-
-//       const array<double, 2> e = energy(fabs(dist), vdist);
-//       result.val += e[0];
-//       result.der[i]  += dir * (-e[1]);
-      
-//     } else { // we are outside
-
-//       const array<double, 2> e = energy(0, vdist);
-//       result.val += e[0]  - dist * e[1];
-//       result.der[i] -= dir * e[1];
-//     }
-//   }
 
 
 // ----------------------------------------------------------------------------

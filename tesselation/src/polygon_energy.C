@@ -26,7 +26,7 @@ void add_boundary_contribution(const Point2D& bp1,
                                const Point2D& bp2,
                                const Point2D* const ipoints,
                                const unsigned int num_ipoints,
-                               const ClippedDomainType* const is_outside, 
+                               const ClippedDomainType* const point_status, 
                                const double vdist,
                                ValAndDer<Point2D>& result);
 
@@ -52,7 +52,11 @@ void add_outside_penalty_energy(const uint ipoint_ix,
                                 const uint num_bpoints,
                                 const double vdist,
                                 ValAndDer<Point2D>& result);
-//
+
+ClippedDomainType point_domain_type(const Point2D& pt,
+                                    const Point2D* const bpoints,
+                                    const uint num_bpoints,
+                                    const ClippedGrid<2>& cgrid);
   
 }; // end anonymous namespace 
 
@@ -170,8 +174,8 @@ inline ClippedDomainType point_domain_type(const Point2D& pt,
 {
   const double& dx = cgrid.cell_len[0];
   const double& dy = cgrid.cell_len[1];
-  const uint ix = min((uint)floor((pt[0] - cgrid.bbox[0])/dx), cgrid.res[0]-1);
-  const uint iy = min((uint)floor((pt[1] - cgrid.bbox[2])/dy), cgrid.res[1]-1);
+  const uint ix = min((uint)max(floor((pt[0] - cgrid.bbox[0])/dx), 0.0), cgrid.res[0]-1);
+  const uint iy = min((uint)max(floor((pt[1] - cgrid.bbox[2])/dy), 0.0), cgrid.res[1]-1);
 
   const auto type = (cgrid.type[iy * cgrid.res[0] + ix]);
 
