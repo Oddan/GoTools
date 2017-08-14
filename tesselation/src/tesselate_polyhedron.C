@@ -318,9 +318,9 @@ Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
   vector<Point3D> points(bpoints, bpoints + num_bpoints);
   points.insert(points.end(), ipoints.begin(), ipoints.end());
   const auto tets = construct_tets(&points[0], (uint)points.size(),
-                                   btris, num_btris, 5 * max(vdist,L));
-  // //10 * max(vdist,L));
-  //  vector<Tet> tets;
+                                   btris, num_btris, 3 * max(vdist,L));
+  // //10 * max(vdist,L)); @@@@@@
+  //vector<Tet> tets;
   
   cout << "Finished constructing tets" << endl;
   return{points, tets};
@@ -480,7 +480,7 @@ PolyhedronEnergyFunctor::PolyhedronEnergyFunctor(const Point3D* const bpoints,
 // ----------------------------------------------------------------------------
   : bpoints_(bpoints), nb_(num_bpoints), btris_(btris), nt_(num_btris),
     ni_(num_ipoints), r_(radius), bbox_(bounding_box_3D(bpoints, num_bpoints)),
-    cgrid_(clip_grid_shell_3D(bpoints, num_bpoints, btris, num_btris, radius, 10, 10, 10))
+    cgrid_(clip_grid_shell_3D(bpoints, num_bpoints, btris, num_btris, radius, 20, 20, 20))
     // @@ 50 hard-coded here
 {}
 

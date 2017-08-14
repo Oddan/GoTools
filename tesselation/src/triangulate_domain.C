@@ -156,7 +156,9 @@ vector<Tet> construct_tets(const Point3D* const points,
 
   while (ntris.size() + dtris.size() > 0) {
     result.push_back(add_tet(ntris, dtris, unused_pts, points, vdist));
-    cout << "Current number of tets: " << result.size() << endl; // @@@@
+    cout << "Current number of tets: " << result.size() << endl;
+    cout << "   ntris: " << ntris.size() << endl;
+    cout << "   dtris: " << dtris.size() << endl;
   }
 
   // sanity check: there should be no unused nodes left by now
@@ -583,7 +585,7 @@ bool is_delaunay(const Triangle& tri, const uint chosen_pt,
 {
   Point3D center;
   double radius2;
-  const double tol = 1e-2; // same comment as for the 2D version of 'is_delaunay above
+  const double tol = 1e-3; // same comment as for the 2D version of 'is_delaunay above
   fitting_sphere(points[tri[0]], points[tri[1]], points[tri[2]], points[chosen_pt],
                  center, radius2);
   radius2 *= (1+tol); // slightly increase radius to ensure points on the boundary are captured

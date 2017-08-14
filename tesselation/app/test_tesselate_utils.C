@@ -362,17 +362,17 @@ void test_volume_tesselation()
   cout << "Polyhedron:\n" << endl;
   cout << spoly << endl << endl;
 
-  const double vdist = 0.4;
+  const double vdist = 0.07; //0.2;
   spoly.tesselate(vdist);
 
-  cout << "Writing wirefame: " << endl;
-  spoly.writeTesselatedOutline(cout);
+  // cout << "Writing wirefame: " << endl;
+  // spoly.writeTesselatedOutline(cout);
 
-  cout << "Writing shell: " << endl;
-  spoly.writeTesselatedShell(cout);
+  // cout << "Writing shell: " << endl;
+  // spoly.writeTesselatedShell(cout);
 
-  cout << "Writing tets: " << endl;
-  spoly.writeTesselatedVolume(cout);
+  // cout << "Writing tets: " << endl;
+  // spoly.writeTesselatedVolume(cout);
 
 }
 

@@ -249,7 +249,7 @@ ClippedDomainType point_domain_type(const Point3D& pt,
 {
   array<uint, 3> ix;
   for (uint i = 0; i != 3; ++i)
-    ix[i] = min((uint)max(floor(pt[i] - cgrid.bbox[i]/cgrid.cell_len[i]), 0.0),
+    ix[i] = min((uint)max(floor((pt[i] - cgrid.bbox[2*i])/cgrid.cell_len[i]), 0.0),
                 cgrid.res[i] - 1);
 
   const auto type = cgrid.type[ix[0] + cgrid.res[0] * (ix[1] + cgrid.res[1] * ix[2])];
