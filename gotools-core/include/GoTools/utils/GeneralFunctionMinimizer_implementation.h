@@ -75,10 +75,10 @@ const int FunctionMinimizer<Functor>::max_iter_ = 100;
 
 //===========================================================================
 template<class Functor>
-void minimise_conjugated_gradient(FunctionMinimizer<Functor>& dfmin)
+void minimise_conjugated_gradient(FunctionMinimizer<Functor>& dfmin, double stop_tol)
 //===========================================================================
 {
-    const double TOL = std::numeric_limits<double>::epsilon(); //1.0e-8;
+    const double TOL = stop_tol;//std::numeric_limits<double>::epsilon(); //1.0e-8;
     const double EPS = 1.0e-10;
     // minimising the 'dfmin' function using conjugated gradients.
     const int N = dfmin.numPars();
@@ -86,8 +86,9 @@ void minimise_conjugated_gradient(FunctionMinimizer<Functor>& dfmin)
     dfmin.grad(old_gradient);
     dir = -old_gradient;
     double old_val = dfmin.fval();
+    int krull=0;
     while(true) {
-
+      ++krull;
 	// make sure direction is not uphill (is this already guaranteed??)
 	// and truncating it if we are at the border of the domain
 	if (dir * old_gradient > 0) {
@@ -104,7 +105,7 @@ void minimise_conjugated_gradient(FunctionMinimizer<Functor>& dfmin)
 	// minimize along this direction
 	bool hit_domain_edge = false;
 	double new_val = dfmin.minimize(dir, hit_domain_edge); 
-	if (2.0 * fabs(new_val - old_val) <= TOL  * (fabs(new_val) + fabs(old_val)+ EPS)) {
+	if (2.0 * fabs(new_val - old_val) <= TOL * (fabs(new_val) + fabs(old_val)+ EPS)) {
 	    // we have reached a minimum
 	    break;
 	} else {
@@ -159,6 +160,7 @@ void minimise_conjugated_gradient(FunctionMinimizer<Functor>& dfmin)
 	    old_gradient = gradient;
  	}
     }
+    std::cout << "Number of search directions: " << krull << std::endl;
 }
 
 

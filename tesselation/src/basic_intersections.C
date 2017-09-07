@@ -623,7 +623,7 @@ IsectCase isect_triangle_triangle_3D(const Point3D* const tri1,
   if (icase1 == AT_POINT) // if we got here, we know that icase2 intersects along a segment
     return (isect_point_seg_3D(res1[0], &res2[0], tol) == DISJOINT) ? DISJOINT :
                                                                       AT_POINT;
-  if (icase2 == AT_POINT) // if we got here, we know that icase1 intersects alogn a secment
+  if (icase2 == AT_POINT) // if we got here, we know that icase1 intersects algong a segment
     return (isect_point_seg_3D(res2[0], &res1[0], tol) == DISJOINT) ? DISJOINT :
                                                                   AT_POINT;
   // if we got here, both triangles intersect along a segment
@@ -631,7 +631,8 @@ IsectCase isect_triangle_triangle_3D(const Point3D* const tri1,
   const auto icase3 = isect_seg_seg_3D(&res1[0], &res2[0], tol, &res_tmp[0]);
   return (icase3 == DISJOINT)                              ? DISJOINT :
          (icase3 == AT_POINT)                              ? AT_POINT :
-    (icase1 == ALONG_BOUNDARY || icase2 == ALONG_BOUNDARY) ? ALONG_BOUNDARY : OVERLAPPING;
+    (icase1 == ALONG_BOUNDARY && icase2 == ALONG_BOUNDARY) ? ALONG_BOUNDARY : OVERLAPPING;
+  //(icase1 == ALONG_BOUNDARY || icase2 == ALONG_BOUNDARY) ? ALONG_BOUNDARY : OVERLAPPING;
 }
 
   

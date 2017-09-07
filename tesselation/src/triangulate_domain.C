@@ -18,11 +18,13 @@ namespace {
 			const Point2D* const points, // input only
 			const double vdist);         // input only
 
-  Tet add_tet(vector<Triangle>& ntris, // input-output
-              vector<Triangle>& dtris, // input-output
-              vector<uint>& unused_pts,
-              const Point3D* const points,
-              const double vdist);
+  bool tet_found(vector<Triangle>& ntris, // input-output
+                 vector<Triangle>& dtris, // input-output
+                 vector<Triangle>& ptris, // input-output
+                 vector<uint>& unused_pts,
+                 const Point3D* const points,
+                 const double vdist,      
+                 Tet& tet);               // output
   
   void find_candidate_points(const Segment& s,
 			     const vector<Segment>& nsegs,
@@ -34,6 +36,7 @@ namespace {
 
   void find_candidate_points(const Triangle& tri,
                              const vector<Triangle>& ntris,
+                             const vector<Triangle>& ptris,
                              const vector<uint>& unused_pts,
                              const Point3D* const points,
                              const double vdist,
@@ -142,9 +145,11 @@ vector<Tet> construct_tets(const Point3D* const points,
 // ============================================================================
 {
   // preparing vectors keeping track of 'non-delaunay' and 'delaunay' faces
-  // (terms used as the 3D generalization of terms used for triangulate_domain()).
-  // At start, all boundary triangles are considered "non-delaunay".
-  vector<Triangle> ntris(btris, btris + num_btris), dtris;
+  // (terms used as the 3D generalization of terms used for
+  // triangulate_domain()).  At start, all boundary triangles are considered
+  // "non-delaunay".  In addition, the vector 'ptris' keeps track of triangles
+  // for which a tet was not possible to construct ("problematic tris").
+  vector<Triangle> ntris(btris, btris + num_btris), dtris, ptris;
 
   // We use this vector to keep track of indices to nodes that are still
   // interior or on the working front, which in the beginning means "all nodes".
@@ -155,14 +160,18 @@ vector<Tet> construct_tets(const Point3D* const points,
   vector<Tet> result;
 
   while (ntris.size() + dtris.size() > 0) {
-    result.push_back(add_tet(ntris, dtris, unused_pts, points, vdist));
+    Tet new_tet;
+    if (tet_found(ntris, dtris, ptris, unused_pts, points, vdist, new_tet))
+      result.push_back(new_tet);
+
     cout << "Current number of tets: " << result.size() << endl;
     cout << "   ntris: " << ntris.size() << endl;
     cout << "   dtris: " << dtris.size() << endl;
+    cout << "   ptris: " << ptris.size() << endl;
   }
 
   // sanity check: there should be no unused nodes left by now
-  assert(accumulate(unused_pts.begin(), unused_pts.end(), 0) == 0);
+  //  assert(accumulate(unused_pts.begin(), unused_pts.end(), 0) == 0);
 
   return result;
 }
@@ -174,11 +183,13 @@ namespace {
 
   
 // ----------------------------------------------------------------------------
-Tet add_tet(vector<Triangle>& ntris,
-            vector<Triangle>& dtris,
-            vector<uint>& unused_pts,
-            const Point3D* const points,
-            const double vdist)
+bool tet_found(vector<Triangle>& ntris,
+               vector<Triangle>& dtris,
+               vector<Triangle>& ptris,
+               vector<uint>& unused_pts,
+               const Point3D* const points,
+               const double vdist,
+               Tet& new_tet)
 // ----------------------------------------------------------------------------
 {
   // Choose the next triangle to work with, aiming to deplete the non-delaunay
@@ -190,7 +201,7 @@ Tet add_tet(vector<Triangle>& ntris,
   // 'candidate' and 'non-candidate' points, according to criteria analogous to
   // those mentioned in the comments to 'add_triangle'.  
   vector<uint> cand_pts, all_neigh_pts;
-  find_candidate_points(cur_tri, ntris, unused_pts, points, vdist,
+  find_candidate_points(cur_tri, ntris, ptris, unused_pts, points, vdist,
                         cand_pts, all_neigh_pts);
 
   // The 'best' of the candidate points will be chosen as the fourth corner of
@@ -198,22 +209,34 @@ Tet add_tet(vector<Triangle>& ntris,
   // the circumscribing sphere of the generated tet.
   const uint chosen_pt = best_candidate_point(cand_pts, cur_tri, points);
 
-  // Determine whether the generated tet is a "delaunay tet" or if it contains
-  // other points caused by nonconvexity of the working front (or if it is
-  // semi-delaunay by having other points exactly on its circumscription
-  const bool is_del = is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points);
-  
-  // modify working front and remaining nodes.  Make sure to add them in
-  // _clockwise_ corner order, since we want them to be pointing outwards of the
-  // active front.
-  add_or_remove_face({cur_tri[0], cur_tri[1], chosen_pt}, ntris, dtris, unused_pts, is_del);
-  add_or_remove_face({cur_tri[1], cur_tri[2], chosen_pt}, ntris, dtris, unused_pts, is_del);
-  add_or_remove_face({cur_tri[2], cur_tri[0], chosen_pt}, ntris, dtris, unused_pts, is_del);
+  // check if a candidate point was really found
+  if (chosen_pt == (uint)cand_pts.size()) {
+    // no point found.  No way to make a tet
+    ptris.push_back(cur_tri);
+  } else {
+    // We have defined the new tet.  Return it, and do all necessary
+    // housekeeping
+    new_tet = Tet {cur_tri[1], cur_tri[0], cur_tri[2], chosen_pt};
 
-  // Verify the four corners of the inserted tet - how many of them remain on
-  // the active front?  We set them to 0, and add back those that are still
-  // found on the front.
-  unused_pts[chosen_pt] = 0;
+    // Determine whether the generated tet is a "delaunay tet" or if it contains
+    // other points caused by nonconvexity of the working front (or if it is
+    // semi-delaunay by having other points exactly on its circumscription
+    const bool is_del = is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points);
+    
+    // modify working front and remaining nodes.  Make sure to add them in
+    // _clockwise_ corner order, since we want them to be pointing outwards of the
+    // active front.
+    add_or_remove_face({cur_tri[0], cur_tri[1], chosen_pt}, ntris, dtris, unused_pts, is_del);
+    add_or_remove_face({cur_tri[1], cur_tri[2], chosen_pt}, ntris, dtris, unused_pts, is_del);
+    add_or_remove_face({cur_tri[2], cur_tri[0], chosen_pt}, ntris, dtris, unused_pts, is_del);
+
+    // Flag this point currently as inactive.  It might be added back to the
+    // active front further down in this function.
+    unused_pts[chosen_pt] = 0;
+  }
+
+  // Update which points remain on the active front.  Set all the involved
+  // points to inactive, and add them back in if they are identified on the front again.
   for (uint i = 0; i != 3; ++i) unused_pts[cur_tri[i]] = 0;
   for(const auto t : ntris) { for (uint i = 0; i != 3; ++i) unused_pts[t[i]] = 1; }
   for(const auto t : dtris) { for (uint i = 0; i != 3; ++i) unused_pts[t[i]] = 1; }
@@ -233,8 +256,8 @@ Tet add_tet(vector<Triangle>& ntris,
   // for (uint i = 0; i != dtris.size(); ++i)
   //   tris_os << dtris[i] << '\n';
   // tris_os.close();
-
-  return Tet {cur_tri[1], cur_tri[0], cur_tri[2], chosen_pt};
+  
+  return (chosen_pt < (uint)cand_pts.size());
 }
 
 
@@ -252,9 +275,8 @@ uint best_candidate_point(const vector<uint>& cand_pts,
       cand_ixs.push_back(i);
 
   if (cand_ixs.empty())
-    // @@ this should be handled more gracefully
-    throw runtime_error("No candidate found for new triangle point."
-                        "  Increase 'vdist' and try again.");
+    // return an impossible index to signal that no candidate was found
+    return (uint)cand_pts.size();
 
   // searching for the candidate whose resulting tet has a minimal containing
   // sphere that does not contain any other candidate.
@@ -286,6 +308,7 @@ uint best_candidate_point(const vector<uint>& cand_pts,
 // ----------------------------------------------------------------------------  
 void find_candidate_points(const Triangle& tri,
                            const vector<Triangle>& ntris,
+                           const vector<Triangle>& ptris,
                            const vector<uint>& unused_pts,
                            const Point3D* const points,
                            const double vdist,
@@ -312,7 +335,8 @@ void find_candidate_points(const Triangle& tri,
       // point is close enough to triangle to be considered a neighbor point.
       all_neigh_pts[i] = 1;
       if ((point_on_inside_of_face(points[i], p1, p2, p3, TOL)) &&
-          (!introduces_intersection(tri, i, ntris, points, TOL))) {
+          (!introduces_intersection(tri, i, ntris, points, TOL)) &&
+          (!introduces_intersection(tri, i, ptris, points, TOL))) {
         cand_pts[i] = 1; // point is a candidate point
       }
     }

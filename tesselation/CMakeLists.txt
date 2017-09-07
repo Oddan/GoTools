@@ -9,6 +9,11 @@ PROJECT(GoTesselation)
 INCLUDE_DIRECTORIES(
   ${GoTesselation_SOURCE_DIR}/include
   ${GoToolsCore_SOURCE_DIR}/include
+  ${GoTrivariateModel_SOURCE_DIR}/include
+  ${GoCompositeModel_SOURCE_DIR}/include
+  ${GoTopology_SOURCE_DIR}/include
+  ${GoTrivariate_SOURCE_DIR}/include
+  ${GoIgeslib_SOURCE_DIR}/include  
   ${GoTools_COMMON_INCLUDE_DIRS}
   /usr/local/include/eigen3/
 )
@@ -18,6 +23,11 @@ INCLUDE_DIRECTORIES(
 
 SET(DEPLIBS
   GoToolsCore
+  GoTrivariateModel
+  GoCompositeModel
+  GoTopology
+  GoTrivariate
+  GoIgeslib
   ttl
   )
 

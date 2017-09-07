@@ -340,18 +340,38 @@ void test_volume_tesselation()
 // ----------------------------------------------------------------------------
 {
   // Tesselate regular prism
-  const vector<Point3D> corners { {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, 
-                                {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1} };
-  const vector<Segment> edges   { {0, 1}, {1, 2}, {2, 3}, {3, 0},  // bottom face
-                                {4, 5}, {5, 6}, {6, 7}, {7, 4},  // top face
-                                {0, 4}, {1, 5}, {2, 6}, {3, 7}};  // "vertical" edges
-  const vector<FaceLoop> faces { { {0, 1, 2, 3}, false}, // bottom (zmin) face
-                                 { {4, 5, 6, 7}, true}, // top (zmax) face
-                                 { {0, 9, 4, 8}, true}, // front (ymin) face
-                                 { {2, 11, 6, 10}, true}, // back (ymax) face
-                                 { {8, 7, 11, 3}, true}, // left (xmin) face
-                                 { {1, 10, 5, 9}, true}}; // right (xmax) face
+  // const vector<Point3D> corners { {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, 
+  //                               {0, 0, 1}, {1, 0, 1}, {1, 1, 1}, {0, 1, 1} };
+  // const vector<Segment> edges   { {0, 1}, {1, 2}, {2, 3}, {3, 0},  // bottom face
+  //                               {4, 5}, {5, 6}, {6, 7}, {7, 4},  // top face
+  //                               {0, 4}, {1, 5}, {2, 6}, {3, 7}};  // "vertical" edges
+  // const vector<FaceLoop> faces { { {0, 1, 2, 3}, false}, // bottom (zmin) face
+  //                                { {4, 5, 6, 7}, true}, // top (zmax) face
+  //                                { {0, 9, 4, 8}, true}, // front (ymin) face
+  //                                { {2, 11, 6, 10}, true}, // back (ymax) face
+  //                                { {8, 7, 11, 3}, true}, // left (xmin) face
+  //                                { {1, 10, 5, 9}, true}}; // right (xmax) face
 
+  
+  // Tesselate concave object
+  const vector<Point3D> corners { {0, 0, 0}, {1, 0, 0}, {1, 1, 0},
+                                  {0.5, 1, 0}, {0.5, 0.5, 0}, {0, 0.5, 0},
+                                  {0, 0, 1}, {1, 0, 1}, {1, 1, 1},
+                                  {0.5, 1, 1}, {0.5, 0.5, 1}, {0, 0.5, 1} };
+
+  const vector<Segment> edges { {0, 1}, {1, 2}, {2, 3}, {3, 4}, {4, 5}, {5, 0},
+                                {6, 7}, {7, 8}, {8, 9}, {9, 10}, {10, 11}, {11, 6},
+                                {0, 6}, {1, 7}, {2, 8}, {3, 9}, {4, 10}, {5, 11} };
+
+  const vector<FaceLoop> faces { { {0, 1, 2, 3, 4, 5}, false}, // bottom
+                                 { {6, 7, 8, 9, 10, 11}, true}, // top
+                                   { { 0, 13, 6, 12}, true}, // front
+                                   { { 1, 14, 7, 13}, true}, // right
+                                   { { 2, 15, 8, 14}, true}, // back 1
+                                   { { 3, 16, 9, 15}, true}, // left 1
+                                   { { 4, 17, 10, 16}, true}, // back 2
+                                   { { 5, 12, 11, 17}, true} };
+  
   // const vector<Point3D> corners { {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0} };
   // const vector<Segment> edges   { {0, 1}, {1, 2}, {2, 3}, {3, 0}};
   // const vector<FaceLoop> faces { { {0, 1, 2, 3}, false}};
@@ -362,17 +382,17 @@ void test_volume_tesselation()
   cout << "Polyhedron:\n" << endl;
   cout << spoly << endl << endl;
 
-  const double vdist = 0.07; //0.2;
+  const double vdist = 0.3; //3; //0.5; //0.07; //0.2;
   spoly.tesselate(vdist);
 
-  // cout << "Writing wirefame: " << endl;
-  // spoly.writeTesselatedOutline(cout);
+  cout << "Writing wirefame: " << endl;
+  spoly.writeTesselatedOutline(cout);
 
-  // cout << "Writing shell: " << endl;
-  // spoly.writeTesselatedShell(cout);
+  cout << "Writing shell: " << endl;
+  spoly.writeTesselatedShell(cout);
 
-  // cout << "Writing tets: " << endl;
-  // spoly.writeTesselatedVolume(cout);
+  cout << "Writing tets: " << endl;
+  spoly.writeTesselatedVolume(cout);
 
 }
 
