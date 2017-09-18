@@ -5,6 +5,59 @@
 using namespace std;
 using namespace Go;
 
+namespace {
+
+// ----------------------------------------------------------------------------
+uint find_vertex_index(const vector<shared_ptr<Vertex>>& vertices,
+                       const shared_ptr<Vertex> vertex)
+// ----------------------------------------------------------------------------
+{
+  const auto ptr = find(vertices.begin(), vertices.end(), vertex);
+  assert(ptr != vertices.end()); // it should be in there somewhere
+  return uint(ptr - vertices.begin());
+}
+
+// ----------------------------------------------------------------------------  
+vector<pair<uint, bool>>
+construct_edge_index_vector(const vector<shared_ptr<ftEdge>>& edges,
+                            const shared_ptr<Loop> loop)
+// ----------------------------------------------------------------------------  
+{
+  vector<pair<uint, bool>> result;
+  const auto loop_edges = loop->getEdges(); // vector of shared_ptr<ftEdgeBase>
+  for (auto e : loop_edges) {
+    pair<uint, bool> cur_elem;
+
+    // find the current edge in the edge list
+    bool found = false;
+    bool found_was_twin = false;
+    for (uint i = 0; (i != edges.size()) && !found; ++i) {
+      if (edges[i] == e) {
+        cur_elem.first = i;
+        found = true;
+        found_was_twin = false;
+      } else if (edges[i]->twin() == e.get()) {
+        cur_elem.first = i;
+        found = true;
+        found_was_twin = true;
+      }
+    }
+    assert(found);
+
+    // determine orientation
+    const auto ft_e = e->geomEdge();
+    bool is_reversed = found_was_twin ^ ft_e->isReversed();
+    cur_elem.second = !is_reversed;
+
+    result.push_back(cur_elem);
+  }
+    
+  return result;
+}
+                            
+  
+}; // end anonymous namespace
+
 namespace TesselateUtils
 {
 
@@ -20,16 +73,32 @@ GoParametricTesselableVolume::TesselableVolume(ftVolume& fvol)
   volume_ = fvol.getVolume();
 
   // setting the corners (vertices)
-  const auto vertices = fvol.vertices();
+  const auto vertices = fvol.vertices(); // shared_ptrs to vertices
   transform(vertices.begin(), vertices.end(), back_inserter(corners_),
             [] (const shared_ptr<Vertex> v) { return v->getVertexPoint();});
   
-  // setting the edges and faces
+  // setting the edges 
   auto unique_edges = shell->getUniqueInnerEdges();
-
-  shared_ptr<ParamCurve> p = unique_edges[0]->geomCurve();
+  transform(unique_edges.begin(), unique_edges.end(), back_inserter(edges_),
+            [&vertices] (const shared_ptr<ftEdge> e) {
+              // @@ for the moment, we require that the ParamCurve is not clipped
+              assert(e->tMin() == e->geomCurve()->startparam());
+              assert(e->tMax() == e->geomCurve()->endparam());
+                
+              return EdgeType { e->geomCurve(),
+                                find_vertex_index(vertices, e->getVertex(true)), 
+                                find_vertex_index(vertices, e->getVertex(false))};});
+      
+  // setting the faces.  We assume here that there are no inner loops
+  auto ft_faces = shell->allFaces();
+  transform(ft_faces.begin(), ft_faces.end(), back_inserter(faces_),
+            [&unique_edges] (const shared_ptr<ftSurface> fs) {
+              //assert(fs->nmbBoundaryLoops() == 1); // not yet support for inner loops
+              return FaceType {
+                fs->surface(),
+                construct_edge_index_vector(unique_edges,
+                                            fs->getBoundaryLoop(0))};});
   
-  // setting the faces
 }
 
 // ----------------------------------------------------------------------------

@@ -17,8 +17,19 @@ struct GoParametricSpaceTraits {
   typedef std::shared_ptr<const Go::ParamSurface> FaceSurface;
 
   typedef Go::Point PointType;
-  typedef std::tuple<EdgeCurve, uint, uint> EdgeType; // geometry and start/end vertex indices
-  typedef std::pair<FaceSurface, vector<uint>> FaceType; // geometry and edge indices
+
+  // geometry and start/end vertex indices
+  typedef std::tuple<EdgeCurve, uint, uint> EdgeType; 
+
+  // geometry, face edge index, and forward/reverse flag
+  typedef struct {
+    FaceSurface surf;
+    vector<pair<uint, bool>> ix; // boolean indicate orientation of edge.  If
+                                 // 'false', edge is oriented in the reverse
+                                 // direction
+  } FaceType;
+
+  //typedef std::pair<FaceSurface, vector<std::pair<uint, bool>>> FaceType; 
   typedef std::shared_ptr<const Go::ParamVolume>  VolumeType;
 };
 
