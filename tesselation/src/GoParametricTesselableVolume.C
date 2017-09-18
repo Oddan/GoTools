@@ -107,7 +107,8 @@ template <> array<uint, 2>
 GoParametricTesselableVolume::edgeCornerIndices(uint edge_ix) const
 // ----------------------------------------------------------------------------  
 {
-  return {1, 1}; //@@ dummy
+  const auto e = edges_[edge_ix];
+  return {get<1>(e), get<2>(e)};
 }
 
 // ----------------------------------------------------------------------------  
@@ -115,7 +116,31 @@ template <> vector<uint>
 GoParametricTesselableVolume::faceBoundaryPointIndices(uint face_ix) const
 // ----------------------------------------------------------------------------
 {
-  return {1}; // @@ dummy
+  const auto edge_ixs = faces_[face_ix].ix;
+  vector<uint> result;
+
+  for (auto e : edge_ixs) {
+    const auto edge = edges_[e.first];
+
+    // internal points
+    vector<uint> ixs(edge_ipoints_[e.first].size(), 0);
+    iota(ixs.begin(), ixs.end(), edge_ipoints_start_ixs_[e.first]);
+
+    
+    if (e.second) { // oriented in the correct way
+
+      result.push_back(get<1>(edge));
+
+    } else { // reversely oriented
+
+      result.push_back(get<2>(edge));
+      reverse(ixs.begin(), ixs.end());
+    }
+    
+    result.insert(result.end(), ixs.begin(), ixs.end());
+  }
+
+  return result;  
 }
 
 // ----------------------------------------------------------------------------
