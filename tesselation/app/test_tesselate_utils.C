@@ -382,7 +382,7 @@ void test_volume_tesselation()
   cout << "Polyhedron:\n" << endl;
   cout << spoly << endl << endl;
 
-  const double vdist = 0.3; //3; //0.5; //0.07; //0.2;
+  const double vdist = 0.2; //0.3; //3; //0.5; //0.07; //0.2;
   spoly.tesselate(vdist);
 
   cout << "Writing wirefame: " << endl;
