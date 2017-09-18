@@ -123,7 +123,7 @@ class Vertex
     }
 
     /// Get the geometrical position associated to this vertex
-    Point getVertexPoint()
+    Point getVertexPoint() const 
 	{
 	    return vertex_point_;
 	}

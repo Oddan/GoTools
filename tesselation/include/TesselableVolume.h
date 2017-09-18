@@ -27,12 +27,17 @@ public:
   typedef typename BoundedSpaceTraits::VolumeType VolumeType;
   
   TesselableVolume(const std::vector<PointType>& c,
-		   const std::vector<EdgeType>& e,
-		   const std::vector<FaceType>& f,
-                   const VolumeType& v) :
+                     const std::vector<EdgeType>& e,
+                     const std::vector<FaceType>& f,
+                     const VolumeType& v) :
     corners_(c), edges_(e), faces_(f), volume_(v)
   {}
 
+  // Possible alternative constructor, whose implementation will depend on the
+  // choice of BoundedSpaceTraits.
+  template<typename ArgumentClass>
+  TesselableVolume(ArgumentClass& arg);
+      
   std::ostream& write (std::ostream& os) const;
   void writeTesselatedOutline(std::ostream& os) const;
   void writeTesselatedShell(std::ostream& os) const;

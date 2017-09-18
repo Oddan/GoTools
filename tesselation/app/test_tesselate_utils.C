@@ -9,10 +9,15 @@
 #include "polyhedral_energies.h"
 #include "triangulate_domain.h"
 #include "SimplePolyhedronTesselation.h"
+#include "GoParametricTesselableVolume.h"
 #include "tesselate_polyhedron.h"
 #include "fit_points_to_plane.h"
 #include "basic_intersections.h"
 #include "clip_grid.h"
+
+#include "GoTools/trivariatemodel/VolumeModelFileHandler.h"
+//#include "GoTools/compositemodel/CompositeModelFileHandler.h"
+#include "GoTools/compositemodel/SurfaceModel.h"
 
 using namespace Go;
 using namespace std;
@@ -37,7 +42,8 @@ namespace Test {
   void test_triangle_intersection();
   void test_solve_linear_system();
   void test_clip_grid_2D();
-  void test_clip_grid_3D();    
+  void test_clip_grid_3D();
+  void test_parametric_volume_tesselation();
 };
 
 // ============================================================================
@@ -73,9 +79,12 @@ int main() {
   // cout << "testing plane fitting: " << endl;
   // Test::test_fit_to_plane();
 
-  cout << "testing volume tesselation: " << endl;
-  Test::test_volume_tesselation();
+  // cout << "testing volume tesselation: " << endl;
+  // Test::test_volume_tesselation();
 
+  cout << "testing parametric volume tesselation: " << endl;
+  Test::test_parametric_volume_tesselation();
+  
   // cout << "testing linear system solving: " << endl;
   // Test::test_linear_system();
 
@@ -611,6 +620,21 @@ void test_clip_grid_3D()
   cout << "\ntype:\n";
   copy(cg.type.begin(), cg.type.end(), ostream_iterator<double>(cout, ", "));
   cout << endl;  
+}
+
+// ----------------------------------------------------------------------------
+void test_parametric_volume_tesselation()
+// ----------------------------------------------------------------------------
+{
+
+  string filename = "data/trimmed_cube_tri.g22";
+  //string filename = "data/pct12108_fem_1couple_model_0_simplified_trim3.g22";
+  VolumeModelFileHandler filehandler;
+
+  shared_ptr<ftVolume> testVolume = filehandler.readVolume(filename.c_str());
+
+  GoParametricTesselableVolume ptvolume(*testVolume);
+  
 }
 
 };

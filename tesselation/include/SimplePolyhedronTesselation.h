@@ -23,8 +23,7 @@ struct SimpleSpaceTraits {
 
   
 using SimplePolyhedron = TesselableVolume<SimpleSpaceTraits>;
-
-
+  
 // ----------------------------------------------------------------------------
 inline std::ostream& operator<<(std::ostream& os, FaceLoop fl)
 // ----------------------------------------------------------------------------
