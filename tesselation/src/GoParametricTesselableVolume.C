@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <algorithm>
 #include "GoParametricTesselableVolume.h"
+#include "tesselate_parametric_volume.h"
 
 using namespace std;
 using namespace Go;
@@ -147,25 +148,29 @@ GoParametricTesselableVolume::faceBoundaryPointIndices(uint face_ix) const
 template<> 
 void GoParametricTesselableVolume::
 compute_tesselation(const array<Go::Point, 2>& boundary,
-                    const GoParametricTesselableVolume::EdgeType& edge,
+                    const EdgeType& edge,
                     const double vdist,
                     vector<Point>& ipoints)
 // ----------------------------------------------------------------------------
 {
-
+  const auto param = tesselateParametricCurve(*get<0>(edge), vdist);
+  ipoints.resize(param.size() - 2);
+  transform(param.begin()+1, param.end()-1, ipoints.begin(),
+            [&edge] (const double d) { return get<0>(edge)->point(d); });
 }
 
 // ----------------------------------------------------------------------------  
 template<>
 void GoParametricTesselableVolume::
 compute_tesselation(const vector<Point>& boundary,
-                    const GoParametricTesselableVolume::FaceType& face,
+                    const FaceType& face,
                     const double vdist,
                     vector<Point>& ipoints,
                     vector<Triangle>& triangles)
 // ----------------------------------------------------------------------------  
 {
-
+  // @@ dummy
+  ipoints = boundary;
 }
 
 // ----------------------------------------------------------------------------  
@@ -173,13 +178,14 @@ template<>
 void GoParametricTesselableVolume::
 compute_tesselation(const vector<Point>& bpoints,
                     const vector<Triangle>& btris,
-                    const GoParametricTesselableVolume::VolumeType& volume,
+                    const VolumeType& volume,
                     const double vdist,
                     vector<Point>& ipoints,
                     vector<Tet>& tets)
 // ----------------------------------------------------------------------------  
 {
-
+  // @@ dummy
+  ipoints = bpoints;
 }
 
   

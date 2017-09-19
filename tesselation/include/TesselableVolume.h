@@ -371,11 +371,11 @@ void TesselableVolume<BoundedSpaceTraits>::writeTesselatedOutline(std::ostream& 
   // write all tesselated edges on a easily plottable format
 
   // first, write all corner points
-  for (const auto& c: corners_) os << c;
+  for (const auto& c: corners_) os << c << '\n';
 
   // then write all the interior points
   for (const auto& pvec : edge_ipoints_)
-    for (const auto& p : pvec) os << p;
+    for (const auto& p : pvec) os << p << '\n';
   os << '\n';
   
   // then write the connectivities

@@ -634,6 +634,12 @@ void test_parametric_volume_tesselation()
   shared_ptr<ftVolume> testVolume = filehandler.readVolume(filename.c_str());
 
   GoParametricTesselableVolume ptvolume(*testVolume);
+
+  const double vdist = 0.01;
+  
+  ptvolume.tesselate(vdist);
+  
+  ptvolume.writeTesselatedOutline(cout);
   
 }
 
