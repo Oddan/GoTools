@@ -24,6 +24,15 @@ ParametricObjectEnergyFunctor<ParamObj, dim>::grad(const double* arg,
   copy(dp, dp + dim * n_, grad);
 }
 
+// ----------------------------------------------------------------------------  
+template<typename ParamObj, int dim> bool
+ParametricObjectEnergyFunctor<ParamObj, dim>::use_cached(const double* const arg) const
+// ----------------------------------------------------------------------------
+{
+  return (cached_arg_.size() > 0) &&
+         (std::equal(arg, arg + dim * np_, &cached_arg_[0]))
+}
+  
 // ----------------------------------------------------------------------------
 template<> double
 ParametricObjectEnergyFunctor<Go::ParamCurve, 1>::minPar(int i) const
@@ -41,19 +50,28 @@ ParametricObjectEnergyFunctor<Go::ParamCurve, 1>::maxPar(int i) const
 }
 
 // ----------------------------------------------------------------------------    
-  template<> bool ParametricObjectEnergyFunctor<Go::ParamCurveuse_cached(const double* const arg) const
-// ----------------------------------------------------------------------------
-{
-
-}
-  
-// ----------------------------------------------------------------------------    
-template<> void update_cache(const double* const arg) const
+template<> void
+ParametricObjectEnergyFunctor<Go::ParamCurve, 1>::update_cache(const double* const arg) const
 // ----------------------------------------------------------------------------  
 {
-  
-}
+  if (cached_arg_.empty())
+    cached_arg_.resize(dim * np_);
 
+  std::copy(arg, arg + dim * np_, &cached_arg_[0]);
+
+  cached_result_ = 
+
+
+template<typename PointXD>  
+struct ValAndDer {
+  double val;
+  std::vector<PointXD> der;
+
+  void reset(uint num_der);
+};
+
+
+}
   
 }; // end namespace TesselateUtils
 

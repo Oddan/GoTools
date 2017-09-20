@@ -22,6 +22,7 @@ struct PointXD {
   std::array<double, Dim> coords;
 };
 
+using Point1D = PointXD<1>;
 using Point2D = PointXD<2>; //std::array<double, 2>;
 using Point3D = PointXD<3>; // std::array<double, 3>;
 
