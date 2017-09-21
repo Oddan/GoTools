@@ -384,7 +384,7 @@ vector<Point2D> init_startpoints(const Point2D* const polygon,
   const array<double, 4> bbox = bounding_box_2D(polygon, num_corners);
   const double bbox_lx = bbox[1] - bbox[0];
   const double bbox_ly = bbox[3] - bbox[2];
-  const double bbox_area =  bbox_lx * bbox_ly;
+  //const double bbox_area =  bbox_lx * bbox_ly;
 
   // computing amount of points needed to approximately cover the bounding box, where points
   // are approximately equidistant by 'vdist'

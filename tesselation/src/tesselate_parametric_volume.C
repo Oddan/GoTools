@@ -1,4 +1,5 @@
 #include <cmath>
+#include "ParametricObjectEnergyFunctor.h"
 #include "GoTools/utils/GeneralFunctionMinimizer.h"
 #include "tesselate_parametric_volume.h"
 
@@ -7,15 +8,15 @@ using namespace Go;
 
 namespace {
 
-vector<Point> evaluate_points(const ParamCurve& pc,
+vector<Point> evaluate_points(const shared_ptr<const ParamCurve> pc,
                               const vector<double>& t);
 vector<double> compute_distances(const vector<Point> points);
 vector<double> define_parvec(double minparam,
                              double maxparam,
                              unsigned int num_intparams);
-vector<double> adjust_parameters_to_geometry(const ParamCurve& pc,
+vector<double> adjust_parameters_to_geometry(const shared_ptr<const ParamCurve> pc,
                                              const vector<double>& t);
-void optimize_interior_points(const ParamCurve& pc,
+void optimize_interior_points(const shared_ptr<const ParamCurve> pc,
                               double radius,
                               vector<double>& par);
   
@@ -24,7 +25,7 @@ void optimize_interior_points(const ParamCurve& pc,
 namespace TesselateUtils {
 
 // ----------------------------------------------------------------------------
-vector<double> tesselateParametricCurve(const Go::ParamCurve& pc,
+vector<double> tesselateParametricCurve(const shared_ptr<const ParamCurve> pc,
                                         const double vdist)
 // ----------------------------------------------------------------------------
 {
@@ -37,8 +38,8 @@ vector<double> tesselateParametricCurve(const Go::ParamCurve& pc,
 
   // initial guess of parameters (we try to space them as evenly as possible)
   vector<double> par = adjust_parameters_to_geometry(pc,
-                                                     define_parvec(pc.startparam(),
-                                                                   pc.endparam(), N));
+                                                     define_parvec(pc->startparam(),
+                                                                   pc->endparam(), N));
 
   if (!par.empty())
     optimize_interior_points(pc, vdist * DIST_FAC, par);  
@@ -48,19 +49,19 @@ vector<double> tesselateParametricCurve(const Go::ParamCurve& pc,
   
 
 // ----------------------------------------------------------------------------
-double estimateCurveLength(const Go::ParamCurve& pc,
+double estimateCurveLength(const shared_ptr<const ParamCurve> pc,
                            const unsigned int num_samples)
 // ----------------------------------------------------------------------------  
 {
   const vector<double> par =
-    adjust_parameters_to_geometry(pc, define_parvec(pc.startparam(),
-						    pc.endparam(),
+    adjust_parameters_to_geometry(pc, define_parvec(pc->startparam(),
+						    pc->endparam(),
 						    num_samples-2));
   Point p, pnew;
   double accum = 0;
-  pc.point(p, par[0]);
+  pc->point(p, par[0]);
   for (size_t i = 1; i != par.size(); ++i) {
-    pc.point(pnew, par[i]);
+    pc->point(pnew, par[i]);
     accum += pnew.dist(p);
     p.swap(pnew);
   }
@@ -74,7 +75,7 @@ double estimateCurveLength(const Go::ParamCurve& pc,
 namespace {
 
 // ----------------------------------------------------------------------------  
-vector<double> adjust_parameters_to_geometry(const ParamCurve& pc,
+vector<double> adjust_parameters_to_geometry(const shared_ptr<const ParamCurve> pc,
                                              const vector<double>& t)
 // ----------------------------------------------------------------------------
 {
@@ -109,12 +110,13 @@ vector<double> adjust_parameters_to_geometry(const ParamCurve& pc,
 }
 
 // ----------------------------------------------------------------------------
-vector<Point> evaluate_points(const ParamCurve& pc, const vector<double>& t)
+vector<Point> evaluate_points(const shared_ptr<const ParamCurve> pc,
+                              const vector<double>& t)
 // ----------------------------------------------------------------------------
 {
   vector<Point> result(t.size(), Point(3));
   for (size_t i = 0; i != t.size(); ++i)
-    pc.point(result[i], t[i]);
+    pc->point(result[i], t[i]);
   return result;
 }
 
@@ -143,12 +145,12 @@ vector<double> define_parvec(double minparam,
 }
 
 // ----------------------------------------------------------------------------  
-void optimize_interior_points(const ParamCurve& pc,
+void optimize_interior_points(const shared_ptr<const ParamCurve> pc,
                               double radius,
                               vector<double>& par)
 // ----------------------------------------------------------------------------
 {
-  const uint N = par.size(); // number of unknowns
+  const uint N = (uint)par.size(); // number of unknowns
   
   // setting up function to minimize
   auto efun = ParamCurveEnergyFunctor(pc, radius, N);

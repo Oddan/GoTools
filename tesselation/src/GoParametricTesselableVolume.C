@@ -153,7 +153,7 @@ compute_tesselation(const array<Go::Point, 2>& boundary,
                     vector<Point>& ipoints)
 // ----------------------------------------------------------------------------
 {
-  const auto param = tesselateParametricCurve(*get<0>(edge), vdist);
+  const auto param = tesselateParametricCurve(get<0>(edge), vdist);
   ipoints.resize(param.size() - 2);
   transform(param.begin()+1, param.end()-1, ipoints.begin(),
             [&edge] (const double d) { return get<0>(edge)->point(d); });

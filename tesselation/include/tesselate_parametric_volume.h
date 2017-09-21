@@ -7,13 +7,13 @@
 namespace TesselateUtils {
 
   // Estimate the length of a parametric curve, based on a specified number of samples
-  double estimateCurveLength(const Go::ParamCurve& pc, const unsigned int num_samples);
+  double estimateCurveLength(const std::shared_ptr<const Go::ParamCurve> pc,
+                             const unsigned int num_samples);
   
   // tesselate parametric curve, returning a vector of parameter values
-  std::vector<double> tesselateParametricCurve(const Go::ParamCurve& pc,
+  std::vector<double> tesselateParametricCurve(const std::shared_ptr<const Go::ParamCurve> pc,
                                                const double vdist);
                                                
 };
-
 
 #endif

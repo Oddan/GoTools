@@ -59,15 +59,12 @@ ParametricObjectEnergyFunctor<Go::ParamCurve, 1>::update_cache(const double* con
 
   std::copy(arg, arg + dim * np_, &cached_arg_[0]);
 
-  cached_result_ = 
-
-
-template<typename PointXD>  
-struct ValAndDer {
-  double val;
-  std::vector<PointXD> der;
-
-  void reset(uint num_der);
+  cached_result_ = parametric_curve_energy(pobj_,
+                                           pobj_.startparam(),
+                                           pobj_.endparam(),
+                                           &cached_arg_[0],
+                                           np_,
+                                           radius_);
 };
 
 
