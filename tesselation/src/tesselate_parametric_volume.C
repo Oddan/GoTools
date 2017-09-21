@@ -3,6 +3,7 @@
 #include "GoTools/utils/GeneralFunctionMinimizer.h"
 #include "tesselate_parametric_volume.h"
 
+using namespace TesselateUtils;
 using namespace std;
 using namespace Go;
 
