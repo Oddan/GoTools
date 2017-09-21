@@ -9,3 +9,7 @@ CMakeFiles
 moc_*
 TAGS
 /CMakeCache.txt
+*.mat
+
+/tesselation/include/octave-workspace
+/tesselation/a.out

@@ -626,7 +626,6 @@ void test_clip_grid_3D()
 void test_parametric_volume_tesselation()
 // ----------------------------------------------------------------------------
 {
-
   string filename = "data/trimmed_cube_tri.g22";
   //string filename = "data/pct12108_fem_1couple_model_0_simplified_trim3.g22";
   VolumeModelFileHandler filehandler;
@@ -635,7 +634,7 @@ void test_parametric_volume_tesselation()
 
   GoParametricTesselableVolume ptvolume(*testVolume);
 
-  const double vdist = 0.01;
+  const double vdist = 0.005; //0.01; //0.005;
   
   ptvolume.tesselate(vdist);
   

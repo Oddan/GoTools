@@ -182,8 +182,13 @@ bin_points(const TesselateUtils::Point3D* const points,
   const uint num_bins_z = (uint)ceil((zmax-zmin) * Rinv) + 1;
   
   // Sort points according to bin
-  BinnedPoints<TesselateUtils::Point3D> result { {num_points, {0, 0}}, std::vector<uint>(num_points, 0),
-                                 {}, num_bins_x, num_bins_y, num_bins_z};
+  BinnedPoints<TesselateUtils::Point3D> result {
+    {num_points, {0, 0}},
+    std::vector<uint>(num_points, 0),
+    {},
+    num_bins_x, num_bins_y, num_bins_z
+  };
+  
   uint pos = 0;
   result.indices.push_back(pos);
 

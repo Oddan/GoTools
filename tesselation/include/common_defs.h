@@ -18,6 +18,8 @@ struct PointXD {
 
   double& operator[](uint i) { return coords[i];}
   const double& operator[](uint i) const {return coords[i];}
+  template<typename Iterator>
+  void copyFrom(Iterator begin) {std::copy(begin, begin+Dim, &coords[0]);}
   
   std::array<double, Dim> coords;
 };
@@ -43,6 +45,48 @@ template<> inline void ValAndDer<Point2D>::reset(uint num_der) {
   val = 0;
   der = std::vector<Point3D>(num_der, Point3D {0, 0, 0});
 }
+
+// =============================== 1D operators ===============================
+
+// ----------------------------------------------------------------------------
+inline void operator *= (Point1D& p, const double d)
+// ----------------------------------------------------------------------------
+{
+  p[0] *= d;
+}
+  
+// ----------------------------------------------------------------------------
+inline Point1D operator*(const Point1D& p, double t)
+// ----------------------------------------------------------------------------
+{
+  Point1D tmp(p);
+  tmp *= t;
+  return tmp;
+}
+
+// ----------------------------------------------------------------------------
+inline Point1D operator*(double t, const Point1D& p)
+// ----------------------------------------------------------------------------
+{
+  Point1D tmp(p);
+  tmp *= t;
+  return tmp;
+}
+
+// ----------------------------------------------------------------------------
+inline void operator += (Point1D& p1, const Point1D& p2)
+// ----------------------------------------------------------------------------
+{ 
+  p1[0] += p2[0]; 
+}
+
+// ----------------------------------------------------------------------------
+inline void operator -= (Point1D& p1, const Point1D& p2)
+// ----------------------------------------------------------------------------
+{ 
+  p1[0] -= p2[0]; 
+}
+
   
 
 // =============================== 2D operators ===============================

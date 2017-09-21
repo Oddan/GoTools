@@ -5,6 +5,7 @@
 #include <memory>
 #include "common_defs.h"
 #include "GoTools/geometry/ParamCurve.h"
+#include "parametric_object_energies.h"
 
 namespace TesselateUtils {
 
@@ -42,5 +43,6 @@ typedef ParametricObjectEnergyFunctor<std::shared_ptr<const Go::ParamCurve>, 1>
   
 } // end namespace TesselateUtils
 
+#include "ParametricObjectEnergyFunctor_impl.h"
 
 #endif

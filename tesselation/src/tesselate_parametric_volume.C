@@ -19,7 +19,9 @@ vector<double> adjust_parameters_to_geometry(const shared_ptr<const ParamCurve> 
                                              const vector<double>& t);
 void optimize_interior_points(const shared_ptr<const ParamCurve> pc,
                               double radius,
-                              vector<double>& par);
+                              double* const par,
+                              uint num_par);
+                              
   
 }; // end anonymous namespace 
 
@@ -32,7 +34,7 @@ vector<double> tesselateParametricCurve(const shared_ptr<const ParamCurve> pc,
 {
   // estimate lenght of curve, in order to determine the necessary number of
   // inner points
-  const double DIST_FAC = 1.5; // properly adjust radius of energy function
+  const double DIST_FAC = 1.5; //1.5; // properly adjust radius of energy function
   const int NUM_SAMPLES = 20;
   const int N = max(0,
                     (int)floor(estimateCurveLength(pc, NUM_SAMPLES) / vdist) - 1);
@@ -41,9 +43,8 @@ vector<double> tesselateParametricCurve(const shared_ptr<const ParamCurve> pc,
   vector<double> par = adjust_parameters_to_geometry(pc,
                                                      define_parvec(pc->startparam(),
                                                                    pc->endparam(), N));
-
   if (!par.empty())
-    optimize_interior_points(pc, vdist * DIST_FAC, par);  
+    optimize_interior_points(pc, vdist * DIST_FAC, &par[1], (uint)par.size()-2);  
   
   return par; 
 }
@@ -148,25 +149,24 @@ vector<double> define_parvec(double minparam,
 // ----------------------------------------------------------------------------  
 void optimize_interior_points(const shared_ptr<const ParamCurve> pc,
                               double radius,
-                              vector<double>& par)
+                              double* const par,
+                              uint num_par)
 // ----------------------------------------------------------------------------
 {
-  const uint N = (uint)par.size(); // number of unknowns
-  
   // setting up function to minimize
-  auto efun = ParamCurveEnergyFunctor(pc, radius, N);
+  auto efun = ParamCurveEnergyFunctor(pc, radius, num_par);
 
   // setting up function minimizer
   Go::FunctionMinimizer<ParamCurveEnergyFunctor>
-    funcmin(N, efun, &par[0], 1e-1); // @@ to lax tolerance?
+    funcmin(num_par, efun, par, 1e-6);//1e-1); // @@ to lax tolerance?
 
-  const double STOPTOL = 1e-4; // @@
+  const double STOPTOL = 1e-6; // @@
 
   // Do the minimization
   Go::minimise_conjugated_gradient(funcmin, STOPTOL);
 
   // copy results back
-  copy(funcmin.getPar(), funcmin.getPar() + N, par.begin());
+  copy(funcmin.getPar(), funcmin.getPar() + num_par, par);
   
 }
   

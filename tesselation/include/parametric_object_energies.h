@@ -11,7 +11,7 @@ namespace TesselateUtils
 {
 
 // ============================================================================
-ValAndDer<Point1D> parametric_curve_energy(const shared_ptr<const ParamCurve> curve,
+ValAndDer<Point1D> parametric_curve_energy(const shared_ptr<const Go::ParamCurve> curve,
                                            const double startpar,
                                            const double endpar,
                                            const double* const ipar,
