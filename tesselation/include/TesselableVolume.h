@@ -33,10 +33,8 @@ public:
     corners_(c), edges_(e), faces_(f), volume_(v)
   {}
 
-  // Possible alternative constructor, whose implementation will depend on the
-  // choice of BoundedSpaceTraits.
-  template<typename ArgumentClass>
-  TesselableVolume(ArgumentClass& arg);
+  // Possible alternative constructor
+  template<typename ArgumentClass> TesselableVolume(ArgumentClass& arg);
       
   std::ostream& write (std::ostream& os) const;
   void writeTesselatedOutline(std::ostream& os) const;

@@ -1,61 +1,33 @@
 #include <assert.h>
 #include <algorithm>
+#include "common_defs.h"
 #include "GoParametricTesselableVolume.h"
 #include "tesselate_parametric_volume.h"
 
+using namespace TesselateUtils;
 using namespace std;
 using namespace Go;
 
 namespace {
 
+typedef GoParametricTesselableVolume::PointType PointType;
+  
+// ----------------------------------------------------------------------------  
+vector<Point2D> compute_surface_parameters(const vector<PointType>& boundary,
+                                           const shared_ptr<const ParamSurface> surf);
+// ----------------------------------------------------------------------------
+  
 // ----------------------------------------------------------------------------
 uint find_vertex_index(const vector<shared_ptr<Vertex>>& vertices,
-                       const shared_ptr<Vertex> vertex)
+                       const shared_ptr<Vertex> vertex);
 // ----------------------------------------------------------------------------
-{
-  const auto ptr = find(vertices.begin(), vertices.end(), vertex);
-  assert(ptr != vertices.end()); // it should be in there somewhere
-  return uint(ptr - vertices.begin());
-}
 
 // ----------------------------------------------------------------------------  
 vector<pair<uint, bool>>
 construct_edge_index_vector(const vector<shared_ptr<ftEdge>>& edges,
-                            const shared_ptr<Loop> loop)
+                            const shared_ptr<Loop> loop);
 // ----------------------------------------------------------------------------  
-{
-  vector<pair<uint, bool>> result;
-  const auto loop_edges = loop->getEdges(); // vector of shared_ptr<ftEdgeBase>
-  for (auto e : loop_edges) {
-    pair<uint, bool> cur_elem;
-
-    // find the current edge in the edge list
-    bool found = false;
-    bool found_was_twin = false;
-    for (uint i = 0; (i != edges.size()) && !found; ++i) {
-      if (edges[i] == e) {
-        cur_elem.first = i;
-        found = true;
-        found_was_twin = false;
-      } else if (edges[i]->twin() == e.get()) {
-        cur_elem.first = i;
-        found = true;
-        found_was_twin = true;
-      }
-    }
-    assert(found);
-
-    // determine orientation
-    const auto ft_e = e->geomEdge();
-    bool is_reversed = found_was_twin ^ ft_e->isReversed();
-    cur_elem.second = !is_reversed;
-
-    result.push_back(cur_elem);
-  }
-    
-  return result;
-}
-                            
+  
   
 }; // end anonymous namespace
 
@@ -147,40 +119,54 @@ GoParametricTesselableVolume::faceBoundaryPointIndices(uint face_ix) const
 // ----------------------------------------------------------------------------
 template<> 
 void GoParametricTesselableVolume::
-compute_tesselation(const array<Go::Point, 2>& boundary,
+compute_tesselation(const array<PointType, 2>& boundary,
                     const EdgeType& edge,
                     const double vdist,
-                    vector<Point>& ipoints)
+                    vector<PointType>& ipoints)
 // ----------------------------------------------------------------------------
 {
   const auto param = tesselateParametricCurve(get<0>(edge), vdist);
   ipoints.resize(param.size() - 2);
-  transform(param.begin()+1, param.end()-1, ipoints.begin(),
-            [&edge] (const double d) { return get<0>(edge)->point(d); });
+  transform(param.begin()+1, param.end()-1, ipoints.begin(), [&edge]
+            (const double d) { return PointType{get<0>(edge)->point(d), d}; });
 }
 
 // ----------------------------------------------------------------------------  
 template<>
 void GoParametricTesselableVolume::
-compute_tesselation(const vector<Point>& boundary,
+compute_tesselation(const vector<PointType>& boundary,
                     const FaceType& face,
                     const double vdist,
-                    vector<Point>& ipoints,
+                    vector<PointType>& ipoints,
                     vector<Triangle>& triangles)
 // ----------------------------------------------------------------------------  
 {
-  // @@ dummy
-  ipoints = boundary;
+  // determine surface parameter values for boundary points
+  const vector<Point2D> par = compute_surface_parameters(boundary, face.surf);
+
+  // // constructing distance function
+  // distfun = construct_distfun;
+
+  // // computing tesselation
+  // const Mesh2D m2d = tesselatePolygon2D(&par, (uint)par.size(), vdist, false, distfun);
+
+  // // compute 3D points
+  // ipoints = compute_3D_points(m2d.points);
+
+  // // fix orientation of triangles if necessary
+  // do_stuff;
+  ipoints = boundary; /// @@ DUMMY
+                                        
 }
 
 // ----------------------------------------------------------------------------  
 template<>
 void GoParametricTesselableVolume::
-compute_tesselation(const vector<Point>& bpoints,
+compute_tesselation(const vector<PointType>& bpoints,
                     const vector<Triangle>& btris,
                     const VolumeType& volume,
                     const double vdist,
-                    vector<Point>& ipoints,
+                    vector<PointType>& ipoints,
                     vector<Tet>& tets)
 // ----------------------------------------------------------------------------  
 {
@@ -190,3 +176,82 @@ compute_tesselation(const vector<Point>& bpoints,
 
   
 };
+
+
+namespace {
+// ----------------------------------------------------------------------------
+uint find_vertex_index(const vector<shared_ptr<Vertex>>& vertices,
+                       const shared_ptr<Vertex> vertex)
+// ----------------------------------------------------------------------------
+{
+  const auto ptr = find(vertices.begin(), vertices.end(), vertex);
+  assert(ptr != vertices.end()); // it should be in there somewhere
+  return uint(ptr - vertices.begin());
+}
+
+// ----------------------------------------------------------------------------  
+vector<pair<uint, bool>>
+construct_edge_index_vector(const vector<shared_ptr<ftEdge>>& edges,
+                            const shared_ptr<Loop> loop)
+// ----------------------------------------------------------------------------  
+{
+  vector<pair<uint, bool>> result;
+  const auto loop_edges = loop->getEdges(); // vector of shared_ptr<ftEdgeBase>
+  for (auto e : loop_edges) {
+    pair<uint, bool> cur_elem;
+
+    // find the current edge in the edge list
+    bool found = false;
+    bool found_was_twin = false;
+    for (uint i = 0; (i != edges.size()) && !found; ++i) {
+      if (edges[i] == e) {
+        cur_elem.first = i;
+        found = true;
+        found_was_twin = false;
+      } else if (edges[i]->twin() == e.get()) {
+        cur_elem.first = i;
+        found = true;
+        found_was_twin = true;
+      }
+    }
+    assert(found);
+
+    // determine orientation
+    const auto ft_e = e->geomEdge();
+    bool is_reversed = found_was_twin ^ ft_e->isReversed();
+    cur_elem.second = !is_reversed;
+
+    result.push_back(cur_elem);
+  }
+    
+  return result;
+}
+
+// ----------------------------------------------------------------------------  
+vector<Point2D> compute_surface_parameters(const vector<PointType>& boundary,
+                                           const shared_ptr<const ParamSurface> surf)
+// ----------------------------------------------------------------------------
+{
+  vector<Point2D> result(boundary.size());
+  const double surf_extent = surf->containingDomain().diagLength();
+  const double EPS = sqrt(numeric_limits<double>::epsilon()) * surf_extent;
+  const double TOL = surf_extent * 1e-6;
+  
+  transform(boundary.begin(),
+            boundary.end(),
+            result.begin(),
+            [&] (const PointType& p) {
+              Go::Point cpoint; // closest point (we do not use this)
+              double u, v; // parameters for closest point
+              double dist; // distance to closest point (we do not use this)
+              surf->closestPoint(p.pos, u, v, cpoint, dist , EPS);
+              cout << "dist: " << dist << endl;
+              if (dist > TOL) {
+                throw runtime_error("Could not exactly locate point on surface");
+              }
+              return Point2D {u, v};
+            });
+  return result;
+}
+  
+} // end anonymous namespace
