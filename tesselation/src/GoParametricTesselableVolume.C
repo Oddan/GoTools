@@ -11,6 +11,7 @@ using namespace Go;
 namespace {
 
 typedef GoParametricTesselableVolume::PointType PointType;
+typedef GoParametricTesselableVolume::FaceType FaceType;
   
 // ----------------------------------------------------------------------------  
 vector<Point2D> compute_surface_parameters(const vector<PointType>& boundary,
@@ -131,6 +132,50 @@ compute_tesselation(const array<PointType, 2>& boundary,
             (const double d) { return PointType{get<0>(edge)->point(d), d}; });
 }
 
+// ----------------------------------------------------------------------------
+function<double(const Point2D&, const Point2D&, double* grad)>
+make_squared_distance_function(const FaceType& face)
+// ----------------------------------------------------------------------------
+{
+  const auto surf = face.surf;
+  vector<Go::Point> pvec1(3), pvec2(3); // avoid having to recreate these each time function is called 
+  return [surf, pvec1, pvec2] (const Point2D& p1, const Point2D& p2, double* grad) mutable {
+
+    auto pt1 = pvec1[0]; // for notational simplicity
+    auto pt2 = pvec2[0];
+
+    if (grad) { // compute both distance and gradient
+
+      surf->point(pvec1, p1[0], p1[1], 1);  // compute point and directional derivatives
+      surf->point(pvec2, p2[0], p2[1], 1);  // compute point and directional derivatives
+
+    } else { // compute oniy distance
+      
+      surf->point(pt1, p1[0], p1[1]);
+      surf->point(pt2, p2[0], p2[1]);
+    }
+
+    // compute squared distance value (unrolling scalar product)
+    
+    const double dx = pt2[0] - pt1[0];
+    const double dy = pt2[1] - pt1[1];
+    const double dz = pt2[2] - pt1[2];
+    
+    const double dist2 = dx*dx + dy*dy + dz*dz;
+
+    // if gradient requested, compute as well
+    if (grad) 
+      for (uint i = 0; i != 2; ++i) 
+        grad[i] = 2 * dx * (pvec2[1+i][0] - pvec1[i+1][0]) +
+                      dy * (pvec2[1+i][1] - pvec1[i+1][1]) +
+                      dz * (pvec2[1+i][2] - pvec1[i+1][2]);
+
+    // return square distance
+    return dist2;
+  };
+  
+}
+
 // ----------------------------------------------------------------------------  
 template<>
 void GoParametricTesselableVolume::
@@ -144,9 +189,9 @@ compute_tesselation(const vector<PointType>& boundary,
   // determine surface parameter values for boundary points
   const vector<Point2D> par = compute_surface_parameters(boundary, face.surf);
 
-  // // constructing distance function
-  // distfun = construct_distfun;
-
+  // constructing squared distance function
+  auto dist2fun = make_squared_distance_function(face);
+  
   // // computing tesselation
   // const Mesh2D m2d = tesselatePolygon2D(&par, (uint)par.size(), vdist, false, distfun);
 
