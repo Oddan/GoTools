@@ -5,8 +5,10 @@
 #include <array>
 #include <cmath>
 #include "common_defs.h"
+#include "distance_function.h"
 #include "tesselate_utils.h"
 #include "triangulate_domain.h"
+#include "GoTools/geometry/ParamSurface.h"
 
 namespace TesselateUtils {
 
@@ -29,7 +31,7 @@ std::vector<PointXD> tesselateSegment(const PointXD& p1,
 Mesh2D tesselatePolygon2D(const Point2D* const polygon,
 			  const unsigned int num_corners,
 			  const double vdist,
-			  const bool tesselate_boundary=true);
+                          const shared_ptr<const Go::ParamSurface> surf = 0);
 
 // All  face triangle should be presented with face normal pointing outwards.
 Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,

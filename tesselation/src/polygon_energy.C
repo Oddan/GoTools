@@ -14,7 +14,8 @@ array<double, 2> energy(double dist, double R);
 
 ValAndDer<Point2D> internal_energy(const Point2D* const ipoints,
                                    const unsigned int num_ipoints,
-                                   const double vdist);
+                                   const double vdist,
+                                   const SquaredDistanceFun2D& dfun);
 ValAndDer<Point2D> boundary_energy(const Point2D* const bpoints,
                                    const unsigned int num_bpoints,
                                    const Point2D* const ipoints,
@@ -68,12 +69,13 @@ ValAndDer<Point2D> polygon_energy(const Point2D* const bpoints,
                                   const Point2D* const ipoints,
                                   const unsigned int num_ipoints,
                                   const double vdist,
+                                  const SquaredDistanceFun2D& dfun,
                                   const ClippedGrid<2>* const cgrid)
 // ----------------------------------------------------------------------------
 {
   
   // compute internal energy (potential energy between internal points)
-  const   ValAndDer<Point2D> E_int = internal_energy(ipoints, num_ipoints, vdist);
+  const   ValAndDer<Point2D> E_int = internal_energy(ipoints, num_ipoints, vdist, dfun);
 
   // compute boundary energy (energy from interaction between internal points
   // and boundary points, and from internal points and their mirror points)
@@ -102,7 +104,8 @@ namespace {
 // ----------------------------------------------------------------------------
 ValAndDer<Point2D> internal_energy(const Point2D* const ipoints,
                                    const unsigned int num_ipoints,
-                                   const double vdist)
+                                   const double vdist,
+                                   const SquaredDistanceFun2D& dfun)
 // ----------------------------------------------------------------------------
 {
   const auto dists = interpoint_distances(ipoints, num_ipoints, vdist, false);

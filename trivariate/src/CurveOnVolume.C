@@ -594,8 +594,8 @@ void CurveOnVolume::closestPoint(const Point&   pt,
     if (seed != 0) {
 	guess_param = *seed;
 	if (guess_param < tmin || guess_param > tmax) {
-	    MESSAGE("Suggested parameter for closest point "
-		       "must lie inside domain!");
+	    // MESSAGE("Suggested parameter for closest point "
+	    //            "must lie inside domain!");
 	    guess_param = (tmax < guess_param ? tmax : guess_param);
 	    guess_param = (tmin > guess_param ? tmin : guess_param);
 	}

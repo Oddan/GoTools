@@ -9,7 +9,9 @@
 #include "tesselate_polyhedron.h"
 #include "polyhedral_energies.h"
 #include "GoTools/utils/GeneralFunctionMinimizer.h"
+#include "distance_function.h"
 
+using namespace Go;
 using namespace std;
 using namespace TesselateUtils; 
 
@@ -25,7 +27,8 @@ public:
   PolygonEnergyFunctor(const Point2D* const polygon,
 		       const unsigned int num_corners,
 		       const unsigned int num_ipoints,
-		       const double radius);
+		       const double radius,
+                       const SquaredDistanceFun2D& dfun);
 
   double operator()(const double* const arg) const;
   void grad(const double* arg, double* grad) const;
@@ -45,6 +48,7 @@ private:
                                // to the polygon boundary (inside, outside,
                                // etc.).  Used to improve computational efficiency.
 
+  mutable SquaredDistanceFun2D dfun_;
   mutable ValAndDer<Point2D> cached_result_;
   mutable vector<double> cached_arg_;
 
@@ -87,7 +91,8 @@ private:
 // ----------------------------------------------------------------------------  
 vector<Point2D> init_startpoints(const Point2D* const polygon,
 				 const unsigned int num_corners,
-				 const double vdist);
+				 const double vdist,
+                                 const shared_ptr<const ParamSurface> surf);
 // choose some initial startpoints as a basis for subsequent optimization  
 // ----------------------------------------------------------------------------
 
@@ -105,6 +110,7 @@ void optimize_interior_points(const Point2D* const polygon,
 			      const unsigned int num_corners,
 			      Point2D* const ipoints,
 			      const unsigned int num_ipoints,
+                              const SquaredDistanceFun2D& dfun,
 			      const double vdist);
 // ----------------------------------------------------------------------------  
 
@@ -127,35 +133,36 @@ namespace TesselateUtils {
 Mesh2D tesselatePolygon2D(const Point2D* const polygon,
 			  const unsigned int num_corners,
 			  const double vdist,
-			  const bool tesselate_boundary)
+                          const shared_ptr<const ParamSurface> surf)
 // ============================================================================
 {
-  // computing the points defining the boundary polygon 
-
-  vector<Point2D> bpoints; // "boundary points"
-  if (tesselate_boundary) {
-    for (unsigned int i = 0; i != num_corners; ++i) {
-      const auto tseg = tesselateSegment(polygon[i], 
-					 polygon[(i+1) % num_corners], 
-					 vdist);
-      bpoints.insert(bpoints.end(), tseg.begin(), tseg.end()-1);
-    }
-  } else {
-    bpoints = vector<Point2D>(polygon, polygon + num_corners);
-  }
-
   // Choosing a set of interior points which we can later move around to optimal
   // locations 
-  vector<Point2D> ipoints = init_startpoints(polygon, num_corners, vdist); 
+  vector<Point2D> ipoints = init_startpoints(polygon, num_corners, vdist, surf); 
 
-  //ipoints = vector<Point2D>(ipoints.begin(), ipoints.begin()+2); // @@@@
-  
-  //Optimizing position of interior points
+  // Constructing distance function to use when optimizing interior points.
+  // It is based on the distances between points on the surface in 3D space.
+  SquaredDistanceFun2D dfun = surf ?
+                              make_squared_distance_function(surf) :
+                              default_squared_distance_fun_2D;
+
+  // Optimizing position of interior points
   if (!ipoints.empty())
-    optimize_interior_points(&bpoints[0], (uint)bpoints.size(),
+    optimize_interior_points(polygon, num_corners,
                              &ipoints[0], (uint)ipoints.size(),
+                             dfun,
                              vdist * 1.5); //1); // * 1.5 @@
-  
+  // Triangulating points
+  vector<Point2D> points(polygon, polygon + num_corners);
+  points.insert(points.end(), ipoints.begin(), ipoints.end());
+
+  const auto tris = triangulate_domain(&points[0],
+				       num_corners,
+				       (uint)points.size(),
+				       3*vdist);
+  return {points, tris};
+}
+
   // // @@@@@@computing and reporting internal energy
   // const double R = 1.5 * vdist;
   // const auto e = polygon_energy(&bpoints[0], (unsigned int)bpoints.size(),
@@ -181,17 +188,7 @@ Mesh2D tesselatePolygon2D(const Point2D* const polygon,
   
   // cout << "Energy is:" << e.val << endl;
 
-  // Triangulating points
-  vector<Point2D> points(bpoints);
-  points.insert(points.end(), ipoints.begin(), ipoints.end());
-
-  const auto tris = triangulate_domain(&points[0],
-				       (uint)bpoints.size(),
-				       (uint)points.size(),
-				       3*vdist);
-  return {points, tris};
-}
-
+  
 // ============================================================================
 Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
                              const unsigned int num_bpoints,
@@ -376,20 +373,39 @@ vector<Point3D> init_startpoints(const Point3D* const bpoints,
 // ----------------------------------------------------------------------------  
 vector<Point2D> init_startpoints(const Point2D* const polygon,
 				 const unsigned int num_corners,
-				 const double vdist)
+				 const double vdist,
+                                 const shared_ptr<const ParamSurface> surf)
 // choose some initial startpoints as a basis for subsequent optimization  
 // ----------------------------------------------------------------------------
 {
-  //const double poly_area = polygon_area(polygon, num_corners);
+  const double poly_area = polygon_area(polygon, num_corners);
+
+  // If points are to be optimized across a paramtertic surface, use area of
+  // surface to estimate number of points.  Otherwise, points are to be
+  // optimized directly across the parameter domain.  In that case, use the area
+  // of the polygon itself.
+  const double SURF_AREA_TOL = 1e-2;
+  const double surf_area = surf ? surf->area(SURF_AREA_TOL) : poly_area;
+  const uint N = (uint)ceil(2 * surf_area / (vdist * vdist)); // approximate number of points needed
+  
   const array<double, 4> bbox = bounding_box_2D(polygon, num_corners);
   const double bbox_lx = bbox[1] - bbox[0];
   const double bbox_ly = bbox[3] - bbox[2];
-  //const double bbox_area =  bbox_lx * bbox_ly;
+  const double bbox_area =  bbox_lx * bbox_ly;
+
+  const uint Nbox = (uint)ceil(N * bbox_area / poly_area); // approx. number of points in bounding box
+  const bool lx_smallest = bbox_lx < bbox_ly;
+  const double lmin = (lx_smallest) ? bbox_lx : bbox_ly;
+  const double lmax = (lx_smallest) ? bbox_ly : bbox_lx;
+  const uint n1 = (uint)ceil(sqrt(Nbox * lmin / lmax));
+  const uint n2 = (uint)ceil(Nbox / n1);
+  const uint nx = (lx_smallest) ? n1 : n2;
+  const uint ny = (lx_smallest) ? n2 : n1;
 
   // computing amount of points needed to approximately cover the bounding box, where points
   // are approximately equidistant by 'vdist'
-  const int nx = max((int)floor(bbox_lx/vdist), 0);
-  const int ny = max((int)floor(bbox_ly/vdist), 0);
+  // const int nx = max((int)floor(bbox_lx/vdist), 0);
+  // const int ny = max((int)floor(bbox_ly/vdist), 0);
   
   // constructing regular grid of points within the bounding box
   const vector<Point2D> gridpoints =
@@ -446,11 +462,12 @@ void optimize_interior_points(const Point2D* const polygon,
 			      const unsigned int num_corners,
 			      Point2D* const ipoints,
 			      const unsigned int num_ipoints,
+                              const SquaredDistanceFun2D& dfun,
 			      const double vdist)
 // ----------------------------------------------------------------------------  
 {
   // Setting up function to minimize (energy function);
-  auto efun = PolygonEnergyFunctor(polygon, num_corners, num_ipoints, vdist);
+  auto efun = PolygonEnergyFunctor(polygon, num_corners, num_ipoints, vdist, dfun);
   
   // Setting up function minimizer
   Go::FunctionMinimizer<PolygonEnergyFunctor>
@@ -541,16 +558,14 @@ void PolyhedronEnergyFunctor::update_cache(const double* const arg) const
 PolygonEnergyFunctor::PolygonEnergyFunctor(const Point2D* const polygon,
 					   const unsigned int num_corners,
 					   const unsigned int num_ipoints,
-					   const double radius)
+					   const double radius,
+                                           const SquaredDistanceFun2D& dfun)
 // ----------------------------------------------------------------------------    
   : poly_(polygon), nc_(num_corners), ni_(num_ipoints), r_(radius),
     bbox_(bounding_box_2D(polygon, num_corners)),
-    cgrid_(clip_grid_polygon_2D(polygon, num_corners, radius, 80, 80)) // @@ 80 hard-coded here
+    cgrid_(clip_grid_polygon_2D(polygon, num_corners, radius, 80, 80)), // @@ 80 hard-coded here
+    dfun_(dfun)
 {
-  // ofstream os("krull.mat");
-  // copy(cgrid_.type.begin(), cgrid_.type.end(), ostream_iterator<int>(os, ", "));
-  // os.close(); // @@
-  
 }
 
 // ----------------------------------------------------------------------------    
@@ -564,7 +579,7 @@ void PolygonEnergyFunctor::update_cache(const double* const arg) const
   //cout << "updating cache." << endl;
   cached_result_ = polygon_energy(poly_, nc_,
 				  (const Point2D* const) &cached_arg_[0],
-				  ni_, r_, &cgrid_);
+				  ni_, r_, dfun_, &cgrid_);
 }
 
 // ----------------------------------------------------------------------------    
