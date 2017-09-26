@@ -2,9 +2,11 @@
 #define _POLYHEDRAL_ENERGIES_H
 
 #include <utility>
+#include <functional>
 #include "common_defs.h"
 #include "distance_function.h"
 #include "clip_grid.h"
+
 
 namespace TesselateUtils {
 
@@ -14,7 +16,7 @@ ValAndDer<Point2D> polygon_energy(const Point2D* const bpoints,
                                   const Point2D* const ipoints,
                                   const unsigned int num_ipoints,
                                   const double vdist,
-                                  const SquaredDistanceFun2D& dfun = default_squared_distance_fun_2D,
+                                  const std::function<Point3D(Point2D)> ctrans, // coord. transform function
                                   const ClippedGrid<2>* const = nullptr); // optional
 // ============================================================================
 

@@ -1,6 +1,7 @@
 #ifndef _INTERPOINT_DISTANCES_H
 #define _INTERPOINT_DISTANCES_H
 
+#include <functional>
 #include <vector>
 #include "common_defs.h"
 
@@ -29,10 +30,11 @@ struct DistanceEntry {
 // pair of points, as well as their mutual distances.  (This result can
 // conceptually be considered as a sparse matrix.)
 template<typename PointXD>
-std::vector<DistanceEntry> interpoint_distances(const PointXD* points,
-						const uint num_points,
-						const double R,
-						const bool bruteforce=false);
+std::vector<DistanceEntry>
+interpoint_distances(const PointXD* points,
+                     const uint num_points,
+                     const double R,
+                     const bool bruteforce=false);
   
 // Compute distances from points to a specific, separate point 'p'.  Only
 // consider points whose distances to 'p' are shorter than R.  The second index

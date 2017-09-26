@@ -14,8 +14,8 @@ array<double, 2> energy(double dist, double R);
 
 ValAndDer<Point2D> internal_energy(const Point2D* const ipoints,
                                    const unsigned int num_ipoints,
-                                   const double vdist,
-                                   const SquaredDistanceFun2D& dfun);
+                                   const double vdist);
+                   
 ValAndDer<Point2D> boundary_energy(const Point2D* const bpoints,
                                    const unsigned int num_bpoints,
                                    const Point2D* const ipoints,
@@ -69,19 +69,19 @@ ValAndDer<Point2D> polygon_energy(const Point2D* const bpoints,
                                   const Point2D* const ipoints,
                                   const unsigned int num_ipoints,
                                   const double vdist,
-                                  const SquaredDistanceFun2D& dfun,
+                                  const function<Point3D(Point2D)> ctrans,
                                   const ClippedGrid<2>* const cgrid)
 // ----------------------------------------------------------------------------
 {
   
   // compute internal energy (potential energy between internal points)
-  const   ValAndDer<Point2D> E_int = internal_energy(ipoints, num_ipoints, vdist, dfun);
+  const ValAndDer<Point2D> E_int = internal_energy(ipoints, num_ipoints, vdist);
 
   // compute boundary energy (energy from interaction between internal points
   // and boundary points, and from internal points and their mirror points)
-  const   ValAndDer<Point2D> E_bnd = boundary_energy(bpoints, num_bpoints,
-                                                     ipoints, num_ipoints,
-                                                     vdist/1.5, cgrid);
+  const ValAndDer<Point2D> E_bnd = boundary_energy(bpoints, num_bpoints,
+                                                   ipoints, num_ipoints,
+                                                   vdist/1.5, cgrid);
 
   // Adding up components and returning results
   ValAndDer<Point2D> E_tot = E_int;
@@ -104,14 +104,13 @@ namespace {
 // ----------------------------------------------------------------------------
 ValAndDer<Point2D> internal_energy(const Point2D* const ipoints,
                                    const unsigned int num_ipoints,
-                                   const double vdist,
-                                   const SquaredDistanceFun2D& dfun)
+                                   const double vdist)
 // ----------------------------------------------------------------------------
 {
   const auto dists = interpoint_distances(ipoints, num_ipoints, vdist, false);
 
   // accumulating energies and storing total value and partial derivatives in 'result'
-    ValAndDer<Point2D> result {0, vector<Point2D>(num_ipoints, {0.0, 0.0})};
+  ValAndDer<Point2D> result {0, vector<Point2D>(num_ipoints, {0.0, 0.0})};
   for (const auto& d : dists)
     accumulate_energy(d.dist, ipoints[d.p1_ix], ipoints[d.p2_ix], vdist, 
 		      result.val, result.der[d.p1_ix], result.der[d.p2_ix]);

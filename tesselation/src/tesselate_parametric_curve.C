@@ -37,7 +37,7 @@ vector<double> tesselateParametricCurve(const shared_ptr<const ParamCurve> pc,
   const double DIST_FAC = 1.5; //1.5; // properly adjust radius of energy function
   const int NUM_SAMPLES = 20;
   const int N = max(0,
-                    (int)floor(estimateCurveLength(pc, NUM_SAMPLES) / vdist) - 1);
+                    (int)floor(pc->estimatedCurveLength(NUM_SAMPLES) / vdist) - 1);
 
   // initial guess of parameters (we try to space them as evenly as possible)
   vector<double> par = adjust_parameters_to_geometry(pc,
@@ -50,26 +50,26 @@ vector<double> tesselateParametricCurve(const shared_ptr<const ParamCurve> pc,
 }
   
 
-// ----------------------------------------------------------------------------
-double estimateCurveLength(const shared_ptr<const ParamCurve> pc,
-                           const unsigned int num_samples)
-// ----------------------------------------------------------------------------  
-{
-  const vector<double> par =
-    adjust_parameters_to_geometry(pc, define_parvec(pc->startparam(),
-						    pc->endparam(),
-						    num_samples-2));
-  Point p, pnew;
-  double accum = 0;
-  pc->point(p, par[0]);
-  for (size_t i = 1; i != par.size(); ++i) {
-    pc->point(pnew, par[i]);
-    accum += pnew.dist(p);
-    p.swap(pnew);
-  }
-  return accum;
+// // ----------------------------------------------------------------------------
+// double estimateCurveLength(const shared_ptr<const ParamCurve> pc,
+//                            const unsigned int num_samples)
+// // ----------------------------------------------------------------------------  
+// {
+//   const vector<double> par =
+//     adjust_parameters_to_geometry(pc, define_parvec(pc->startparam(),
+// 						    pc->endparam(),
+// 						    num_samples-2));
+//   Point p, pnew;
+//   double accum = 0;
+//   pc->point(p, par[0]);
+//   for (size_t i = 1; i != par.size(); ++i) {
+//     pc->point(pnew, par[i]);
+//     accum += pnew.dist(p);
+//     p.swap(pnew);
+//   }
+//   return accum;
 
-}
+// }
 
   
 }; // end namespace TesselateUtils

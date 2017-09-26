@@ -2,17 +2,20 @@
 #define _TESSELATE_PARAMETRIC_VOLUME_H
 
 #include <vector>
+#include "common_defs.h"
 #include "GoTools/geometry/ParamCurve.h"
 
 namespace TesselateUtils {
 
-  // Estimate the length of a parametric curve, based on a specified number of samples
-  double estimateCurveLength(const std::shared_ptr<const Go::ParamCurve> pc,
-                             const unsigned int num_samples);
-  
   // tesselate parametric curve, returning a vector of parameter values
-  std::vector<double> tesselateParametricCurve(const std::shared_ptr<const Go::ParamCurve> pc,
-                                               const double vdist);
+  std::vector<double>
+  tesselateParametricCurve(const std::shared_ptr<const Go::ParamCurve> pc,
+                           const double vdist);
+
+  std::vector<Point2D>
+  tesselateParametricSurface(const std::shared_ptr<const Go::ParamSurface> ps,
+                             const double vdist);
+  
                                                
 };
 
