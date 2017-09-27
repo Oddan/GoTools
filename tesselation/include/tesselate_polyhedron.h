@@ -9,18 +9,9 @@
 #include "tesselate_utils.h"
 #include "triangulate_domain.h"
 #include "GoTools/geometry/ParamSurface.h"
+#include "MeshXD.h"
 
 namespace TesselateUtils {
-
-struct Mesh2D {
-  std::vector<Point2D> points;
-  std::vector<Triangle> tris;
-};
-
-struct Mesh3D {
-  std::vector<Point3D> points;
-  std::vector<Tet> tets;
-};
 
 template<typename PointXD> 
 std::vector<PointXD> tesselateSegment(const PointXD& p1,

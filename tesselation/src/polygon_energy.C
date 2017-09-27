@@ -69,7 +69,6 @@ ValAndDer<Point2D> polygon_energy(const Point2D* const bpoints,
                                   const Point2D* const ipoints,
                                   const unsigned int num_ipoints,
                                   const double vdist,
-                                  const function<Point3D(Point2D)> ctrans,
                                   const ClippedGrid<2>* const cgrid)
 // ----------------------------------------------------------------------------
 {
