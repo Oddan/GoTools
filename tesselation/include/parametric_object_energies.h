@@ -21,13 +21,13 @@ ValAndDer<Point1D> parametric_curve_energy(const shared_ptr<const Go::ParamCurve
 // ============================================================================
 
 // ============================================================================
-ValAndDer<Point2D> parameric_surf_energy(const shared_ptr<const Go::ParamSurface> surf,
-                                         const Point2D* const poly,
-                                         const uint num_corners,
-                                         const double* const ipar,
-                                         const uint num_ipar,
-                                         const double vdist,
-                                         const ClippedGrid<2>* const cgrid);
+ValAndDer<Point2D> parametric_surf_energy(const shared_ptr<const Go::ParamSurface> surf,
+                                          const Point2D* const poly,
+                                          const uint num_corners,
+                                          const Point2D* const ipar,
+                                          const uint num_ipar,
+                                          const double vdist,
+                                          const ClippedGrid<2>* const cgrid);
 // ============================================================================  
   
 }; // end namespace TesselateUtils

@@ -56,7 +56,7 @@ double polygon_area(const P* const poly, const unsigned int num_corners)
 };
 
 // ----------------------------------------------------------------------------
-template<>
+template<> inline
 std::array<double, 2> compute_bounding_box(const Point1D* const points,
                                            const unsigned int num_points)
 // ----------------------------------------------------------------------------  
@@ -65,7 +65,7 @@ std::array<double, 2> compute_bounding_box(const Point1D* const points,
 }
  
 // ----------------------------------------------------------------------------
-template<>
+template<> inline
 std::array<double, 4> compute_bounding_box(const Point2D* const points,
                                            const unsigned int num_points)
 // ----------------------------------------------------------------------------  
@@ -74,7 +74,7 @@ std::array<double, 4> compute_bounding_box(const Point2D* const points,
 }
 
 // ----------------------------------------------------------------------------
-template<>
+template<> inline
 std::array<double, 6> compute_bounding_box(const Point3D* const points,
                                            const unsigned int num_points)
 // ----------------------------------------------------------------------------  

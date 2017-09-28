@@ -65,8 +65,7 @@ public:
                                 double radius,
                                 unsigned int num_points)
     : pobj_(pobj), boundary_(boundary), radius_(radius), np_(num_points),
-      bbox_(compute_bounding_box<Dim>(boundary_.bpoints,
-                                      boundary.num_bpoints)),
+      bbox_(compute_bounding_box(boundary_.bpoints, boundary.num_bpoints)),
       cgrid_(ParamObjectTraits::compute_cgrid(pobj_, boundary_, radius_)) {}
 
   double operator() (const double* const arg) const;

@@ -5,6 +5,7 @@
 #include <vector>
 #include <cmath>
 #include <ostream>
+// #include "GoTools/utils/Point.h"
 
 namespace TesselateUtils {
 
@@ -46,6 +47,15 @@ template<> inline void ValAndDer<Point2D>::reset(uint num_der) {
   der = std::vector<Point3D>(num_der, Point3D {0, 0, 0});
 }
 
+// // ========================= Adapter functions for Go =========================
+
+// // ----------------------------------------------------------------------------
+// inline double dist2(const Go::Point& p1, const Go::Point& p2)
+// // ----------------------------------------------------------------------------
+// {
+//   return p1.dist2(p2);
+// }
+  
 // =============================== 1D operators ===============================
 
 // ----------------------------------------------------------------------------

@@ -4,6 +4,7 @@
 #include <functional>
 #include <vector>
 #include "common_defs.h"
+#include "tesselate_utils.h"
 
 namespace TesselateUtils {
 

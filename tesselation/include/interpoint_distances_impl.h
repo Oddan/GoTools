@@ -3,8 +3,8 @@
 
 #include <tuple>
 #include <stdexcept>
-#include "interpoint_distances.h"
 #include "tesselate_utils.h"
+#include "interpoint_distances.h"
 
 namespace {
 template<typename PointXD> std::vector<TesselateUtils::DistanceEntry> 
@@ -224,9 +224,10 @@ interpoint_distances_bruteforce_impl(const PointXD* const points,
   const auto points_end = points + num_points;
   for (auto p = points; p != points_end; ++p)
     for (auto q = p+1; q != points_end; ++q)
-      if (dist2(*p, *q) < R2)
-  	result.push_back({uint(p-points), uint(q-points), dist(*p, *q)});
-  
+      if (TesselateUtils::dist2(*p, *q) < R2)
+  	result.push_back({uint(p-points),
+                          uint(q-points),
+                          TesselateUtils::dist(*p, *q)});
   return result;  
 }
 

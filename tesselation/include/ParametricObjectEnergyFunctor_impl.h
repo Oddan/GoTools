@@ -1,5 +1,47 @@
+#include <iostream> // @@ for debugging only
 namespace TesselateUtils {
 
+// ----------------------------------------------------------------------------
+ClippedGrid<1> inline
+ParamCurveEnergyFunctionTraits::compute_cgrid(const ParamObj pobj,
+                                              const BoundaryPolytope& boundary,
+                                              const double radius)
+// ----------------------------------------------------------------------------  
+{
+  // ClippedGrid not used in the curve case, so we just return a dummy one.
+  return ClippedGrid<1>();
+}
+
+// ----------------------------------------------------------------------------
+ClippedGrid<2> inline
+ParamSurfaceEnergyFunctionTraits::compute_cgrid(const ParamObj pobj,
+                                                const BoundaryPolytope& boundary,
+                                                const double radius)
+// ----------------------------------------------------------------------------  
+{
+  std::cout << "Warning in ParamSurfaceEnergyFunctionTraits::compute_grid: "
+    "dummy implementation." << std::endl;
+
+  // @@@ dummy implementation for now
+  auto krull = clip_grid_polygon_2D(boundary.bpoints,
+                                    boundary.num_bpoints,
+                                    radius,
+                                    80, 80); // @@ 80 hardcoded here
+  fill(krull.type.begin(), krull.type.end(), UNDETERMINED);
+  return krull;
+}
+
+// ----------------------------------------------------------------------------
+ClippedGrid<3> inline
+ParamVolumeEnergyFunctionTraits::compute_cgrid(const ParamObj pobj,
+                                               const BoundaryPolytope& boundary,
+                                               const double radius)
+// ----------------------------------------------------------------------------  
+{
+  assert(false);
+  return ClippedGrid<3>();
+}
+  
 // ----------------------------------------------------------------------------
 template<typename Traits> double
 ParametricObjectEnergyFunctor<Traits>::operator()(const double* const arg) const 
@@ -47,14 +89,14 @@ ParametricObjectEnergyFunctor<Traits>::maxPar(int n) const
 }
 
 // ----------------------------------------------------------------------------    
-template<> void
+template<> void inline
 ParamCurveEnergyFunctor::update_cache(const double* const arg) const
 // ----------------------------------------------------------------------------  
 {
   if (cached_arg_.empty())
-    cached_arg_.resize(1 * np_);
+    cached_arg_.resize(Dim * np_);
 
-  std::copy(arg, arg + 1 * np_, &cached_arg_[0]);
+  std::copy(arg, arg + Dim * np_, &cached_arg_[0]);
 
   cached_result_ = parametric_curve_energy(pobj_,
                                            minPar(0),
@@ -62,6 +104,25 @@ ParamCurveEnergyFunctor::update_cache(const double* const arg) const
                                            &cached_arg_[0],
                                            np_,
                                            radius_);
+}
+
+// ----------------------------------------------------------------------------    
+template<> void inline
+ParamSurfaceEnergyFunctor::update_cache(const double* const arg) const
+// ----------------------------------------------------------------------------  
+{
+  if (cached_arg_.empty())
+    cached_arg_.resize(Dim * np_);
+
+  std::copy(arg, arg + Dim * np_, &cached_arg_[0]);
+
+  cached_result_ = parametric_surf_energy(pobj_,
+                                          boundary_.bpoints,
+                                          boundary_.num_bpoints,
+                                          (const Point2D* const) &cached_arg_[0],
+                                          np_ * Dim,
+                                          radius_,
+                                          &cgrid_);
 }
   
 }; // end namespace TesselateUtils
