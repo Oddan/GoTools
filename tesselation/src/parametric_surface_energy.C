@@ -137,8 +137,11 @@ ValAndDer<Point2D> boundary_energy(const PointVec3D& ipts3D,
               });
 
   // looping across boundary segments and adding their energy contribution
-  assert(false);
-  
+  for (uint i = 0; i != num_bpts; ++i)
+    add_boundary_contribution(bpts3D[i], bpts3D[(i+1) % num_bpts],
+                              ipts3D, upts_uder, ipts_vder,
+                              point_status, vdist, result);
+                                                  
   // // looping across boundary segments and adding their energy contributions
   // for (uint i = 0; i != num_bpoints; ++i)
   //   add_boundary_contribution(bpoints[i], bpoints[(i+1)%num_bpoints],
@@ -151,6 +154,44 @@ ValAndDer<Point2D> boundary_energy(const PointVec3D& ipts3D,
   // }
   
   return result;
+}
+
+// ----------------------------------------------------------------------------
+void add_boundary_contribution(const Point3D& bp1,
+                               const Point3D& bp2,
+                               const PointVec3D& ipts3D,
+                               const PointVec3D& ipts_uder,
+                               const PointVec3D& ipts_vder,
+                               const vector<ClippedDomainType>& point_status,
+                               const double vdist,
+                               ValAndDer<Point2D>& result)
+// ----------------------------------------------------------------------------  
+{
+  const double NUMTOL = sqrt(numeric_limits<double>::epsilon());
+  bool at_corner; // not used, but needed for function call below
+
+  for (uint i = 0; i != (uint)ipts3D.size(); ++i) {
+
+    // check if the point is close enough to line segment to contribute
+    if ((point_status[i] == OUTSIDE) ||
+        (point_status[i] == FAR_INSIDE) ||
+        (!point_on_line_segment(ipts3D[i], bp1, bp2, vdist, true)))
+      continue;
+
+    const Point3D proj_pt =
+      projected_point_on_segment<Point3D, 3>(ipts3D[i], bp1, bp2, at_corner);
+
+    Point3D dir = proj_pt - ipts3D[i];
+    const double dist = norm(dir);
+    if (dist < NUMTOL * vdist) {
+      // direction 'dir' is degenerate - we are basically _on_ tye line segment.
+      // Use outward-pointing normal as direction vector
+      Po
+    } else {
+      dir /= dist;
+    }
+    
+  }
 }
   
 // ----------------------------------------------------------------------------  
