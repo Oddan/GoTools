@@ -4,6 +4,7 @@
 #include <array>
 #include <vector>
 #include <algorithm>
+#include "common_defs.h"
 
 namespace TesselateUtils {
 
@@ -47,7 +48,20 @@ template<typename P>
 double polygon_area(const P* const poly, const unsigned int num_corners);
 // ----------------------------------------------------------------------------  
 
+// ----------------------------------------------------------------------------  
+template<int Dim>
+std::array<double, 2*Dim> compute_bounding_box(const PointXD<Dim>* const points,
+                                               const unsigned int num_points);
+// ----------------------------------------------------------------------------
 
+
+// ----------------------------------------------------------------------------
+// Returns a bounding box on the form [xmin, xmax]
+template<typename P>  
+std::array<double, 2> bounding_box_1D(const P* const points,
+                                      const unsigned int num_points);
+// ----------------------------------------------------------------------------  
+  
 // ----------------------------------------------------------------------------
 // Returns a bounding box on the form [xmin, xmax, ymin, ymax]
 template<typename P>  

@@ -5,6 +5,7 @@
 #include "GoTools/geometry/ParamCurve.h"
 #include "GoTools/geometry/ParamSurface.h"
 #include "GoTools/trivariate/ParamVolume.h"
+#include "clip_grid.h"
 #include "common_defs.h"
 
 namespace TesselateUtils

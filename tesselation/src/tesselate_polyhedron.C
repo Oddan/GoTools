@@ -566,7 +566,7 @@ void PolygonEnergyFunctor::update_cache(const double* const arg) const
   //cout << "updating cache." << endl;
   cached_result_ = polygon_energy(poly_, nc_,
 				  (const Point2D* const) &cached_arg_[0],
-				  ni_, r_, dfun_, &cgrid_);
+				  ni_, r_, &cgrid_);
 }
 
 // ----------------------------------------------------------------------------    

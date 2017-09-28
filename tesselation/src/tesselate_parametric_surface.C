@@ -3,7 +3,8 @@
 #include "GoTools/utils/GeneralFunctionMinimizer.h"
 #include "tesselate_parametric_volume.h"
 #include "tesselate_utils.h"
-#include "ParamSurfEnergyFunctor.h"
+#include "triangulate_domain.h"
+#include "ParametricObjectEnergyFunctor.h"
 
 using namespace TesselateUtils;
 using namespace std;
@@ -37,11 +38,11 @@ Mesh2D tesselateParametricSurface(const SurfPtr surf,
 {
   // choosing an initial set of interior points which can later be moved around
   // to optimal locations
-  vector<Point2D> ipoints = init_startpoints(ps, bpoints, num_bpoints, vdist);
+  vector<Point2D> ipoints = init_startpoints(surf, bpoints, num_bpoints, vdist);
 
   // optimizing position of interior points
   if (!ipoints.empty())
-    optimize_interior_point(surf, bpoints, num_bpoints,
+    optimize_interior_points(surf, bpoints, num_bpoints,
                             &ipoints[0], (uint)ipoints.size(), vdist * 1.5);
 
   // triangulating points
@@ -70,11 +71,11 @@ void optimize_interior_points(const SurfPtr sp,
 // ----------------------------------------------------------------------------  
 {
   // setting up function to minimize (energy function)
-  const auto efun = ParamSurfEnergyFunctor(sp, bpoints, num_bpoints,
-                                           num_ipoints, vdist);
+  const auto efun = ParamSurfaceEnergyFunctor(sp, {bpoints, num_bpoints},
+                                              vdist, num_ipoints);
 
   // setting up function minimizer
-  Go::FunctionMinimizer<ParamSurfEnergyFunctor>
+  Go::FunctionMinimizer<ParamSurfaceEnergyFunctor>
     funcmin(num_ipoints * 2, efun, (double* const)&ipoints[0], 1e-1); // @@ tolerance?
 
   // do the minimization
@@ -124,7 +125,7 @@ vector<Point2D> init_startpoints(const SurfPtr sp,
   // determine area of _unbounded_ surface (we need the area corresponding to
   // the use of the full parameter domain)
   const double surf_param_area = compute_surf_param_area(sp);
-  const double surf_area_estimate = estmate_surf_area(sp);
+  const double surf_area_estimate = estimate_surf_area(sp);
 
   // compute approx. number of points needed to cover whole surface
   const uint N = (uint)ceil(2 * surf_area_estimate / (vdist * vdist)); 
@@ -134,7 +135,6 @@ vector<Point2D> init_startpoints(const SurfPtr sp,
   const array<double, 4> bbox = bounding_box_2D(bpoints, num_bpoints);
   const double bbox_lx = bbox[1] - bbox[0];
   const double bbox_ly = bbox[3] - bbox[2];
-  const double bbox_area =  bbox_lx * bbox_ly;
   const uint Nbox = (uint)ceil(N * surf_param_area / poly_area); // approx. in bounding box
   const bool lx_smallest = bbox_lx < bbox_ly;
   const double lmin = (lx_smallest) ? bbox_lx : bbox_ly;
@@ -161,7 +161,7 @@ vector<Point2D> init_startpoints(const SurfPtr sp,
 	    [PM] (Point2D p) { return Point2D {p[0] + random_uniform(-PM, PM),
 		                               p[1] + random_uniform(-PM, PM)};});
 
-
+  return result;
 }
 
   

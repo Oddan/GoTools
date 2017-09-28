@@ -13,10 +13,11 @@ namespace TesselateUtils {
   tesselateParametricCurve(const std::shared_ptr<const Go::ParamCurve> pc,
                            const double vdist);
 
-  Mesh2D tesselateParametricSurface(const shared_ptr<const ParamSurface> surf,
-                                    const Point2D* const bpoints,
-                                    const uint num_bpoints,
-                                    const double vdist);
+  Mesh2D
+  tesselateParametricSurface(const shared_ptr<const Go::ParamSurface> surf,
+                             const Point2D* const bpoints,
+                             const uint num_bpoints,
+                             const double vdist);
 
                                                
 };

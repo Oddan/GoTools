@@ -1,8 +1,8 @@
 namespace TesselateUtils {
 
 // ----------------------------------------------------------------------------
-template<typename ParamObj, int dim> double
-ParametricObjectEnergyFunctor<ParamObj, dim>::operator()(const double* const arg) const 
+template<typename Traits> double
+ParametricObjectEnergyFunctor<Traits>::operator()(const double* const arg) const 
 // ----------------------------------------------------------------------------
 {
   if (!use_cached(arg))
@@ -11,46 +11,44 @@ ParametricObjectEnergyFunctor<ParamObj, dim>::operator()(const double* const arg
 }
 
 // ----------------------------------------------------------------------------
-template<typename ParamObj, int dim> void
-ParametricObjectEnergyFunctor<ParamObj, dim>::grad(const double* arg,
-                                                   double* grad) const
+template<typename Traits> void
+ParametricObjectEnergyFunctor<Traits>::grad(const double* arg, double* grad) const
 // ----------------------------------------------------------------------------
 {
   if (!use_cached(arg))
     update_cache(arg);
   const double* const dp = (const double* const)&cached_result_.der[0];
-  std::copy(dp, dp + dim * np_, grad);
+  std::copy(dp, dp + Dim * np_, grad);
 }
 
 // ----------------------------------------------------------------------------  
-template<typename ParamObj, int dim> bool
-ParametricObjectEnergyFunctor<ParamObj, dim>::use_cached(const double* const arg) const
+template<typename Traits> bool
+ParametricObjectEnergyFunctor<Traits>::use_cached(const double* const arg) const
 // ----------------------------------------------------------------------------
 {
   return (cached_arg_.size() > 0) &&
-         (std::equal(arg, arg + dim * np_, &cached_arg_[0]));
-}
-  
-// ----------------------------------------------------------------------------
-template<> double
-ParametricObjectEnergyFunctor<shared_ptr<const Go::ParamCurve>, 1>::minPar(int i) const
-// ----------------------------------------------------------------------------  
-{
-  return pobj_->startparam();
+         (std::equal(arg, arg + Dim * np_, &cached_arg_[0]));
 }
 
 // ----------------------------------------------------------------------------
-template<> double 
-ParametricObjectEnergyFunctor<shared_ptr<const Go::ParamCurve>, 1>::maxPar(int i) const
+template<typename Traits> double
+ParametricObjectEnergyFunctor<Traits>::minPar(int n) const
 // ----------------------------------------------------------------------------  
 {
-  return pobj_->endparam();
+  return bbox_[(n % 2) * 2];
+}
+  
+// ----------------------------------------------------------------------------
+template<typename Traits> double
+ParametricObjectEnergyFunctor<Traits>::maxPar(int n) const
+// ----------------------------------------------------------------------------
+{
+  return bbox_[(n % 2) * 2 + 1];
 }
 
 // ----------------------------------------------------------------------------    
 template<> void
-ParametricObjectEnergyFunctor<shared_ptr<const Go::ParamCurve>, 1>::
-update_cache(const double* const arg) const
+ParamCurveEnergyFunctor::update_cache(const double* const arg) const
 // ----------------------------------------------------------------------------  
 {
   if (cached_arg_.empty())
@@ -59,8 +57,8 @@ update_cache(const double* const arg) const
   std::copy(arg, arg + 1 * np_, &cached_arg_[0]);
 
   cached_result_ = parametric_curve_energy(pobj_,
-                                           pobj_->startparam(),
-                                           pobj_->endparam(),
+                                           minPar(0),
+                                           maxPar(0),
                                            &cached_arg_[0],
                                            np_,
                                            radius_);

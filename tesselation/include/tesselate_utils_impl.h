@@ -55,6 +55,46 @@ double polygon_area(const P* const poly, const unsigned int num_corners)
   return area;
 };
 
+// ----------------------------------------------------------------------------
+template<>
+std::array<double, 2> compute_bounding_box(const Point1D* const points,
+                                           const unsigned int num_points)
+// ----------------------------------------------------------------------------  
+{
+  return bounding_box_1D(points, num_points);
+}
+ 
+// ----------------------------------------------------------------------------
+template<>
+std::array<double, 4> compute_bounding_box(const Point2D* const points,
+                                           const unsigned int num_points)
+// ----------------------------------------------------------------------------  
+{
+  return bounding_box_2D(points, num_points);
+}
+
+// ----------------------------------------------------------------------------
+template<>
+std::array<double, 6> compute_bounding_box(const Point3D* const points,
+                                           const unsigned int num_points)
+// ----------------------------------------------------------------------------  
+{
+  return bounding_box_3D(points, num_points);
+}
+  
+// ----------------------------------------------------------------------------
+// Returns a bounding box on the form [xmin, xmax]
+template<typename P>  
+std::array<double, 2> bounding_box_1D(const P* const points,
+                                      const unsigned int num_points)
+// ----------------------------------------------------------------------------  
+{
+  const auto minmax = std::minmax_element(points, points + num_points,
+                                          [] (P p1, P p2) {return p1[0] < p2[0];});
+                                          
+  return std::array<double, 2> {(*minmax.first)[0], (*minmax.second)[0]};
+}
+  
 // ----------------------------------------------------------------------------    
 template<typename P>  
 std::array<double, 4> bounding_box_2D(const P* const points,

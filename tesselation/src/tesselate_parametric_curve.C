@@ -154,7 +154,8 @@ void optimize_interior_points(const shared_ptr<const ParamCurve> pc,
 // ----------------------------------------------------------------------------
 {
   // setting up function to minimize
-  auto efun = ParamCurveEnergyFunctor(pc, radius, num_par);
+  const array<Point1D, 2> boundary = {pc->startparam(), pc->endparam()};
+  auto efun = ParamCurveEnergyFunctor(pc, {&boundary[0]}, radius, num_par);
 
   // setting up function minimizer
   Go::FunctionMinimizer<ParamCurveEnergyFunctor>

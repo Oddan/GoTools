@@ -149,7 +149,7 @@ compute_tesselation(const vector<PointType>& boundary,
   const vector<Point2D> par = compute_surface_parameters(boundary, face.surf);
 
   // // computing tesselation
-  const Mesh2D m2d = tesselatePolygon2D(&par[0], (uint)par.size(), vdist, face.surf);
+  //  const Mesh2D m2d = tesselatePolygon2D(&par[0], (uint)par.size(), vdist, face.surf);
 
   // // compute 3D points
   // ipoints = compute_3D_points(m2d.points);
