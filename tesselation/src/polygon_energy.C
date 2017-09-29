@@ -262,7 +262,7 @@ ValAndDer<Point2D> boundary_energy(const Point2D* const bpoints,
   const double NUMTOL = sqrt(numeric_limits<double>::epsilon());
   const Point2D& p = ipoints[ipoint_ix];
   uint seg_ix;
-  const Point2D cp = closest_point_on_2D_boundary(p, bpoints, num_bpoints, seg_ix);
+  const Point2D cp = closest_point_on_loop(p, bpoints, num_bpoints, seg_ix);
 
   // computing the derivative to be used
   const auto e = energy(0, vdist);
@@ -303,9 +303,8 @@ void add_boundary_contribution(const Point2D& bp1,
       //   throw runtime_error("this should not happen!");
       // }
       bool at_corner; // given a value in the function call below
-      const Point2D proj_pt = projected_point_on_segment<Point2D, 2>(ipoints[i],
-                                                                     bp1, bp2,
-                                                                     at_corner);
+      const Point2D proj_pt =
+        projected_point_on_segment(ipoints[i], bp1, bp2, at_corner);
       // this point is sufficiently close to the line segment that there will be
       // an energy involved
       Point2D dir = proj_pt - ipoints[i];

@@ -41,9 +41,9 @@ Mesh2D tesselateParametricSurface(const SurfPtr surf,
   vector<Point2D> ipoints = init_startpoints(surf, bpoints, num_bpoints, vdist);
 
   // optimizing position of interior points
-  if (!ipoints.empty())
-    optimize_interior_points(surf, bpoints, num_bpoints,
-                            &ipoints[0], (uint)ipoints.size(), vdist * 1.5);
+  // if (!ipoints.empty())
+  //   optimize_interior_points(surf, bpoints, num_bpoints,
+  //                           &ipoints[0], (uint)ipoints.size(), vdist * 1.5);
 
   // triangulating points
   vector<Point2D> points(bpoints, bpoints + num_bpoints);

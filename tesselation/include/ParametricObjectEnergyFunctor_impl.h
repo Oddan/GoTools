@@ -120,7 +120,7 @@ ParamSurfaceEnergyFunctor::update_cache(const double* const arg) const
                                           boundary_.bpoints,
                                           boundary_.num_bpoints,
                                           (const Point2D* const) &cached_arg_[0],
-                                          np_ * Dim,
+                                          np_,
                                           radius_,
                                           &cgrid_);
 }

@@ -334,7 +334,7 @@ void classify_remaining_cells(const array<double, 4>& bbox,
         result[ix] =
           (!inpolygon(centroid, &pcorners[0], num_pcorners, 0.0, (bool&)dummy)) ? OUTSIDE:
           ((dist2(centroid,
-                (closest_point_on_2D_boundary(centroid,
+                (closest_point_on_loop(centroid,
                                               pcorners,
                                               num_pcorners,
                                               dummy))) + r*r) < vdist*vdist) ? CLOSE_INSIDE :

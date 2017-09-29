@@ -1,3 +1,4 @@
+#include "fit_points_to_plane.h"
 #include "parametric_object_energies.h"
 #include "tesselate_utils.h"
 #include "interpoint_distances.h"
@@ -55,6 +56,26 @@ ClippedDomainType point_domain_type(const Point2D& pt,
                                     const Point2D* const bpoints,
                                     const uint num_bpoints,
                                     const ClippedGrid<2>& cgrid);
+
+void add_boundary_contribution(const Point3D& bp1,
+                               const Point3D& bp2,
+                               const PointVec3D& ipts3D,
+                               const PointVec3D& ipts_uder,
+                               const PointVec3D& ipts_vder,
+                               const vector<ClippedDomainType>& point_status,
+                               const Point3D& poly_n, // polygon "normal"
+                               const double vdist,
+                               ValAndDer<Point2D>& result);
+
+  void add_outside_penalty_energy(const PointVec3D& ipts3D,
+                                  const PointVec3D& ipts_uder,
+                                  const PointVec3D& ipts_vder,
+                                  const uint ix,
+                                  const PointVec3D& bpts3D,
+                                  const Point3D& poly_n,
+                                  const double vdist,
+                                  ValAndDer<Point2D>& result);
+
 };
 
 namespace TesselateUtils {
@@ -103,6 +124,14 @@ parametric_surf_energy(const shared_ptr<const Go::ParamSurface> surf,
 namespace {
 
 // ----------------------------------------------------------------------------
+Point3D compute_polygon_normal(const PointVec3D& pts) 
+// ----------------------------------------------------------------------------  
+{
+  const array<double, 4> tmp = fit_points_to_plane(&pts[0], (uint)pts.size());
+  return Point3D {tmp[0], tmp[1], tmp[2]};
+}
+  
+// ----------------------------------------------------------------------------
 ValAndDer<Point2D> boundary_energy(const PointVec3D& ipts3D,
                                    const PointVec3D& ipts_uder,
                                    const PointVec3D& ipts_vder,
@@ -136,26 +165,67 @@ ValAndDer<Point2D> boundary_energy(const PointVec3D& ipts3D,
                 return point_domain_type(p, bpts_par, (uint)num_bpts, *cgrid);
               });
 
+  // determining approximate polygon normal (to ensure correct orientation for
+  // the computations in the routines below)
+  const Point3D poly_n = compute_polygon_normal(bpts3D);
+  
   // looping across boundary segments and adding their energy contribution
   for (uint i = 0; i != num_bpts; ++i)
     add_boundary_contribution(bpts3D[i], bpts3D[(i+1) % num_bpts],
-                              ipts3D, upts_uder, ipts_vder,
-                              point_status, vdist, result);
+                              ipts3D, ipts_uder, ipts_vder,
+                              point_status, poly_n, vdist, result);
                                                   
-  // // looping across boundary segments and adding their energy contributions
-  // for (uint i = 0; i != num_bpoints; ++i)
-  //   add_boundary_contribution(bpoints[i], bpoints[(i+1)%num_bpoints],
-  //       		      ipoints, num_ipoints, &point_status[0], vdist, result);
-
-  // // adding energy for points having exited the domain
-  // for (uint i = 0; i != num_ipoints; ++i) {
-  //   if (point_status[i] == OUTSIDE)
-  //     add_outside_penalty_energy(i, ipoints, bpoints, num_bpoints, vdist, result);
-  // }
+  // adding energy for points having exited the domain
+  for (uint i = 0; i != (uint)ipts3D.size(); ++i) {
+    if (point_status[i] == OUTSIDE)
+      add_outside_penalty_energy(ipts3D, ipts_uder, ipts_vder, i,
+                                 bpts3D, poly_n, vdist, result);
+  }
   
   return result;
 }
 
+// ----------------------------------------------------------------------------  
+void add_outside_penalty_energy(const PointVec3D& ipts3D,
+                                const PointVec3D& ipts_uder,
+                                const PointVec3D& ipts_vder,
+                                const uint ix,
+                                const PointVec3D& bpts3D,
+                                const Point3D& poly_n,
+                                const double vdist,
+                                ValAndDer<Point2D>& result)
+// ----------------------------------------------------------------------------
+{
+  // find the closest point on the boundary, as well as the segment it lies on
+  const double NUMTOL = sqrt(numeric_limits<double>::epsilon());
+  const Point3D& p = ipts3D[ix];
+  uint seg_ix;
+  const Point3D cp = closest_point_on_loop(p, &bpts3D[0],
+                                          (uint)bpts3D.size(), seg_ix);
+
+  // computing the derivative to be used
+  const auto e = distance_energy(0, vdist);
+  const double der = fabs(e[1]);
+  Point3D d = p - cp;
+  const double dist = norm(d);
+  if (dist < NUMTOL * vdist) {
+    // direction 'd' is degenerate - we are basically _on_ the line segment
+    Point3D n = ipts_uder[ix] ^ ipts_vder[ix];
+    if (norm2(n ^ poly_n) < 0)
+      n *= -1;
+
+    const Point3D v = bpts3D[(seg_ix+1) % bpts3D.size()] - bpts3D[seg_ix];    
+    d = v ^ n;
+    d /= norm(d);
+  } else {
+    d /= dist;
+  }
+  const double penalty = e[0] + dist * der;
+  result.val += penalty;
+  result.der[ix][0] += der * (d * ipts_uder[ix]);
+  result.der[ix][1] += der * (d * ipts_vder[ix]);
+}
+  
 // ----------------------------------------------------------------------------
 void add_boundary_contribution(const Point3D& bp1,
                                const Point3D& bp2,
@@ -163,6 +233,7 @@ void add_boundary_contribution(const Point3D& bp1,
                                const PointVec3D& ipts_uder,
                                const PointVec3D& ipts_vder,
                                const vector<ClippedDomainType>& point_status,
+                               const Point3D& poly_n, // polygon "normal"
                                const double vdist,
                                ValAndDer<Point2D>& result)
 // ----------------------------------------------------------------------------  
@@ -179,18 +250,30 @@ void add_boundary_contribution(const Point3D& bp1,
       continue;
 
     const Point3D proj_pt =
-      projected_point_on_segment<Point3D, 3>(ipts3D[i], bp1, bp2, at_corner);
+      projected_point_on_segment(ipts3D[i], bp1, bp2, at_corner);
 
     Point3D dir = proj_pt - ipts3D[i];
     const double dist = norm(dir);
     if (dist < NUMTOL * vdist) {
-      // direction 'dir' is degenerate - we are basically _on_ tye line segment.
+      // direction 'dir' is degenerate - we are basically _on_ the line segment.
       // Use outward-pointing normal as direction vector
-      Po
+
+      // We first determine the surface normal at this point
+      Point3D n = ipts_uder[i] ^ ipts_vder[i];
+      if (norm2(n ^ poly_n) < 0)
+        n *= -1;
+
+      const Point3D v = bp2 - bp1; // direction along segment
+      dir = v ^ n; // direction perpendicular to segment, pointing outwards
+      dir / norm(dir);
+      
     } else {
       dir /= dist;
     }
-    
+    const array<double, 2> e = distance_energy(dist, vdist);
+    result.val += e[0];
+    result.der[i][0] -= e[1] * (dir * ipts_uder[i]);
+    result.der[i][1] -= e[1] * (dir * ipts_vder[i]);
   }
 }
   

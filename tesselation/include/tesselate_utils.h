@@ -152,10 +152,10 @@ P closest_point_on_triangle_surface(const P& p,
 
 // ----------------------------------------------------------------------------  
 template<typename P>
-P closest_point_on_2D_boundary(const P& p,
-                               const P* const bpoints,
-                               const unsigned int num_bpoints,
-                               uint& seg_ix);
+P closest_point_on_loop(const P& p,
+                        const P* const bpoints,
+                        const unsigned int num_bpoints,
+                        uint& seg_ix);
 // ----------------------------------------------------------------------------  
 
   

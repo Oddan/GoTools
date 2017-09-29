@@ -410,7 +410,7 @@ bool point_on_triangle(const P& p, const P* const tripoints,
   std::array<double, 3> proj_dist2;
   std::array<bool, 3> at_corner;
   for (uint i = 0; i != 3; ++i) {
-    proj_bnd[i] = projected_point_on_segment<Point3D, 3>(p,
+    proj_bnd[i] = projected_point_on_segment(p,
                                              tripoints[i], tripoints[(i+1)%3],
                                              at_corner[i]);
     proj_dist2[i] = dist2(p, proj_bnd[i]);
@@ -430,10 +430,10 @@ bool point_on_triangle(const P& p, const P* const tripoints,
 
 // ----------------------------------------------------------------------------  
 template<typename P>
-P closest_point_on_2D_boundary(const P& p,
-                               const P* const bpoints,
-                               const unsigned int num_bpoints,
-                               uint& seg_ix)
+P closest_point_on_loop(const P& p,
+                        const P* const bpoints,
+                        const unsigned int num_bpoints,
+                        uint& seg_ix)
 // ----------------------------------------------------------------------------  
 {
   // check distance to each node and find the closest one
@@ -452,10 +452,11 @@ P closest_point_on_2D_boundary(const P& p,
   for (uint i = 0; i != num_bpoints; ++i) {
     if (projects_to_segment(p, bpoints[i], bpoints[(i+1) % num_bpoints])) {
       bool at_corner; // set in function call below
-      const P proj_pt = projected_point_on_segment<Point2D, 2>(p,
-                                                               bpoints[i],
-                                                               bpoints[(i+1)%num_bpoints],
-                                                               at_corner);
+      const P proj_pt =
+        projected_point_on_segment(p,
+                                   bpoints[i],
+                                   bpoints[(i+1)%num_bpoints],
+                                   at_corner);
       const double d2 = dist2(p, proj_pt);
       if (d2 < closest_dist_2) {
         closest_dist_2 = d2;
@@ -496,7 +497,7 @@ P closest_point_on_2D_boundary(const P& p,
 // }
 
 // ----------------------------------------------------------------------------    
-template<typename P, int Dim> inline 
+template<typename P> inline 
 P projected_point_on_segment(const P& p, const P& a, const P&b, bool& at_corner)
 // ----------------------------------------------------------------------------    
 {
@@ -505,9 +506,10 @@ P projected_point_on_segment(const P& p, const P& a, const P&b, bool& at_corner)
   double ba_dist = norm(dir); // remember the distance between b and a
   dir /= ba_dist; // normalize vector pointing from a to b
   P dp = p; dp -= a;
-  double scalprod = 0;
-  for (uint i = 0; i != 3; ++i)
-    scalprod += dir[i] * dp[i];
+  // double scalprod = 0;
+  // for (uint i = 0; i != 3; ++i)
+  //   scalprod += dir[i] * dp[i];
+  const double scalprod = dir * dp;
 
   if (scalprod <= 0 ) {
     at_corner = true;
