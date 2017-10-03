@@ -214,38 +214,50 @@ bool inpolygon(const P& pt, const P* const poly,
     }
     
     // case where startpoint of segment is exactly on the ray
-    if (p1[1] == pt[1]) {
-      //isects += int(p1[0] > pt[0]); // must be to the right to be on the ray
+    if (p1[1] == pt[1]) 
       continue;
-    } else {
-      // we know that the startpoint is not _exactly_ on the ray
-      if ((p1[1] - pt[1]) * (p2[1] - pt[1]) > 0)
-	// Both segment points are on the same vertical side of ray, no
-	// intersection possible
-	continue;
-      else if ((p1[0] <= pt[0]) && (p2[0] <= pt[0])) 
-	// both segments are to the left of ray origin - no intersection
-	// possible
-	continue;
-      else {
-	//there is one point below and one above the ray, and at least one of
-	//them are at the right of the ray origin
-	if ((p1[0] > pt[0]) && (p2[0] > pt[0])) {
-	  // both points are to the right of ray origin.  Intersection is
-	  // ensured
-	  isects += 1;
-	  continue;
-	} else {
-	  // One point is to the left and one to the right of ray origin.
-	  // Moreover, one point is above and one below the ray origin.
-	  
-	  // compute x-coordinate where segment crosses y=pt[1] axis
-	  const double t = (pt[1] - p1[1]) / (p2[1] - p1[1]);
-	  const double x = t * p2[0] + (1-t) * p1[0];
-	  isects += int(x >= pt[0]);
-	}
+    // we know that the startpoint is not _exactly_ on the ray
+    if ((p1[1] - pt[1]) * (p2[1] - pt[1]) > 0)
+      // Both segment points are on the same vertical side of ray, no
+      // intersection possible
+      continue;
+    if ((p1[0] <= pt[0]) && (p2[0] <= pt[0])) 
+      // both segments are to the left of ray origin - no intersection
+      // possible
+      continue;
+
+    if ((p2[1] == pt[1]) && (p2[0] >= pt[0])) {
+      // ray is tangent to endpoint.  Determine from the following segment(s)
+      // whether it actually crosses the polygon boundary or just touches a
+      // corner
+      for (unsigned int j = 1; j != num_corners; ++j) {
+        const P& tmp = poly[(i+j) % num_corners];
+        if (tmp[1] != pt[1]) {
+          if ((tmp[1] - pt[1]) * (p1[1] - pt[1]) < 0) {
+            isects += 1;
+          }
+          break; 
+        }
       }
+      continue;
     }
+
+    //there is one point below and one above the ray, and at least one of
+    //them are at the right of the ray origin
+    if ((p1[0] > pt[0]) && (p2[0] > pt[0])) {
+      // both points are to the right of ray origin.  Intersection is
+      // ensured
+      isects += 1;
+      continue;
+    }
+      
+    // One point is to the left and one to the right of ray origin.  Moreover,
+    // one point is above and one below the ray origin.
+    
+    // compute x-coordinate where segment crosses y=pt[1] axis
+    const double t = (pt[1] - p1[1]) / (p2[1] - p1[1]);
+    const double x = t * p2[0] + (1-t) * p1[0];
+    isects += int(x >= pt[0]);
   }
   
   on_boundary = false;
