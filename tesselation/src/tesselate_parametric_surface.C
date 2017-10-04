@@ -56,7 +56,7 @@ Mesh2D tesselateParametricSurface(const SurfPtr surf,
   points.insert(points.end(), ipoints.begin(), ipoints.end());
 
   const auto tris = triangulate_domain(&points[0], num_bpts,
-                                       (uint)points.size(), 3*pardist);
+                                       (uint)points.size(), 3*pardist); // 100 * pardist
 
   return {points, tris};
   

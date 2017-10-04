@@ -166,8 +166,10 @@ compute_tesselation(const vector<PointType>& boundary,
   const Mesh2D m2d = tesselateParametricSurface(face.surf, &par[0],
                                                 (uint)par.size(), vdist);
 
-  // compute 3D points
-  ipoints = compute_3D_points(face.surf, m2d.points);
+  // compute internal 3D points
+  ipoints = compute_3D_points(face.surf,
+                              vector<Point2D> (m2d.points.begin() + boundary.size(),
+                                               m2d.points.end()));
 
   triangles = m2d.tris;
   // // fix orientation of triangles if necessary
