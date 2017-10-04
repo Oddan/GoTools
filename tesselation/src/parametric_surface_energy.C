@@ -109,11 +109,15 @@ parametric_surf_energy(const shared_ptr<const Go::ParamSurface> surf,
 
   // adding up components and returning results
   ValAndDer<Point2D> E_tot = E_int;
-  const double BND_FAC = 2; // increase penalty for approaching border
+  const double BND_FAC = 2.0; // increase penalty for approaching border
   E_tot.val += BND_FAC * E_bnd.val;
   for (uint i = 0; i != (uint)E_tot.der.size(); ++i)
     E_tot.der[i] += E_bnd.der[i] * BND_FAC;
 
+  // cout << "Point: " << ipoints[0][0] << " " << ipoints[0][1] << '\n';
+  // cout << "Fval: " << E_tot.val << '\n';
+  // cout << "Grad: " << E_tot.der[0][0] << " " << E_tot.der[0][1] << endl;
+  
   return E_tot;
 }
 
@@ -123,14 +127,6 @@ parametric_surf_energy(const shared_ptr<const Go::ParamSurface> surf,
 
 namespace {
 
-// ----------------------------------------------------------------------------
-Point3D compute_polygon_normal(const PointVec3D& pts) 
-// ----------------------------------------------------------------------------  
-{
-  const array<double, 4> tmp = fit_points_to_plane(&pts[0], (uint)pts.size());
-  return Point3D {tmp[0], tmp[1], tmp[2]};
-}
-  
 // ----------------------------------------------------------------------------
 ValAndDer<Point2D> boundary_energy(const PointVec3D& ipts3D,
                                    const PointVec3D& ipts_uder,
@@ -158,7 +154,7 @@ ValAndDer<Point2D> boundary_energy(const PointVec3D& ipts3D,
                 return ((!inside) && (!on_bnd)) ? OUTSIDE : UNDETERMINED;
               });
   else
-    // benefit from the precomputed informatoin in 'cgrid' to significantly
+    // benefit from the precomputed information in 'cgrid' to significantly
     // speed up computations
     transform(ipts_par, ipts_par + num_ipts, point_status.begin(),
               [&] (const Point2D& p) {
@@ -167,7 +163,7 @@ ValAndDer<Point2D> boundary_energy(const PointVec3D& ipts3D,
 
   // determining approximate polygon normal (to ensure correct orientation for
   // the computations in the routines below)
-  const Point3D poly_n = compute_polygon_normal(bpts3D);
+  const Point3D poly_n = compute_polygon_normal(&bpts3D[0], (uint)bpts3D.size());
   
   // looping across boundary segments and adding their energy contribution
   for (uint i = 0; i != num_bpts; ++i)
@@ -220,10 +216,14 @@ void add_outside_penalty_energy(const PointVec3D& ipts3D,
   } else {
     d /= dist;
   }
-  const double penalty = e[0] + dist * der;
+  // const double penalty = e[0] + dist * der;
+  // result.val += penalty;
+  // result.der[ix][0] += der * (d * ipts_uder[ix]);
+  // result.der[ix][1] += der * (d * ipts_vder[ix]);
+  const double penalty = 2* (dist * der);
   result.val += penalty;
-  result.der[ix][0] += der * (d * ipts_uder[ix]);
-  result.der[ix][1] += der * (d * ipts_vder[ix]);
+  result.der[ix][0] += 2*der * (d * ipts_uder[ix]);
+  result.der[ix][1] += 2*der * (d * ipts_vder[ix]);
 }
   
 // ----------------------------------------------------------------------------
@@ -244,8 +244,7 @@ void add_boundary_contribution(const Point3D& bp1,
   for (uint i = 0; i != (uint)ipts3D.size(); ++i) {
 
     // check if the point is close enough to line segment to contribute
-    if ((point_status[i] == OUTSIDE) ||
-        (point_status[i] == FAR_INSIDE) ||
+    if ((point_status[i] == FAR_INSIDE) ||
         (!point_on_line_segment(ipts3D[i], bp1, bp2, vdist, true)))
       continue;
 

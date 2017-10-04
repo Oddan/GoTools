@@ -72,7 +72,8 @@ GoParametricTesselableVolume::TesselableVolume(Go::ftVolume& fvol);
 // ----------------------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
-inline std::ostream& operator<<(std::ostream& os, const GoParametricSpaceTraits::PointType& p)
+inline std::ostream& operator<<(std::ostream& os,
+                                const GoParametricSpaceTraits::PointType& p)
 // ----------------------------------------------------------------------------
 {
   // writing only 3D part (not parameters) for now

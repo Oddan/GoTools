@@ -408,7 +408,7 @@ void TesselableVolume<BoundedSpaceTraits>::writeTesselatedShell(std::ostream& os
 
   
   // writing triangles
-  os << "Triangles: " << '\n';
+  os << "\n" << "Triangles: " << '\n';
   for (const auto& tris : face_triangles_)
     for (const auto& t : tris)
       os << t[0] << ' ' << t[1] << ' ' << t[2] << '\n';

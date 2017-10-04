@@ -24,7 +24,8 @@ void operator += (std::vector<T>& lhs, const std::vector<T>& rhs)
 
 // ----------------------------------------------------------------------------
 template<typename P>
-std::vector<P> interpolate(const P& p1, const P& p2, unsigned int num)
+std::vector<P> interpolate(const P& p1, const P& p2, unsigned int num,
+                           bool include_endpoints)
 // ----------------------------------------------------------------------------  
 {
   std::vector<double> param(num, double(1)/(num+1));
@@ -35,6 +36,12 @@ std::vector<P> interpolate(const P& p1, const P& p2, unsigned int num)
 		 [&p1, &p2](double t) {return p1 * (1-t) + p2 * t;});
   
   result.push_back(p2);
+
+  if (!include_endpoints) {
+    result.pop_back();
+    result.erase(result.begin());
+  }
+                     
   return result;
 };
 
@@ -136,18 +143,20 @@ template<typename P>
 std::vector<P> generate_grid_2D(const P& c1,
                                 const P& c2,
                                 unsigned int nx,
-                                unsigned int ny)
+                                unsigned int ny,
+                                bool include_boundary_points)
 // ----------------------------------------------------------------------------  
 {
   // Generate vectors of points demarcating the leftmost and rightmost grid columns.
-  const auto yminvec = interpolate(c1, {c1[0], c2[1]}, ny);
-  const auto ymaxvec = interpolate({c2[0], c1[1]}, c2, ny);
+  const auto yminvec = interpolate(c1, {c1[0], c2[1]}, ny, include_boundary_points);
+  const auto ymaxvec = interpolate({c2[0], c1[1]}, c2, ny, include_boundary_points);
 
   // Generate grid rows
   std::vector<std::vector<P>> gridrows;
   std::transform(yminvec.begin(), yminvec.end(), ymaxvec.begin(),
 		 std::back_inserter(gridrows),
-		 [nx](const P& p1, const P& p2) {return interpolate(p1, p2, nx);});
+		 [&](const P& p1, const P& p2) {
+                   return interpolate(p1, p2, nx, include_boundary_points);});
 
   return flatten(gridrows);
 }
@@ -1164,6 +1173,20 @@ bool ray_intersects_face(const P& pt, const P& dir,
 
   return true;
 } 
+
+// ----------------------------------------------------------------------------
+// Compute approximate normal of a polygon in 3D space
+template<typename P>
+P compute_polygon_normal(const P* const pts, const unsigned int num_pts)
+// ----------------------------------------------------------------------------
+{
+  P n;
+  for (int i = 0; i != (int)num_pts; ++i) {
+    n += pts[i] ^ pts[(i+1)%num_pts];
+  }
+  n = n / sqrt(norm2(n));
+  return n;
+}
 
 
 

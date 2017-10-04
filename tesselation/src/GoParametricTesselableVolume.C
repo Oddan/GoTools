@@ -134,7 +134,21 @@ compute_tesselation(const array<PointType, 2>& boundary,
             (const double d) { return PointType{get<0>(edge)->point(d), d}; });
 }
 
-
+// ----------------------------------------------------------------------------
+vector<PointType> compute_3D_points(const shared_ptr<const ParamSurface> surf,
+                                    const vector<Point2D>& parpoints)
+// ----------------------------------------------------------------------------  
+{
+  vector<PointType> result;
+  Go::Point gopoint;
+  transform(parpoints.begin(), parpoints.end(), back_inserter(result),
+            [&] (const Point2D& par) {
+              surf->point(gopoint, par[0], par[1]);
+              return PointType {gopoint, {par[0], par[1], nan("")}};
+            });
+  return result;
+}
+                       
 // ----------------------------------------------------------------------------  
 template<>
 void GoParametricTesselableVolume::
@@ -152,15 +166,16 @@ compute_tesselation(const vector<PointType>& boundary,
   const Mesh2D m2d = tesselateParametricSurface(face.surf, &par[0],
                                                 (uint)par.size(), vdist);
 
-  // // compute 3D points
-  // ipoints = compute_3D_points(m2d.points);
+  // compute 3D points
+  ipoints = compute_3D_points(face.surf, m2d.points);
 
+  triangles = m2d.tris;
   // // fix orientation of triangles if necessary
-  // do_stuff;
-  ipoints = boundary; /// @@ DUMMY
-                                        
 }
 
+
+
+  
 // ----------------------------------------------------------------------------  
 template<>
 void GoParametricTesselableVolume::

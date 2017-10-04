@@ -38,7 +38,8 @@ inline void cross(const P& u, const P& v, P& result)
   
 // ----------------------------------------------------------------------------
 template<typename P>
-std::vector<P> interpolate(const P& p1, const P& p2, unsigned int num);
+std::vector<P> interpolate(const P& p1, const P& p2, unsigned int num,
+                           bool include_endpoints = true);
 // ----------------------------------------------------------------------------  
 
 // ----------------------------------------------------------------------------
@@ -84,7 +85,8 @@ template<typename P>
 std::vector<P> generate_grid_2D(const P& c1,
                                 const P& c2,
                                 unsigned int nx,
-                                unsigned int ny);
+                                unsigned int ny,
+                                bool include_boundary_points = true);
 // ----------------------------------------------------------------------------  
 
 // ----------------------------------------------------------------------------
@@ -121,6 +123,13 @@ std::vector<P> inpolygon(const P* const pts, const unsigned int num_pts,
 			 const double tol);
 // ----------------------------------------------------------------------------    
 
+// ----------------------------------------------------------------------------
+// Compute approximate normal of a polygon in 3D space
+template<typename P>
+P compute_polygon_normal(const P* const pts, const unsigned int num_pts);
+// ----------------------------------------------------------------------------
+  
+  
 // ----------------------------------------------------------------------------
 // Check if a 3D point is inside a closed shell consisting of triangles
 template<typename P, typename T>
