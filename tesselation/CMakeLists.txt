@@ -13,6 +13,7 @@ INCLUDE_DIRECTORIES(
   ${GoCompositeModel_SOURCE_DIR}/include
   ${GoTopology_SOURCE_DIR}/include
   ${GoTrivariate_SOURCE_DIR}/include
+  ${parametrization_SOURCE_DIR}/include
   ${GoIgeslib_SOURCE_DIR}/include  
   ${GoTools_COMMON_INCLUDE_DIRS}
   /usr/local/include/eigen3/
@@ -28,6 +29,7 @@ SET(DEPLIBS
   GoTopology
   GoTrivariate
   GoIgeslib
+  parametrization
   ttl
   )
 
