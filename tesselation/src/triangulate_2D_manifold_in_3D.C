@@ -64,13 +64,29 @@ vector<Point2D> compute_2D_paramerization(const Point3D* const points,
                                       num_ipoints,
                                       (double*) &tmp_points[0]));
   u_points->setRadius(vdist);
+  u_points->useRadius();
   u_points->initNeighbours();
   
   // Parametrize the boundary
-  PrParametrizeBdy pb;
-  pb.setParamKind(PrCHORDLENGTHBDY);
-  pb.attach(u_points);
-  pb.parametrize();
+  Point3D normal = compute_polygon_normal(points, num_bpoints);
+  uint nix = uint(min_element(&normal[0], &normal[0]+3) - &normal[0]);
+  Point3D sel_axis = {0, 0, 0};
+  sel_axis[nix] = 1;
+
+  Point3D u = normal ^ sel_axis;  u = u / norm(u);
+  Point3D v = normal ^ u;;   v = v / norm(v);
+  vector<Point3D> tmp_bnd_pts {Point3D {0.0, 0.0, 0.0}, u, v};
+  tmp_bnd_pts.insert(tmp_bnd_pts.end(), points, points + num_bpoints);
+  vector<Point2D> bnd_par = transform_to_2D<Point2D, Point3D>(tmp_bnd_pts);
+  for (uint i = 0; i != num_bpoints; ++i) {
+    u_points->setU(i + num_ipoints, bnd_par[i+3][0]);
+    u_points->setV(i + num_ipoints, bnd_par[i+3][1]);
+  }
+
+  // PrParametrizeBdy pb;
+  // pb.setParamKind(PrCHORDLENGTHBDY);
+  // pb.attach(u_points);
+  // pb.parametrize();
 
   //Parametrize the interior
   PrPrmMeanValue pi;

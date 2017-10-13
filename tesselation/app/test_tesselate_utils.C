@@ -634,7 +634,7 @@ void test_parametric_volume_tesselation()
 
   GoParametricTesselableVolume ptvolume(*testVolume);
 
-  const double vdist = 0.015; //0.02; //0.01; //0.005;
+  const double vdist = 0.007; //0.015; //0.02; //0.01; //0.005;
   
   ptvolume.tesselate(vdist);
   

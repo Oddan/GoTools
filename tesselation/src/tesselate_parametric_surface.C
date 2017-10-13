@@ -17,8 +17,7 @@ typedef shared_ptr<const ParamSurface> SurfPtr;
 vector<Point2D> init_startpoints(const SurfPtr sp,
                                  const Point2D* const bpoints,
                                  const uint num_bpoints,
-                                 const double vdist,
-                                 double& pardist);
+                                 const double vdist);
 void optimize_interior_points(const SurfPtr sp,
                               const Point2D* const bpoints,
                               const uint num_bpoints,
@@ -38,10 +37,8 @@ Mesh2D tesselateParametricSurface(const SurfPtr surf,
 // ============================================================================
 {
   // choosing an initial set of interior points which can later be moved around
-  // to optimal locations.  An estimated distance in the parameter plane is
-  // returned in the last parameter.
-  double pardist; 
-  vector<Point2D> ipoints = init_startpoints(surf, bpts, num_bpts, vdist, pardist);
+  // to optimal locations.  
+  vector<Point2D> ipoints = init_startpoints(surf, bpts, num_bpts, vdist);
 
   //ipoints = vector<Point2D> {{-1.0, 2.0}, {0.5, 0.5}, {0.6, 0.5}, {0.6, 0.55}}; // @@@
   assert(polygon_area(bpts, num_bpts) > 0);
@@ -49,7 +46,7 @@ Mesh2D tesselateParametricSurface(const SurfPtr surf,
   // optimizing position of interior points
   if (!ipoints.empty())
     optimize_interior_points(surf, bpts, num_bpts,
-                            &ipoints[0], (uint)ipoints.size(), vdist * 1.5);
+                            &ipoints[0], (uint)ipoints.size(), vdist * 2.0);
 
   // triangulating points
   vector<Point2D> points(bpts, bpts + num_bpts);
@@ -93,10 +90,10 @@ void optimize_interior_points(const SurfPtr sp,
 
   // setting up function minimizer
   Go::FunctionMinimizer<ParamSurfaceEnergyFunctor>
-    funcmin(num_ipoints * 2, efun, (double* const)&ipoints[0], 1e-1); // @@ tolerance?1e-1
+    funcmin(num_ipoints * 2, efun, (double* const)&ipoints[0], 1e-1 * vdist); // @@ tolerance?1e-1
 
   // do the minimization
-  const double STOPTOL = 1e-6; // @@ is this always sufficiently good?  (Default
+  const double STOPTOL = 1e-4; // @@ is this always sufficiently good?  (Default
                                // in 'minimise_conjugated_gradient' is machine
                                // precision) for this tolerance. 1e-4
   Go::minimise_conjugated_gradient(funcmin, STOPTOL);
@@ -134,8 +131,7 @@ inline double estimate_surf_area(SurfPtr sp)
 vector<Point2D> init_startpoints(const SurfPtr sp,
                                  const Point2D* const bpoints,
                                  const uint num_bpoints,
-                                 const double vdist,
-                                 double& pardist)
+                                 const double vdist)
 // ----------------------------------------------------------------------------
 {
   const double poly_area = polygon_area(bpoints, num_bpoints);
@@ -145,7 +141,7 @@ vector<Point2D> init_startpoints(const SurfPtr sp,
   const double param_surf_ratio = surf_param_area / surf_area_estimate;
 
   // estimate average distance in parameter plane
-  pardist = vdist * sqrt(param_surf_ratio);
+  const double pardist = vdist * sqrt(param_surf_ratio);
 
   // compute approx. number of points needed to cover whole surface
   const uint N = (uint)floor(poly_area / (2 * pardist * pardist));
@@ -172,7 +168,7 @@ vector<Point2D> init_startpoints(const SurfPtr sp,
                                             nx, ny, false);
 
   // add perturbation to avoid 'symmetry locking' during the optimization stage
-  const double PM = 1.0e-1 * pardist;
+  const double PM = 0.3 * pardist;
   transform(result.begin(), result.end(), result.begin(), 
 	    [PM] (Point2D p) { return Point2D {p[0] + random_uniform(-PM, PM),
 		                               p[1] + random_uniform(-PM, PM)};});

@@ -7,7 +7,7 @@ function plot_tri(pts, tri, color, alpha)
       ixs = [tri(i,:), tri(i,1)]';
       
       if size(pts,2) == 2
-         plot(pts(ixs,1), pts(ixs,2), '*-r');
+         plot(pts(ixs,1), pts(ixs,2), ['*-' color]);
       else
          %plot3(pts(ixs,1), pts(ixs,2), pts(ixs, 3), '*-r');
          plot3(pts(ixs,1), pts(ixs,2), pts(ixs, 3), ['-' color]);

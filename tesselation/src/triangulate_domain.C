@@ -549,12 +549,20 @@ uint best_candidate_point(const vector<uint>& cand_pts,
   const Point2D& p1 = points[seg[0]];
   const Point2D& p2 = points[seg[1]];
 
+  // avoid circles with radii large enough to cause numerical issues
+  const double l2 = dist2(p1, p2); // squared length of segment
+  
   // @@ It may be faster to eliminate neighbors as one goes along (any neighbour
   // outside the circumscribed circle could be disregarded and removed from the
   // vector).  This introduces a bit more logic, but something to consider if
   // this part of the code proves to be a bottleneck.
   for (const auto ix : cand_ixs)  {
     if (circumscribe_triangle(points[ix], p1, p2, center, radius2)) {
+      // is the radius of the circle too big (points basically lying on a
+      // straight line)?
+      if (l2 < radius2 * numeric_limits<double>::epsilon())
+        continue;  
+      
       // check whether the circle contains any candidate point
       bool interior_point_found = false;
       for (const auto ix2 : cand_ixs) 
