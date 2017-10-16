@@ -4,11 +4,11 @@
 #include "GoTools/parametrization/PrFastUnorganized_OP.h"
 #include "GoTools/parametrization/PrParametrizeInt.h"
 #include "GoTools/parametrization/PrParametrizeBdy.h"
-// #include "GoTools/parametrization/PrPrmShpPres.h"
+#include "GoTools/parametrization/PrPrmShpPres.h"
 // #include "GoTools/parametrization/PrPrmUniform.h"
 // #include "GoTools/parametrization/PrPrmLeastSquare.h"
 // #include "GoTools/parametrization/PrPrmEDDHLS.h"
-#include "GoTools/parametrization/PrPrmMeanValue.h"
+// #include "GoTools/parametrization/PrPrmMeanValue.h"
 
 #include <memory>
 
@@ -29,9 +29,6 @@ namespace {
   
   double compute_angle(const Point3D& p1, const Point3D& p2,
                        const Point3D& p3, const Point3D& midpt);
-  
-angles[i] = compute_angle(pts3D[(i-1+N)%N], pts3D[i], pts3D[(i+1)%N, midpt]);
-  
   
 }; // end anonymous namespace 
 
@@ -85,16 +82,23 @@ vector<Point2D> compute_2D_paramerization(const Point3D* const points,
   Point3D sel_axis = {0, 0, 0};
   sel_axis[nix] = 1;
 
-  Point3D u = normal ^ sel_axis;  u = u / norm(u);
-  Point3D v = normal ^ u;;   v = v / norm(v);
-  vector<Point3D> tmp_bnd_pts {Point3D {0.0, 0.0, 0.0}, u, v};
-  tmp_bnd_pts.insert(tmp_bnd_pts.end(), points, points + num_bpoints);
-  //vector<Point2D> bnd_par = transform_to_2D<Point2D, Point3D>(tmp_bnd_pts);
+  // Point3D u = normal ^ sel_axis;  u = u / norm(u);
+  // Point3D v = normal ^ u;;   v = v / norm(v);
+  // vector<Point3D> tmp_bnd_pts {Point3D {0.0, 0.0, 0.0}, u, v};
+  // tmp_bnd_pts.insert(tmp_bnd_pts.end(), points, points + num_bpoints);
+  // vector<Point2D> bnd_par = transform_to_2D<Point2D, Point3D>(tmp_bnd_pts);
+  // for (uint i = 0; i != num_bpoints; ++i) {
+  //   u_points->setU(i + num_ipoints, bnd_par[i+3][0]);
+  //   u_points->setV(i + num_ipoints, bnd_par[i+3][1]);
+  // }
+
+
+  const vector<Point3D> tmp_bnd_pts(points, points + num_bpoints);
   const vector<Point2D> bnd_par = compute_boundary_param(tmp_bnd_pts);
   
   for (uint i = 0; i != num_bpoints; ++i) {
-    u_points->setU(i + num_ipoints, bnd_par[i+3][0]);
-    u_points->setV(i + num_ipoints, bnd_par[i+3][1]);
+    u_points->setU(i + num_ipoints, bnd_par[i][0]);
+    u_points->setV(i + num_ipoints, bnd_par[i][1]);
   }
 
   // PrParametrizeBdy pb;
@@ -103,7 +107,8 @@ vector<Point2D> compute_2D_paramerization(const Point3D* const points,
   // pb.parametrize();
 
   //Parametrize the interior
-  PrPrmMeanValue pi;
+  //PrPrmMeanValue pi;
+  PrPrmShpPres pi;
   pi.attach(u_points);
   pi.parametrize();
 
@@ -140,7 +145,7 @@ vector<Point2D> compute_boundary_param(const vector<Point3D>& pts3D)
 
   // compute 2D coordinates by adding up the segments
   vector<Point2D> result(N);
-  result[0] = Point {0.0, 0.0, 0.0};
+  result[0] = Point2D {0.0, 0.0};
   for (int i = 1; i != N; ++i) 
     result[i] = result[i-1] + segs[i];
 
@@ -156,15 +161,15 @@ vector<double> compute_approx_angles(const vector<Point3D>& pts3D)
   const double PI = 3.1415926536;    
   const Point3D midpt = accumulate(pts3D.begin(),
                                    pts3D.end(),
-                                   Point3D {0.0, 0.0, 0.0) / (double) N);
+                                   Point3D {0.0, 0.0, 0.0}) / (double) N;
   
   vector<double> angles(pts3D.size());
   for (int i = 0; i != N; ++i) {
-    angles[i] = compute_angle(pts3D[(i-1+N)%N], pts3D[i], pts3D[(i+1)%N, midpt]);
+    angles[i] = compute_angle(pts3D[(i-1+N)%N], pts3D[i], pts3D[(i+1)%N], midpt);
   }
   const double initial_angle_sum = accumulate(angles.begin(), angles.end(), 0.0);
   transform(angles.begin(), angles.end(), angles.begin(),
-            [](double x) {return x * 2 * PI / initial_angle_sum;});
+            [&](double x) {return x * 2 * PI / initial_angle_sum;});
 
   // the angles in 'angles' should now sum up to 2 PI
   return angles;
@@ -211,10 +216,10 @@ vector<Point2D> compute_2D_segments(const vector<Point3D>& pts3D,
   // Then, adjust segment lengths so that endpoints match in the end
   const double x_err = accumulate(result.begin(), result.end(), 0.0,
                                   [](double acc, const Point2D& p)
-                                  {return acc + p[0]});
+                                  {return acc + p[0];});
   const double y_err = accumulate(result.begin(), result.end(), 0.0,
                                   [](double acc, const Point2D& p)
-                                  {return acc + p[1]});
+                                  {return acc + p[1];});
 
   // distributing error evently across segments, to ensure a set of segments
   // that sum up to zero
