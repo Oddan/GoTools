@@ -41,7 +41,7 @@ namespace {
 
   void optimize_triangulation(vector<Triangle>& tris);
   vector<InternalEdge> map_internal_edges(const vector<Triangle>& tri);
-  bool flip_edges(vector<InternalEdge>& edges, vector<Triangle>& tris);
+  bool flip_nonoptimal_edges(vector<InternalEdge>& edges, vector<Triangle>& tris);
 
   
 }; // end anonymous namespace 
@@ -259,7 +259,7 @@ void optimize_triangulation(vector<Triangle>& tris)
   vector<InternalEdge> edges = map_internal_edges(tris);
 
   while (true) {
-    bool found = flip_edges(edges, tris);
+    bool found = flip_nonoptimal_edges(edges, tris);
     if (!found)
       break;
   };
@@ -298,10 +298,16 @@ vector<InternalEdge> map_internal_edges(const vector<Triangle>& tris)
 }
 
 // ----------------------------------------------------------------------------
-bool flip_edges(vector<InternalEdge>& edges, vector<Triangle>& tris)
+bool flip_nonoptimal_edges(vector<InternalEdge>& edges, vector<Triangle>& tris)
 // ----------------------------------------------------------------------------
 {
-  
+  bool found = false;
+  for (auto e : edges) {
+    if ((e.processed == false) && should_be_flipped(e, tris)) {
+      flip_this_edge(e, tris);
+      found = true;
+    }
+  }
 }
   
 
