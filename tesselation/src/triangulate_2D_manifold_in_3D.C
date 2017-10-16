@@ -11,12 +11,21 @@
 // #include "GoTools/parametrization/PrPrmMeanValue.h"
 
 #include <memory>
+#include <multimap>
 
 using namespace Go;
 using namespace std;
 using namespace TesselateUtils;
 
 namespace {
+
+  struct InternalEdge {
+    Segment s;
+    uint tri_ix_1;
+    uint tri_ix_2;
+    bool processed;
+  };
+  
   vector<Point2D> compute_2D_paramerization(const Point3D* const points,
                                             const uint num_bpoints,
                                             const uint tot_num_points,
@@ -29,6 +38,11 @@ namespace {
   
   double compute_angle(const Point3D& p1, const Point3D& p2,
                        const Point3D& p3, const Point3D& midpt);
+
+  void optimize_triangulation(vector<Triangle>& tris);
+  vector<InternalEdge> map_internal_edges(const vector<Triangle>& tri);
+  bool flip_edges(vector<InternalEdge>& edges, vector<Triangle>& tris);
+
   
 }; // end anonymous namespace 
 
@@ -47,7 +61,13 @@ std::vector<Triangle> triangulate_2D_manifold_in_3D(const Point3D* const points,
     
   // then triangulate them
   const double new_vdist = 4 / sqrt(max(tot_num_points - num_bpoints, (uint)1));
-  return triangulate_domain(&uv[0], num_bpoints, tot_num_points, new_vdist);
+  auto tri = triangulate_domain(&uv[0], num_bpoints, tot_num_points, new_vdist);
+
+  // Post-processing step to ensure triangulation is optimal also in 3D space
+  optimize_triangulation(tri);
+
+  return tri;
+  
 }  
 
 }; // end namespace TesselateUtils
@@ -231,5 +251,59 @@ vector<Point2D> compute_2D_segments(const vector<Point3D>& pts3D,
   return result;
 }
 
+// ----------------------------------------------------------------------------
+void optimize_triangulation(vector<Triangle>& tris)
+// Flip internal edges until triangulation can no longer be improved
+// ----------------------------------------------------------------------------
+{
+  vector<InternalEdge> edges = map_internal_edges(tris);
+
+  while (true) {
+    bool found = flip_edges(edges, tris);
+    if (!found)
+      break;
+  };
   
+}
+
+// ----------------------------------------------------------------------------
+vector<InternalEdge> map_internal_edges(const vector<Triangle>& tris)
+// ----------------------------------------------------------------------------
+{
+  // map all edges to their respective triangles
+  multimap<Segment, uint> m; // map segment to triangle indices
+  for (uint t_ix = 0; t_ix != tris.size(); ++t_ix) {
+    const Triangle t = tris[t_ix];
+    for (uint i = 0; i!= 3; ++i) {
+      const uint ix1 = t[i];
+      const uint ix2 = t[(i+1)%3];
+      const Segment s = (ix1 < ix2) ? Segment {ix1, ix2} : Segment {ix2, ix1};
+      m.insert(pair<Segment, uint>(s, t_ix));
+    }
+  }
+      
+  // identify internal edges and return them
+  vector<InternalEdge> result;
+  for (auto m_it = m.begin(); m_it != m.end(); ++m_it) {
+    const Segment& key = m_it->first;
+    if (m.count(key) > 1) {
+      // this is an internal edge
+      assert(m.count(key) == 2);
+      const int t_ix_1 = m_it->second;
+      const int t_ix_2 = (++m_it)->second;
+      result.push_back( {key, t_ix1, t_ix_2, true} );
+    }
+  }
+  
+}
+
+// ----------------------------------------------------------------------------
+bool flip_edges(vector<InternalEdge>& edges, vector<Triangle>& tris)
+// ----------------------------------------------------------------------------
+{
+  
+}
+  
+
+
 }; // end anonymous namespace 
