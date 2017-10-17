@@ -11,7 +11,7 @@
 // #include "GoTools/parametrization/PrPrmMeanValue.h"
 
 #include <memory>
-#include <multimap>
+#include <map>
 
 using namespace Go;
 using namespace std;
@@ -39,12 +39,15 @@ namespace {
   double compute_angle(const Point3D& p1, const Point3D& p2,
                        const Point3D& p3, const Point3D& midpt);
 
-  void optimize_triangulation(vector<Triangle>& tris);
+  void optimize_triangulation(vector<Triangle>& tris, const Point3D* const points);
   vector<InternalEdge> map_internal_edges(const vector<Triangle>& tri);
-  bool flip_nonoptimal_edges(vector<InternalEdge>& edges, vector<Triangle>& tris);
+  void flip_this_edge(vector<InternalEdge>& edges, uint e_ix, vector<Triangle>& tris);  
+  bool should_be_flipped(const InternalEdge& edge,
+                         const vector<Triangle>& tris,
+                         const Point3D* const points);
 
-  
-}; // end anonymous namespace 
+  inline double pow2(double a) {return a*a;}
+}; // end anonymous namespace
 
 
 namespace TesselateUtils {
@@ -63,8 +66,13 @@ std::vector<Triangle> triangulate_2D_manifold_in_3D(const Point3D* const points,
   const double new_vdist = 4 / sqrt(max(tot_num_points - num_bpoints, (uint)1));
   auto tri = triangulate_domain(&uv[0], num_bpoints, tot_num_points, new_vdist);
 
-  // Post-processing step to ensure triangulation is optimal also in 3D space
-  optimize_triangulation(tri);
+  // Post-processing step to ensure triangulation is optimal also in 3D space.
+
+  //@@ untested.  If non-delaunay triangulations result from the above
+  //procedure, the below function call should fix the problem.  Uncomment and
+  //test if the situation arises!
+
+  // optimize_triangulation(tri, points);
 
   return tri;
   
@@ -167,7 +175,7 @@ vector<Point2D> compute_boundary_param(const vector<Point3D>& pts3D)
   vector<Point2D> result(N);
   result[0] = Point2D {0.0, 0.0};
   for (int i = 1; i != N; ++i) 
-    result[i] = result[i-1] + segs[i];
+    result[i] = result[i-1] + segs[i-1];
 
   return result;
   
@@ -252,19 +260,116 @@ vector<Point2D> compute_2D_segments(const vector<Point3D>& pts3D,
 }
 
 // ----------------------------------------------------------------------------
-void optimize_triangulation(vector<Triangle>& tris)
+void optimize_triangulation(vector<Triangle>& tris, const Point3D* const points)
 // Flip internal edges until triangulation can no longer be improved
 // ----------------------------------------------------------------------------
 {
   vector<InternalEdge> edges = map_internal_edges(tris);
 
+  // flip non-optimal edges until there are no more non-optimal edges left
   while (true) {
-    bool found = flip_nonoptimal_edges(edges, tris);
-    if (!found)
+    bool changes_made = false;
+    for (uint i = 0; i != (uint)edges.size(); ++i) {
+      auto& e = edges[i];
+      if ((e.processed == false && should_be_flipped(e, tris, points))) {
+        flip_this_edge(edges, i, tris);
+        changes_made = true;
+      } else {
+        e.processed = true;
+      }
+    }
+    if (!changes_made)
       break;
-  };
-  
+  }
 }
+
+// ----------------------------------------------------------------------------  
+void flip_this_edge(vector<InternalEdge>& edges, uint e_ix, vector<Triangle>& tris)
+// ----------------------------------------------------------------------------
+{
+  auto& e = edges[e_ix];  // reference to edge in question
+  uint remote_corners[2];
+  uint remote_corners_ix[2];
+  const Triangle t1 = tris[e.tri_ix_1]; // these are the "old" triangles, to be
+  const Triangle t2 = tris[e.tri_ix_2]; // replaced (so we take copies)
+
+  // find the two triangle corners that are not lying on the common edge
+  set_difference(t1.begin(), t1.end(), e.s.begin(), e.s.end(), remote_corners);
+  set_difference(t2.begin(), t2.end(), e.s.begin(), e.s.end(), remote_corners+1);
+
+  remote_corners_ix[0] = uint(find(t1.begin(), t1.end(), remote_corners[0]) - t1.begin());
+  remote_corners_ix[1] = uint(find(t2.begin(), t2.end(), remote_corners[1]) - t2.begin());
+  
+  // changing mesh topology
+  tris[e.tri_ix_1] = Triangle { remote_corners[0],
+                                t1[(remote_corners_ix[0] + 1)%3], remote_corners[1] };
+  tris[e.tri_ix_2] = Triangle { remote_corners[1],
+                                t2[(remote_corners_ix[1] + 1)%3], remote_corners[0] };
+
+  // updating current edge
+  e.s = {remote_corners[0], remote_corners[1]};
+  if (e.s[0] > e.s[1]) swap(e.s[0], e.s[1]); // ensure correct order for segment
+  e.processed = true; // just flipped, so should be OK
+
+  // updating other concerned edges
+  uint dummy[3]; 
+  for (auto& other_e : edges) {
+    uint* const tri_ix_to_change =
+      ((other_e.tri_ix_1 == e.tri_ix_1) ||
+       (other_e.tri_ix_1 == e.tri_ix_2))    ? &(other_e.tri_ix_1) :
+      ((other_e.tri_ix_2 == e.tri_ix_1) ||
+       (other_e.tri_ix_2 == e.tri_ix_2))    ? &(other_e.tri_ix_2) :
+      nullptr;
+
+    if (tri_ix_to_change) 
+      *tri_ix_to_change =
+        (set_difference(tris[e.tri_ix_1].begin(), tris[e.tri_ix_1].end(),
+                        other_e.s.begin(), other_e.s.end(), dummy) - dummy == 1) ?
+        e.tri_ix_1 : e.tri_ix_2;
+
+    other_e.processed = (bool)tri_ix_to_change; 
+    
+  }
+}
+
+// ----------------------------------------------------------------------------
+bool should_be_flipped(const InternalEdge& edge,
+                       const vector<Triangle>& tris,
+                       const Point3D* const points)
+// ----------------------------------------------------------------------------
+{
+  // find the corner in the second triangle that is _not_ on the shared edge
+  const Triangle& t1 = tris[edge.tri_ix_1];
+  const Triangle& t2 = tris[edge.tri_ix_2];
+  uint t2_corner_ix = 0; // correct value will be set below
+  set_difference(t2.begin(), t2.end(), edge.s.begin(), edge.s.end(), &t2_corner_ix);
+
+  // check if the found corner of the second triangle is within the sphere
+  // defined by the three corners of the first triangle
+  const Point3D& P1 = points[t1[0]];
+  const Point3D& P2 = points[t1[1]];
+  const Point3D& P3 = points[t1[2]];
+
+  Point2D mcol1 {0,0}, mcol2 {0, 0}, rhs {0, 0}; // matrix columns and right
+                                                 // hand side of linear system
+  for (int i = 0; i != 3; ++i) {
+    mcol1[0] += (P2[i] - P1[i]) * (P3[i] - P1[i]);
+    mcol1[1] += (P3[i] - P2[i]) * (P1[i] - P2[i]);
+    mcol2[0] += pow2(P2[i] - P1[i]);
+    mcol2[1] += pow2(P3[i] - P2[i]);
+    rhs[0] += 0.5 * (pow2(P2[i]) - pow2(P1[i]));
+    rhs[1] += 0.5 * (pow2(P3[i]) - pow2(P2[i]));
+  }
+  const Point2D uv = solve_2D_matrix(mcol1, mcol2, rhs);
+  const Point3D center = P1 + uv[0] * (P3 - P1) + uv[1] * (P2 - P1);
+
+  double R2 = dist2(center, P1); // squared radius of sphere
+
+  return dist2(points[t2_corner_ix], center) < R2; // corner is within the
+                                                   // sphere => edge is not
+                                                   // optimal
+}
+
 
 // ----------------------------------------------------------------------------
 vector<InternalEdge> map_internal_edges(const vector<Triangle>& tris)
@@ -289,27 +394,14 @@ vector<InternalEdge> map_internal_edges(const vector<Triangle>& tris)
     if (m.count(key) > 1) {
       // this is an internal edge
       assert(m.count(key) == 2);
-      const int t_ix_1 = m_it->second;
-      const int t_ix_2 = (++m_it)->second;
-      result.push_back( {key, t_ix1, t_ix_2, true} );
+      const uint t_ix_1 = m_it->second;
+      const uint t_ix_2 = (++m_it)->second;
+      result.push_back( {key, t_ix_1, t_ix_2, true} );
     }
   }
-  
+  return result;
 }
 
-// ----------------------------------------------------------------------------
-bool flip_nonoptimal_edges(vector<InternalEdge>& edges, vector<Triangle>& tris)
-// ----------------------------------------------------------------------------
-{
-  bool found = false;
-  for (auto e : edges) {
-    if ((e.processed == false) && should_be_flipped(e, tris)) {
-      flip_this_edge(e, tris);
-      found = true;
-    }
-  }
-}
-  
 
 
 }; // end anonymous namespace 
