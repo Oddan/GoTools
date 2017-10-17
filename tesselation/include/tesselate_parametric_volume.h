@@ -18,7 +18,14 @@ namespace TesselateUtils {
                              const Point2D* const bpoints,
                              const uint num_bpoints,
                              const double vdist);
-
+  
+  Mesh3D
+  tesselateParametricVolume(const shared_ptr<const Go::ParamVolume> pvol,
+                            const Point3D* const bpoints,
+                            const Triangle* const tris,
+                            const uint num_tris,
+                            const double vdist);
+  
                                                
 };
 
