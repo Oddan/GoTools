@@ -12,6 +12,77 @@ ParamCurveEnergyFunctionTraits::compute_cgrid(const ParamObj pobj,
   return ClippedGrid<1>();
 }
 
+// ----------------------------------------------------------------------------  
+inline bool
+close_to_surface_boundary(const ParamSurfaceEnergyFunctionTraits::ParamObj pobj,
+                          std::vector<Point3D> bnd3D,
+                          const double radius,
+                          const double upar,
+                          const double vpar)
+// ----------------------------------------------------------------------------  
+{
+  const auto go_pt(pobj->point(upar, vpar));
+  const Point3D pt {go_pt[0], go_pt[1], go_pt[2]};
+  uint dummy; 
+  return (dist2(pt,
+                closest_point_on_loop(pt,
+                                      &bnd3D[0],
+                                      (uint)bnd3D.size(),
+                                      dummy)) < radius*radius) ?
+    CLOSE_INSIDE: FAR_INSIDE;
+}
+                       
+// ----------------------------------------------------------------------------
+inline void classify_inside_surface_cells(ClippedGrid<2>& cgrid,
+              const ParamSurfaceEnergyFunctionTraits::ParamObj pobj,
+              const ParamSurfaceEnergyFunctionTraits::BoundaryPolytope& boundary,
+              const double radius)
+// ----------------------------------------------------------------------------
+{
+  // first, initialize all inside cells to FAR_INSIDE
+  std::transform(cgrid.type.begin(), cgrid.type.end(), cgrid.type.begin(),
+                 [](ClippedDomainType type) {
+                   return (type == CLOSE_INSIDE) ? FAR_INSIDE : type;});
+
+  // Then, compute the actual 3D boundary
+  std::vector<Point3D> bnd3D(boundary.num_bpoints);
+  transform(boundary.bpoints, boundary.bpoints + boundary.num_bpoints, bnd3D.begin(),
+            [&] (const Point2D& uv) {
+              const auto go_point(pobj->point(uv[0], uv[1]));
+              return Point3D {go_point[0], go_point[1], go_point[2]}; });
+  
+  // then, compute the status of all interior corner points: whether they are
+  // "close" or "far" from the boundary
+  enum Status {NOT_SET, CLOSE, FAR};
+  const uint cells_x = cgrid.res[0];
+  const uint cells_y = cgrid.res[1];
+
+  std::vector<Status> corner_statuses((cells_x + 1) * (cells_y + 1), NOT_SET);
+  for (uint j = 0; j != cgrid.res[1]; ++j) 
+    for (uint i = 0; i != cgrid.res[0]; ++i) 
+      if (cgrid.type[j * cgrid.res[0] + i] == FAR_INSIDE) 
+        // ensure that the status of this cell's corner points have been computed
+        for (uint jj = j; jj != j+2; ++jj)
+          for (uint ii = i; ii != i+2; ++ii)
+            if (corner_statuses[jj * (cgrid.res[0]+1) + ii] == NOT_SET) {
+              corner_statuses[jj * (cgrid.res[0]+1) + ii] =
+                close_to_surface_boundary(pobj, bnd3D, radius,
+                                          cgrid.bbox[0] + ii * cgrid.cell_len[0],
+                                          cgrid.bbox[2] + jj * cgrid.cell_len[1]) ?
+                CLOSE : FAR;}
+  
+  // classify interior cells
+  for (uint j = 0; j != cgrid.res[1]; ++j) 
+    for (uint i = 0; i != cgrid.res[0]; ++i) 
+      if (cgrid.type[j * cgrid.res[0] + i] == FAR_INSIDE) 
+        for (uint jj = j; jj != j+2; ++jj)
+          for (uint ii = i; ii != i+2; ++ii)
+            if (corner_statuses[jj * (cgrid.res[0] + 1) + ii] == CLOSE)
+              // if any of the cell's corners is close to the boundary, the cell
+              // is defined to be as well
+              cgrid.type[j * cgrid.res[0] + i] = CLOSE_INSIDE;
+}
+  
 // ----------------------------------------------------------------------------
 ClippedGrid<2> inline
 ParamSurfaceEnergyFunctionTraits::compute_cgrid(const ParamObj pobj,
@@ -19,16 +90,24 @@ ParamSurfaceEnergyFunctionTraits::compute_cgrid(const ParamObj pobj,
                                                 const double radius)
 // ----------------------------------------------------------------------------  
 {
-  std::cout << "Warning in ParamSurfaceEnergyFunctionTraits::compute_grid: "
-    "dummy implementation." << std::endl;
-
-  // @@@ dummy implementation for now
-  auto krull = clip_grid_polygon_2D(boundary.bpoints,
+  uint num_cells_x = 40; // @@ hardcoded for now
+  uint num_cells_y = 40; // @@ hardcoded for now
+  auto cgrid = clip_grid_polygon_2D(boundary.bpoints,
                                     boundary.num_bpoints,
                                     radius,
-                                    80, 80); // @@ 80 hardcoded here
-  fill(krull.type.begin(), krull.type.end(), UNDETERMINED);
-  return krull;
+                                    num_cells_x,
+                                    num_cells_y);
+                                    
+  // INTERSECTED and OUTSIDE are correctly classified, but the above routine
+  // cannot distinguish between CLOSE_INSIDE and FAR_INSIDE since we work with a
+  // parametrized geometry (distances cannot be directly measured in parameter
+  // plane).  We therefore have to call the following function to distinguish
+  // between CLOSE_INSIDE and FAR_INSIDE
+  
+  classify_inside_surface_cells(cgrid, pobj, boundary, radius);
+  
+  //fill(cgrid.type.begin(), cgrid.type.end(), UNDETERMINED);
+  return cgrid;
 }
 
 // ----------------------------------------------------------------------------

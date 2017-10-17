@@ -114,16 +114,10 @@ parametric_surf_energy(const shared_ptr<const Go::ParamSurface> surf,
   for (uint i = 0; i != (uint)E_tot.der.size(); ++i)
     E_tot.der[i] += E_bnd.der[i] * BND_FAC;
 
-  // cout << "Point: " << ipoints[0][0] << " " << ipoints[0][1] << '\n';
-  // cout << "Fval: " << E_tot.val << '\n';
-  // cout << "Grad: " << E_tot.der[0][0] << " " << E_tot.der[0][1] << endl;
-  
   return E_tot;
 }
-
   
 }; //end namespace TesselateUtils
-
 
 namespace {
 
