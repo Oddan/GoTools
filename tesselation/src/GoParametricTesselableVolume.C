@@ -19,6 +19,12 @@ typedef GoParametricTesselableVolume::FaceType FaceType;
 vector<Point2D> compute_surface_parameters(const vector<PointType>& boundary,
                                            const shared_ptr<const ParamSurface> surf);
 // ----------------------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+vector<Point3D> compute_volume_parameters(const vector<Go::Point> pts,
+                                          const shared_ptr<const ParamVolume> pvol);
+// ----------------------------------------------------------------------------  
+
   
 // ----------------------------------------------------------------------------
 uint find_vertex_index(const vector<shared_ptr<Vertex>>& vertices,
@@ -162,7 +168,7 @@ compute_tesselation(const vector<PointType>& boundary,
   // determine surface parameter values for boundary points
   const vector<Point2D> par = compute_surface_parameters(boundary, face.surf);
 
-  // // computing tesselation
+  // computing tesselation
   const Mesh2D m2d = tesselateParametricSurface(face.surf, &par[0],
                                                 (uint)par.size(), vdist);
 
@@ -170,12 +176,9 @@ compute_tesselation(const vector<PointType>& boundary,
   ipoints = compute_3D_points(face.surf,
                               vector<Point2D> (m2d.points.begin() + boundary.size(),
                                                m2d.points.end()));
-
   triangles = m2d.tris;
-  // // fix orientation of triangles if necessary
+  // fix orientation of triangles if necessary
 }
-
-
 
   
 // ----------------------------------------------------------------------------  
@@ -189,7 +192,44 @@ compute_tesselation(const vector<PointType>& bpoints,
                     vector<Tet>& tets)
 // ----------------------------------------------------------------------------  
 {
-  // @@ dummy
+  // There is currently no parameter-based volume tesselation - the tesselation
+  // is done directly in 3D space, and the corresponding parameters computed in
+  // a second step.  Unlike the curve and surface case, it is possible to
+  // tesselate the entity directly in 3D space, as we are here tesselating a
+  // manifold that is not embedded in a higher-dimensional space.  On the other
+  // hand, it might be more computationally efficient to tesselate in parameter
+  // space (as in the curve and surface case), since we would then not need to
+  // compute the parameters post-hoc.  So this could be considered later.
+
+  // First, convert the boundary points to Point3D so that the polyhedron
+  // tesselation routine can be called.
+  // vector<Point3D> bp3D(bpoints.size());
+  // transform(bpoints.begin(), bpoints.end(), bp3D.begin(),
+  //           [&volume] (const PointType& p) {
+  //             return Point3D {p.pos[0], p.pos[1], p.pos[2]};});
+
+  // const Mesh3D m3D = tesselatePolyhedron3D(&bp3D[0],
+  //                                          (uint)bp3D.size(),
+  //                                          &btris[0],
+  //                                          (uint)btris.size(),
+  //                                          vdist);
+
+  // const uint N = (uint)m3D.points.size(); // number of interior points
+
+  // // converting interior points to Go::Point
+  // vector<Go::Point> ipoints_go(N);
+  // transform(m3D.points.begin(), m3D.points.end(), ipoints_go.begin(),
+  //           [](const Point3D& p) {return Go::Point(p[0], p[1], p[2]);});
+
+  // // computing interior point parameters
+  // const vector<Point3D> par = compute_volume_parameters(ipoints_go, volume);
+    
+  // ipoints.resize(N);
+  // for (uint i = 0; i != (uint)bp3D.size(); ++i) 
+  //   ipoints[i] = PointType(ipoints_go[i], par[i]);
+
+  // tets = m3D.tets;
+
   ipoints = bpoints;
 }
 
@@ -274,5 +314,34 @@ vector<Point2D> compute_surface_parameters(const vector<PointType>& boundary,
             });
   return result;
 }
+
+// ----------------------------------------------------------------------------
+vector<Point3D> compute_volume_parameters(const vector<Go::Point> pts,
+                                          const shared_ptr<const ParamVolume> pvol)
+// ----------------------------------------------------------------------------
+{
+  vector<Point3D> result(pts.size());
+
+  const Array<double, 6> pspan = pvol->parameterSpan();
+  const double extent = max({(pspan[1] - pspan[0]),
+                             (pspan[3] - pspan[2]),
+                             (pspan[5] - pspan[4])});
+  const double EPS = extent * sqrt(numeric_limits<double>::epsilon());
+  const double TOL = extent * 1e-6;
+  
+  transform(pts.begin(), pts.end(), result.begin(),
+            [&] (const Go::Point& p) {
+              Go::Point cpoint; // closest point( we do not use this)
+              double u, v, w; // parameters for closest point
+              double dist; // distance to closest point (we do not use this)
+              pvol->closestPoint(p, u, v, w, cpoint, dist, EPS);
+              if (dist > TOL) {
+                throw runtime_error("Could not exactly locate point inside volume.");
+              }
+              return Point3D {u, v, w};
+            });
+  return result;
+}
+
   
 } // end anonymous namespace

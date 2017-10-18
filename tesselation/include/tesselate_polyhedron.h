@@ -24,7 +24,7 @@ Mesh2D tesselatePolygon2D(const Point2D* const polygon,
 			  const double vdist,
                           const shared_ptr<const Go::ParamSurface> surf = 0);
 
-// All  face triangle should be presented with face normal pointing outwards.
+// All face triangle should be presented with face normal pointing outwards.
 Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
                              const unsigned int num_bpoints,
                              const Triangle* const btris,
@@ -45,10 +45,5 @@ std::vector<PointXD> tesselateSegment(const PointXD& p1,
   return interpolate(p1, p2, num_intervals - 1);
 }
 };
-
-
-
-
-
 
 #endif
