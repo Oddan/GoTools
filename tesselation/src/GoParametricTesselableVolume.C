@@ -203,34 +203,34 @@ compute_tesselation(const vector<PointType>& bpoints,
 
   // First, convert the boundary points to Point3D so that the polyhedron
   // tesselation routine can be called.
-  // vector<Point3D> bp3D(bpoints.size());
-  // transform(bpoints.begin(), bpoints.end(), bp3D.begin(),
-  //           [&volume] (const PointType& p) {
-  //             return Point3D {p.pos[0], p.pos[1], p.pos[2]};});
+  vector<Point3D> bp3D(bpoints.size());
+  transform(bpoints.begin(), bpoints.end(), bp3D.begin(),
+            [&volume] (const PointType& p) {
+              return Point3D {p.pos[0], p.pos[1], p.pos[2]};});
 
-  // const Mesh3D m3D = tesselatePolyhedron3D(&bp3D[0],
-  //                                          (uint)bp3D.size(),
-  //                                          &btris[0],
-  //                                          (uint)btris.size(),
-  //                                          vdist);
+  const Mesh3D m3D = tesselatePolyhedron3D(&bp3D[0],
+                                           (uint)bp3D.size(),
+                                           &btris[0],
+                                           (uint)btris.size(),
+                                           vdist);
 
-  // const uint N = (uint)m3D.points.size(); // number of interior points
+  const uint N = (uint)m3D.points.size(); // number of interior points
 
-  // // converting interior points to Go::Point
-  // vector<Go::Point> ipoints_go(N);
-  // transform(m3D.points.begin(), m3D.points.end(), ipoints_go.begin(),
-  //           [](const Point3D& p) {return Go::Point(p[0], p[1], p[2]);});
+  // converting interior points to Go::Point
+  vector<Go::Point> ipoints_go(N);
+  transform(m3D.points.begin(), m3D.points.end(), ipoints_go.begin(),
+            [](const Point3D& p) {return Go::Point(p[0], p[1], p[2]);});
 
-  // // computing interior point parameters
-  // const vector<Point3D> par = compute_volume_parameters(ipoints_go, volume);
+  // computing interior point parameters
+  const vector<Point3D> par = compute_volume_parameters(ipoints_go, volume);
     
-  // ipoints.resize(N);
-  // for (uint i = 0; i != (uint)bp3D.size(); ++i) 
-  //   ipoints[i] = PointType(ipoints_go[i], par[i]);
+  ipoints.resize(N);
+  for (uint i = 0; i != (uint)bp3D.size(); ++i) 
+    ipoints[i] = PointType(ipoints_go[i], par[i]);
 
-  // tets = m3D.tets;
+  tets = m3D.tets;
 
-  ipoints = bpoints;
+  // ipoints = bpoints;
 }
 
   

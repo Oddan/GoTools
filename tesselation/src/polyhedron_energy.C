@@ -249,8 +249,11 @@ ClippedDomainType point_domain_type(const Point3D& pt,
 {
   array<uint, 3> ix;
   for (uint i = 0; i != 3; ++i)
-    ix[i] = min((uint)max(floor((pt[i] - cgrid.bbox[2*i])/cgrid.cell_len[i]), 0.0),
-                cgrid.res[i] - 1);
+    if ((pt[i] < cgrid.bbox[2*i]) || (pt[i] > cgrid.bbox[2*i+1]))
+      return OUTSIDE;
+    else
+      ix[i] = min((uint)max(floor((pt[i] - cgrid.bbox[2*i])/cgrid.cell_len[i]), 0.0),
+                  cgrid.res[i] - 1);
 
   const auto type = cgrid.type[ix[0] + cgrid.res[0] * (ix[1] + cgrid.res[1] * ix[2])];
 
@@ -348,10 +351,14 @@ void add_outside_penalty_energy(const uint ipoint_ix,
   } else {
     d /= dist; // normalize direction vector
   }
-  const double penalty = e[0] + dist * der;
+  // const double penalty = e[0] + dist * der;
 
+  // result.val += penalty;
+  // result.der[ipoint_ix] += d * der;
+
+  const double penalty = 10 * (dist * der);
   result.val += penalty;
-  result.der[ipoint_ix] += d * der;
+  result.der[ipoint_ix] += 10 * der * d;
   
 }
   
@@ -370,7 +377,7 @@ void add_boundary_contribution(const Point3D* const bpts, // boundary points
   const double NUMTOL = sqrt(numeric_limits<double>::epsilon());
 
   for (uint i = 0; i != num_ipoints; ++i) {
-    if ((point_status[i] == OUTSIDE) || (point_status[i] == FAR_INSIDE))
+    if (point_status[i] == FAR_INSIDE)
       continue;
     
     double dist_to_plane;

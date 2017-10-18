@@ -424,6 +424,7 @@ void TesselableVolume<BoundedSpaceTraits>::writeTesselatedVolume(std::ostream& o
   const auto vpoints  = volumePoints();
   std::copy(vpoints.begin(), vpoints.end(), std::ostream_iterator<PointType>(os, " "));
 
+  os << '\n';
   // writing tets
   os << "Tets: " << '\n';
   for (const auto& t : volume_tets_)

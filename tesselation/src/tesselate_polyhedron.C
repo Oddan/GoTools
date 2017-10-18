@@ -153,30 +153,6 @@ Mesh2D tesselatePolygon2D(const Point2D* const polygon,
   return {points, tris};
 }
 
-  // // @@@@@@computing and reporting internal energy
-  // const double R = 1.5 * vdist;
-  // const auto e = polygon_energy(&bpoints[0], (unsigned int)bpoints.size(),
-  //       			&ipoints[0], (unsigned int)ipoints.size(), 
-  //       			R);
-
-  // // @@@@@ computing numerical derivatives
-  // auto dpoints(ipoints);
-  // double tiny = 1e-7;
-  // dpoints[1][0] = dpoints[1][0] + tiny;
-  // const auto dxe = polygon_energy(&bpoints[0], (unsigned int)bpoints.size(),
-  //       			&dpoints[0], (unsigned int)dpoints.size(), 
-  //       			R);
-  // double numdiff_x = (e.val-dxe.val)/-tiny;
-  // dpoints = ipoints;
-  // dpoints[1][1] = dpoints[1][1] + tiny;
-  // const auto dye = polygon_energy(&bpoints[0], (unsigned int)bpoints.size(),
-  //                                 &dpoints[0], (unsigned int)dpoints.size(), 
-  //                                 R);
-  // double numdiff_y = (e.val-dye.val)/-tiny;
-
-  
-  
-  // cout << "Energy is:" << e.val << endl;
 
   
 // ============================================================================
@@ -190,18 +166,6 @@ Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
   // choosing a set of interior points
   vector<Point3D> ipoints = init_startpoints(bpoints, num_bpoints, btris,
                                              num_btris, vdist);
-
-  //ipoints = {{0.1, 0.1, 0.1}, {0.9, 0.1, 0.1}, {0.5, 0.5, 0.5}};
-  //ipoints = {{0.1, 0.1, 0.1}}; //,{0.5, 0.5, 0.5}};//,
-  //ipoints = {{0.0, 0.1, 0.1}}; //,{0.5, 0.5, 0.5}};//, 
-  //ipoints = {{0.5, 0.5, 0.5}, {0.11, 0.11, 0.2}, {0.51, 0.5, 0.5}, {0.1, 0.2, 0.3}}; // @@@ hack  
-  // for (int i =0; i != (int)ipoints.size(); ++i)
-  //   cout << ipoints[i]; @@
-
-  // ofstream os0("krull0.mat");
-  // copy(ipoints.begin(), ipoints.end(), ostream_iterator<Point3D>(os0, " "));
-  // os0.close(); // @@@
-  
   
   // optimizing position of interior points.  We use a value of 'vdist' slightly
   // higher than what the interpoint distance goal is, to avoid points becoming
@@ -212,82 +176,6 @@ Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
                              &ipoints[0], (uint)ipoints.size(), vdist*2);
 
   cout << "Finished optimization of " << ipoints.size() << " internal points." << endl;
-
-  // ofstream os("krull.mat");
-  // copy(ipoints.begin(), ipoints.end(), ostream_iterator<Point3D>(os, " "));
-  // os.close(); // @@@
-
-
-  
-  // // @@@@@@computing and reporting internal energy
-  // const double R = 2 * vdist;
-  // const auto e = polyhedron_energy(bpoints, num_bpoints, btris, num_btris, 
-  //                                  &ipoints[0], (unsigned int)ipoints.size(), R);
-
-
-  // optimize_interior_points(bpoints, num_bpoints, btris, num_btris,
-  //                          &ipoints[0], (uint)ipoints.size(), vdist*2); // @@ vdist=1?
-
-  // cout << "Finished optimization of " << ipoints.size() << " internal points." << endl;
-
-
-  
-  // // @@@@@@computing and reporting internal energy
-  // const auto e2 = polyhedron_energy(bpoints, num_bpoints, btris, num_btris, 
-  //                                  &ipoints[0], (unsigned int)ipoints.size(), R);
-
-  // double tiny2 = 1e-5;
-  // vector<Point3D> krull(ipoints);
-  // for (int i = 1; i != 2; ++i)
-  //   for (int d = 0; d != 3; ++d)
-  //     krull[i][d] -= e2.der[i][d] * tiny2;
-
-  // //const auto e3 = polyhedron_energy(bpoints, num_bpoints, btris, num_btris, &krull[0], krull.size(), R);
-  
-  
-  // // optimize_interior_points(bpoints, num_bpoints, btris, num_btris,
-  // //                          &ipoints[0], (uint)ipoints.size(), vdist*2); // @@ vdist=1?
-
-  // // cout << "Finished optimization of " << ipoints.size() << " internal points." << endl;
-
-
-  
-  // // // @@@@@@computing and reporting internal energy
-  // // const auto e3 = polyhedron_energy(bpoints, num_bpoints, btris, num_btris, 
-  // //                                  &ipoints[0], (unsigned int)ipoints.size(), R);
-
-
-
-
-
-  
-  // // @@@@@ computing numerical derivatives
-  // auto dpoints(ipoints);
-  // int pt_ix = 1; // 0;
-  // double tiny = 1e-7;
-  // dpoints[pt_ix][0] = dpoints[pt_ix][0] + tiny;
-  // const auto dxe = polyhedron_energy(bpoints, num_bpoints, btris, num_btris,
-  //       			&dpoints[0], (unsigned int)dpoints.size(), R);
-  // double numdiff_x = (e.val-dxe.val)/-tiny;
-  // dpoints = ipoints;
-  // dpoints[pt_ix][1] = dpoints[pt_ix][1] + tiny;
-  // const auto dye = polyhedron_energy(bpoints, num_bpoints, btris, num_btris,
-  //                                 &dpoints[0], (unsigned int)dpoints.size(), R);
-  // double numdiff_y = (e.val-dye.val)/-tiny;
-
-  // dpoints = ipoints;
-  // dpoints[pt_ix][2] = dpoints[pt_ix][2] + tiny;
-  // const auto dze = polyhedron_energy(bpoints, num_bpoints, btris, num_btris,
-  //                                 &dpoints[0], (unsigned int)dpoints.size(), R);
-  // double numdiff_z = (e.val-dze.val)/-tiny;
-
-  
-  // ofstream os("krull.mat");
-  // copy(ipoints.begin(), ipoints.end(), ostream_iterator<Point3D>(os, " "));
-  // os.close(); // @@@
-
-  // const auto tull = polyhedron_energy(bpoints, btris, num_btris,
-  //                                     &ipoints[0], (uint)ipoints.size(), vdist * 4);
   
   // In case boundary has much larger faces than 'vdist', we need to allow for
   // larger distances when constructing the tetrahedrons.  We therefore run a

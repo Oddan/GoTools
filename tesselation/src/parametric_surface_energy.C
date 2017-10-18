@@ -373,6 +373,11 @@ inline ClippedDomainType point_domain_type(const Point2D& pt,
 {
   const double& dx = cgrid.cell_len[0];
   const double& dy = cgrid.cell_len[1];
+
+  if ((pt[0] < cgrid.bbox[0]) || (pt[0] > cgrid.bbox[1]) ||
+      (pt[1] < cgrid.bbox[2]) || (pt[1] > cgrid.bbox[3]))
+    return OUTSIDE;
+
   const uint ix = min((uint)max(floor((pt[0] - cgrid.bbox[0])/dx), 0.0), cgrid.res[0]-1);
   const uint iy = min((uint)max(floor((pt[1] - cgrid.bbox[2])/dy), 0.0), cgrid.res[1]-1);
 
