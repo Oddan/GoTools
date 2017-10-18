@@ -72,7 +72,7 @@ std::vector<Triangle> triangulate_2D_manifold_in_3D(const Point3D* const points,
   //procedure, the below function call should fix the problem.  Uncomment and
   //test if the situation arises!
 
-  // optimize_triangulation(tri, points);
+  optimize_triangulation(tri, points);
 
   return tri;
   
@@ -283,6 +283,19 @@ void optimize_triangulation(vector<Triangle>& tris, const Point3D* const points)
   }
 }
 
+// ----------------------------------------------------------------------------
+inline uint nonedge_corner(const Segment& s, const Triangle& t)
+// ----------------------------------------------------------------------------  
+{
+  // return the single corner of t that is not on the edge s (it is assumed that
+  // s is an edge of t)
+  if ((t[0] != s[0]) && (t[0] != s[1])) return t[0];
+  if ((t[1] != s[0]) && (t[1] != s[1])) return t[1];
+  return t[2];
+}    
+    
+
+
 // ----------------------------------------------------------------------------  
 void flip_this_edge(vector<InternalEdge>& edges, uint e_ix, vector<Triangle>& tris)
 // ----------------------------------------------------------------------------
@@ -294,9 +307,8 @@ void flip_this_edge(vector<InternalEdge>& edges, uint e_ix, vector<Triangle>& tr
   const Triangle t2 = tris[e.tri_ix_2]; // replaced (so we take copies)
 
   // find the two triangle corners that are not lying on the common edge
-  set_difference(t1.begin(), t1.end(), e.s.begin(), e.s.end(), remote_corners);
-  set_difference(t2.begin(), t2.end(), e.s.begin(), e.s.end(), remote_corners+1);
-
+  remote_corners[0] = nonedge_corner(e.s, t1);
+  remote_corners[1] = nonedge_corner(e.s, t2);
   remote_corners_ix[0] = uint(find(t1.begin(), t1.end(), remote_corners[0]) - t1.begin());
   remote_corners_ix[1] = uint(find(t2.begin(), t2.end(), remote_corners[1]) - t2.begin());
   
@@ -321,11 +333,14 @@ void flip_this_edge(vector<InternalEdge>& edges, uint e_ix, vector<Triangle>& tr
        (other_e.tri_ix_2 == e.tri_ix_2))    ? &(other_e.tri_ix_2) :
       nullptr;
 
-    if (tri_ix_to_change) 
+    if (tri_ix_to_change) {
+      Triangle tmp(tris[e.tri_ix_1]);
+      sort(tmp.begin(), tmp.end());
       *tri_ix_to_change =
-        (set_difference(tris[e.tri_ix_1].begin(), tris[e.tri_ix_1].end(),
+        (set_difference(tmp.begin(), tmp.end(),
                         other_e.s.begin(), other_e.s.end(), dummy) - dummy == 1) ?
         e.tri_ix_1 : e.tri_ix_2;
+    }
 
     other_e.processed = (bool)tri_ix_to_change; 
     
@@ -341,9 +356,9 @@ bool should_be_flipped(const InternalEdge& edge,
   // find the corner in the second triangle that is _not_ on the shared edge
   const Triangle& t1 = tris[edge.tri_ix_1];
   const Triangle& t2 = tris[edge.tri_ix_2];
-  uint t2_corner_ix = 0; // correct value will be set below
-  set_difference(t2.begin(), t2.end(), edge.s.begin(), edge.s.end(), &t2_corner_ix);
 
+  const uint t2_corner_ix = nonedge_corner(edge.s, t2);
+  
   // check if the found corner of the second triangle is within the sphere
   // defined by the three corners of the first triangle
   const Point3D& P1 = points[t1[0]];
@@ -353,15 +368,15 @@ bool should_be_flipped(const InternalEdge& edge,
   Point2D mcol1 {0,0}, mcol2 {0, 0}, rhs {0, 0}; // matrix columns and right
                                                  // hand side of linear system
   for (int i = 0; i != 3; ++i) {
-    mcol1[0] += (P2[i] - P1[i]) * (P3[i] - P1[i]);
-    mcol1[1] += (P3[i] - P2[i]) * (P1[i] - P2[i]);
-    mcol2[0] += pow2(P2[i] - P1[i]);
-    mcol2[1] += pow2(P3[i] - P2[i]);
-    rhs[0] += 0.5 * (pow2(P2[i]) - pow2(P1[i]));
-    rhs[1] += 0.5 * (pow2(P3[i]) - pow2(P2[i]));
+    mcol1[0] += (P2[i] - P1[i]) * (P1[i] - P2[i]);
+    mcol1[1] += (P2[i] - P1[i]) * (P2[i] - P3[i]);
+    mcol2[0] += (P3[i] - P1[i]) * (P1[i] - P2[i]);
+    mcol2[1] += (P3[i] - P1[i]) * (P2[i] - P3[i]);
+    rhs[0] += 0.5 * (pow2(P1[i]) - pow2(P2[i])) - P1[i] * (P1[i] - P2[i]);
+    rhs[1] += 0.5 * (pow2(P2[i]) - pow2(P3[i])) - P1[i] * (P2[i] - P3[i]);
   }
   const Point2D uv = solve_2D_matrix(mcol1, mcol2, rhs);
-  const Point3D center = P1 + uv[0] * (P3 - P1) + uv[1] * (P2 - P1);
+  const Point3D center = P1 + uv[0] * (P2 - P1) + uv[1] * (P3 - P1);
 
   double R2 = dist2(center, P1); // squared radius of sphere
 
@@ -396,7 +411,7 @@ vector<InternalEdge> map_internal_edges(const vector<Triangle>& tris)
       assert(m.count(key) == 2);
       const uint t_ix_1 = m_it->second;
       const uint t_ix_2 = (++m_it)->second;
-      result.push_back( {key, t_ix_1, t_ix_2, true} );
+      result.push_back( {key, t_ix_1, t_ix_2, false} );
     }
   }
   return result;

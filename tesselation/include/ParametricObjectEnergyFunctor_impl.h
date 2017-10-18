@@ -64,12 +64,12 @@ inline void classify_inside_surface_cells(ClippedGrid<2>& cgrid,
         // ensure that the status of this cell's corner points have been computed
         for (uint jj = j; jj != j+2; ++jj)
           for (uint ii = i; ii != i+2; ++ii)
-            if (corner_statuses[jj * (cgrid.res[0]+1) + ii] == NOT_SET) {
+            if (corner_statuses[jj * (cgrid.res[0]+1) + ii] == NOT_SET) 
               corner_statuses[jj * (cgrid.res[0]+1) + ii] =
                 close_to_surface_boundary(pobj, bnd3D, radius,
                                           cgrid.bbox[0] + ii * cgrid.cell_len[0],
                                           cgrid.bbox[2] + jj * cgrid.cell_len[1]) ?
-                CLOSE : FAR;}
+                CLOSE : FAR;
   
   // classify interior cells
   for (uint j = 0; j != cgrid.res[1]; ++j) 
