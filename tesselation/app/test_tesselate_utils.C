@@ -638,7 +638,7 @@ void test_parametric_volume_tesselation()
   //const double vdist = 0.02; // gives trouble generating tets
   //const double vdist = 0.04; // OK
   //const double vdist = 0.03; // OK
-  const double vdist = 0.025; // OK
+  const double vdist = 0.02; // OK
   ptvolume.tesselate(vdist);
   
   //ptvolume.writeTesselatedOutline(cout);
