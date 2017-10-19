@@ -167,11 +167,12 @@ std::vector<P> generate_grid_3D(const P& c1,
                                 const P& c2,
                                 unsigned int nx,
                                 unsigned int ny,
-                                unsigned int nz)
+                                unsigned int nz,
+                                bool include_boundary_points)
 // ----------------------------------------------------------------------------  
 {
   // generate upper and lower layer
-  const auto layergrid2D = generate_grid_2D(c1, c2, nx, ny);
+  const auto layergrid2D = generate_grid_2D(c1, c2, nx, ny, include_boundary_points);
   auto zminvec = layergrid2D;
   auto zmaxvec = layergrid2D;
   for (unsigned int i = 0; i != (unsigned int)layergrid2D.size(); ++i) {
@@ -183,7 +184,8 @@ std::vector<P> generate_grid_3D(const P& c1,
   std::vector<std::vector<P>> layers;
   std::transform(zminvec.begin(), zminvec.end(), zmaxvec.begin(),
                  std::back_inserter(layers),
-                 [nz](const P& p1, const P& p2) {return interpolate(p1, p2, nz);});
+                 [&](const P& p1, const P& p2) {
+                   return interpolate(p1, p2, nz, include_boundary_points);});
   return flatten(layers);
 }
   

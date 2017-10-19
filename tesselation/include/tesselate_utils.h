@@ -99,7 +99,8 @@ std::vector<P> generate_grid_3D(const P& c1,
                                 const P& c2,
                                 unsigned int nx,
                                 unsigned int ny,
-                                unsigned int nz);
+                                unsigned int nz,
+                                bool include_boundary_points = true);
 // ----------------------------------------------------------------------------  
 
 // ----------------------------------------------------------------------------  

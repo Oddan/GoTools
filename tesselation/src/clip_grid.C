@@ -108,7 +108,8 @@ ClippedGrid<3> clip_grid_shell_3D(const Point3D* const pcorners,
                           (bbox[3] - bbox[2])/ res_y,
                           (bbox[5] - bbox[4])/ res_z},
                          vector<ClippedDomainType>(res_x * res_y * res_z, UNDETERMINED)};
-
+  return result; // @@@@@@@
+  
   // identifying all cells intersected by a triangle
   identify_intersected_cells(result.bbox, result.res, result.cell_len, pcorners, 
                              tris, num_tris, &(result.type[0]));
