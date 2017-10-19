@@ -8,11 +8,11 @@
 namespace TesselateUtils {
 
 enum ClippedDomainType {
-  FAR_INSIDE,    // inside polygon, 'far' from boundary
-  CLOSE_INSIDE,  // inside polygon, within 'vdist' from boundary
-  INTERSECTED,   // polygon intersects this cell
-  OUTSIDE,       // outside polygon
-  UNDETERMINED   // not yet determined
+  FAR_INSIDE   = 0,    // inside polygon, 'far' from boundary
+  CLOSE_INSIDE = 1,    // inside polygon, within 'vdist' from boundary
+  INTERSECTED  = 2,    // polygon intersects this cell
+  OUTSIDE      = 3,    // outside polygon
+  UNDETERMINED = 4,    // not yet determined
 };
 
 template<int Dim>

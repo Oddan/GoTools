@@ -635,9 +635,10 @@ void test_parametric_volume_tesselation()
   GoParametricTesselableVolume ptvolume(*testVolume);
 
   //const double vdist = 0.007; //0.007; //0.015; //0.02; //0.01; //0.005;
-  const double vdist = 0.05; // use for testing internal point generation
-
-  
+  //const double vdist = 0.02; // gives trouble generating tets
+  //const double vdist = 0.04; // OK
+  //const double vdist = 0.03; // OK
+  const double vdist = 0.025; // OK
   ptvolume.tesselate(vdist);
   
   //ptvolume.writeTesselatedOutline(cout);

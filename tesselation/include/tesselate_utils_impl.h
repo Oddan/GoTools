@@ -765,7 +765,7 @@ inline double random_uniform(double minval, double maxval)
 // ----------------------------------------------------------------------------    
 {
   assert(maxval > minval);
-  static std::uniform_real_distribution<double> unif(minval, maxval);
+  std::uniform_real_distribution<double> unif(minval, maxval);
   static std::default_random_engine re;
   
   return unif(re);

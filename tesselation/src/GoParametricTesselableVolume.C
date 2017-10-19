@@ -225,7 +225,7 @@ compute_tesselation(const vector<PointType>& bpoints,
   const vector<Point3D> par = compute_volume_parameters(ipoints_go, volume);
     
   ipoints.resize(N);
-  for (uint i = 0; i != (uint)bp3D.size(); ++i) 
+  for (uint i = 0; i != N; ++i) 
     ipoints[i] = PointType(ipoints_go[i], par[i]);
 
   tets = m3D.tets;

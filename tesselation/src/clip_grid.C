@@ -1,6 +1,8 @@
 #include "clip_grid.h"
 #include "tesselate_utils.h"
 
+#include <fstream>  // @@ for debugging only
+#include <iterator> // @@ for debugging only
 using namespace std;
 using namespace TesselateUtils;
 
@@ -101,15 +103,16 @@ ClippedGrid<3> clip_grid_shell_3D(const Point3D* const pcorners,
                                                // work properly, since only
                                                // internal planes will be
                                                // checked for intersections
+  
   const auto bbox = bounding_box_3D(pcorners, num_pcorners);
+  //const auto bbox = bounding_box_3D(&krullcorners[0], num_pcorners);
   ClippedGrid<3> result {bbox,
                          {res_x, res_y, res_z},
                          {(bbox[1] - bbox[0])/ res_x,
                           (bbox[3] - bbox[2])/ res_y,
                           (bbox[5] - bbox[4])/ res_z},
                          vector<ClippedDomainType>(res_x * res_y * res_z, UNDETERMINED)};
-  return result; // @@@@@@@
-  
+    
   // identifying all cells intersected by a triangle
   identify_intersected_cells(result.bbox, result.res, result.cell_len, pcorners, 
                              tris, num_tris, &(result.type[0]));
@@ -118,6 +121,11 @@ ClippedGrid<3> clip_grid_shell_3D(const Point3D* const pcorners,
   classify_remaining_cells(result.bbox, result.res, pcorners, num_pcorners, tris,
                            num_tris, vdist, &(result.type[0]));
 
+  // ofstream os("krull"); //@@@
+  // std::copy(result.type.begin(), result.type.end(), ostream_iterator<int>(os, " "));
+  // os.close(); 
+    
+  
   return result;
 }
   
@@ -362,15 +370,15 @@ void classify_remaining_cells(const array<double, 6>& bbox,
   const uint num_cells = res[0] * res[1] * res[2];
   for (uint ix = 0; ix != num_cells; ++ix) {
     if (result[ix] == UNDETERMINED) {
-      // This celld is not intersected by any triangle.  Check whether it falls
+      // This cell is not intersected by any triangle.  Check whether it falls
       // outside
       const uint z_ix = (uint)floor(ix / (res[0] * res[1]));
       const uint tmp = ix % (res[0] * res[1]);
       const uint y_ix = (uint)floor(tmp / res[0]);
       const uint x_ix = tmp % res[0];
-      const Point3D centroid { (0.5 + (double)x_ix) * dx,
-                               (0.5 + (double)y_ix) * dy,
-                               (0.5 + (double)z_ix) * dz};
+      const Point3D centroid { bbox[0] + (0.5 + (double)x_ix) * dx,
+                               bbox[2] + (0.5 + (double)y_ix) * dy,
+                               bbox[4] + (0.5 + (double)z_ix) * dz};
       uint dummy = 0; // value not needed, but needed for function call below
       const double r = max({dx, dy, dz});
       result[ix] =
@@ -424,7 +432,7 @@ void identify_crossings(Point2D p1,
   
   vector<array<uint,2>> ixs_pairs;
   for (uint i = ix_range.first; i != ix_range.second; ++i) {
-    const double pval = (i+1) * cell_len[0];
+    const double pval = (i+1) * cell_len[0] + bbox[0];
 
     // determine at what point, in the other direction than 'dir', does the
     // intersection occur.
