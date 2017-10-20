@@ -59,6 +59,8 @@ public:
   uint numFacePoints() const;
   uint numVolumePoints() const;
 
+  uint numTets() const { return (uint)volume_tets_.size();}
+
   std::array<PointType, 2> edgeCorners(uint edge_ix) const;
   std::vector<PointType> faceBoundaryPoints(uint face_ix) const;
   

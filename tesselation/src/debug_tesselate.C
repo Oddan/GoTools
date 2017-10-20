@@ -1,4 +1,6 @@
 #include "debug_tesselate.h"
+#include "tesselate_utils.h"
+#include "polyhedral_energies.h"
 #include <fstream>
 
 using namespace TesselateUtils;

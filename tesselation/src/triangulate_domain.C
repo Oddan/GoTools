@@ -69,6 +69,7 @@ namespace {
   bool add_or_remove_face(const Triangle& tri, // third corner of 'tri' is the new point
                           vector<Triangle>& ntris,
                           vector<Triangle>& dtris,
+                          vector<Triangle>& ptris,
                           vector<uint>& unused_pts,
                           const bool delaunay);
   
@@ -164,10 +165,12 @@ vector<Tet> construct_tets(const Point3D* const points,
     if (tet_found(ntris, dtris, ptris, unused_pts, points, vdist, new_tet))
       result.push_back(new_tet);
 
+    
     cout << "Current number of tets: " << result.size() << endl;
     cout << "   ntris: " << ntris.size() << endl;
     cout << "   dtris: " << dtris.size() << endl;
     cout << "   ptris: " << ptris.size() << endl;
+
   }
 
   // sanity check: there should be no unused nodes left by now
@@ -181,7 +184,6 @@ vector<Tet> construct_tets(const Point3D* const points,
 
 namespace {
 
-  
 // ----------------------------------------------------------------------------
 bool tet_found(vector<Triangle>& ntris,
                vector<Triangle>& dtris,
@@ -226,9 +228,9 @@ bool tet_found(vector<Triangle>& ntris,
     // modify working front and remaining nodes.  Make sure to add them in
     // _clockwise_ corner order, since we want them to be pointing outwards of the
     // active front.
-    add_or_remove_face({cur_tri[0], cur_tri[1], chosen_pt}, ntris, dtris, unused_pts, is_del);
-    add_or_remove_face({cur_tri[1], cur_tri[2], chosen_pt}, ntris, dtris, unused_pts, is_del);
-    add_or_remove_face({cur_tri[2], cur_tri[0], chosen_pt}, ntris, dtris, unused_pts, is_del);
+    add_or_remove_face({cur_tri[0], cur_tri[1], chosen_pt}, ntris, dtris, ptris, unused_pts, is_del);
+    add_or_remove_face({cur_tri[1], cur_tri[2], chosen_pt}, ntris, dtris, ptris, unused_pts, is_del);
+    add_or_remove_face({cur_tri[2], cur_tri[0], chosen_pt}, ntris, dtris, ptris, unused_pts, is_del);
 
     // Flag this point currently as inactive.  It might be added back to the
     // active front further down in this function.
@@ -316,7 +318,7 @@ void find_candidate_points(const Triangle& tri,
                            vector<uint>& all_neigh_pts)    // input-output
 // ----------------------------------------------------------------------------
 {
-  const double TOL = 1.0e-6; // @@ safe/general enough?
+  const double TOL = 1.0e-8 * vdist; //1.0e-6; // @@ safe/general enough?
   const uint N = (uint)unused_pts.size();
   const Point3D& p1 = points[tri[0]]; // p1, p2 and p3 references are for 
   const Point3D& p2 = points[tri[1]]; // convenience only
@@ -615,6 +617,9 @@ bool is_delaunay(const Triangle& tri, const uint chosen_pt,
                  const vector<uint>& neigh_pts, const Point3D* const points)
 // ----------------------------------------------------------------------------
 {
+  //if (tri[0] < 83 || tri[1] < 83 || tri[2] < 83 || chosen_pt < 83)
+  //return false; ///@@@@@@
+
   Point3D center;
   double radius2;
   const double tol = 1e-3; // same comment as for the 2D version of 'is_delaunay above
@@ -689,12 +694,14 @@ bool search_and_erase_segment(const Segment& seg, vector<Segment>& segvec)
 bool add_or_remove_face(const Triangle& tri, // third corner of 'tri' is the new point
                         vector<Triangle>& ntris,
                         vector<Triangle>& dtris,
+                        vector<Triangle>& ptris,
                         vector<uint>& unused_pts,
                         const bool delaunay)
 // ----------------------------------------------------------------------------
 {
   const bool tri_found = search_and_erase_face(tri, ntris) ||
-                         search_and_erase_face(tri, dtris);
+                         search_and_erase_face(tri, dtris) ||
+                         search_and_erase_face(tri, ptris);
   if (tri_found) 
     // triangle already existed and has been removed from the front.
     return true;
