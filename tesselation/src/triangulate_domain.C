@@ -318,7 +318,7 @@ void find_candidate_points(const Triangle& tri,
                            vector<uint>& all_neigh_pts)    // input-output
 // ----------------------------------------------------------------------------
 {
-  const double TOL = 1.0e-8 * vdist; //1.0e-6; // @@ safe/general enough?
+  const double TOL = 1.0e-10 * vdist; //1.0e-6; // @@ safe/general enough?
   const uint N = (uint)unused_pts.size();
   const Point3D& p1 = points[tri[0]]; // p1, p2 and p3 references are for 
   const Point3D& p2 = points[tri[1]]; // convenience only
