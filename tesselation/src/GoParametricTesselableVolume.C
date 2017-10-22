@@ -64,8 +64,13 @@ GoParametricTesselableVolume::TesselableVolume(ftVolume& fvol)
   transform(unique_edges.begin(), unique_edges.end(), back_inserter(edges_),
             [&vertices] (const shared_ptr<ftEdge> e) {
               // @@ for the moment, we require that the ParamCurve is not clipped
-              assert(e->tMin() == e->geomCurve()->startparam());
-              assert(e->tMax() == e->geomCurve()->endparam());
+              cout << "tMin: " << e->tMin() << " " << "startparam: " << e->geomCurve()->startparam() << endl;
+              cout << "tMax: " << e->tMax() << " " << "startparam: " << e->geomCurve()->endparam() << endl;
+
+              // @@ DO SOMETHING IF THE PARAMETER INTERVALS ARE DIFFERENT
+
+              //assert(e->tMin() == e->geomCurve()->startparam());
+              //assert(e->tMax() == e->geomCurve()->endparam());
                 
               return EdgeType { e->geomCurve(),
                                 find_vertex_index(vertices, e->getVertex(true)), 
@@ -222,8 +227,9 @@ compute_tesselation(const vector<PointType>& bpoints,
             [](const Point3D& p) {return Go::Point(p[0], p[1], p[2]);});
 
   // computing interior point parameters
-  const vector<Point3D> par = compute_volume_parameters(ipoints_go, volume);
-    
+  //const vector<Point3D> par = compute_volume_parameters(ipoints_go, volume); @@@
+  const vector<Point3D> par(ipoints_go.size(), {0, 0, 0});
+  
   ipoints.resize(N);
   for (uint i = 0; i != N; ++i) 
     ipoints[i] = PointType(ipoints_go[i], par[i]);
@@ -296,7 +302,7 @@ vector<Point2D> compute_surface_parameters(const vector<PointType>& boundary,
   vector<Point2D> result(boundary.size());
   const double surf_extent = surf->containingDomain().diagLength();
   const double EPS = sqrt(numeric_limits<double>::epsilon()) * surf_extent;
-  const double TOL = surf_extent * 1e-6;
+  const double TOL = surf_extent * 1e-2;
   
   transform(boundary.begin(),
             boundary.end(),
@@ -327,7 +333,7 @@ vector<Point3D> compute_volume_parameters(const vector<Go::Point> pts,
                              (pspan[3] - pspan[2]),
                              (pspan[5] - pspan[4])});
   const double EPS = extent * sqrt(numeric_limits<double>::epsilon());
-  const double TOL = extent * 1e-6;
+  const double TOL = extent * 1e-3;
   
   transform(pts.begin(), pts.end(), result.begin(),
             [&] (const Go::Point& p) {
@@ -336,6 +342,7 @@ vector<Point3D> compute_volume_parameters(const vector<Go::Point> pts,
               double dist; // distance to closest point (we do not use this)
               pvol->closestPoint(p, u, v, w, cpoint, dist, EPS);
               if (dist > TOL) {
+                cout << "Dist: " << dist << " TOL: " << TOL << endl;
                 throw runtime_error("Could not exactly locate point inside volume.");
               }
               return Point3D {u, v, w};

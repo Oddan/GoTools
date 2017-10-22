@@ -626,8 +626,8 @@ void test_clip_grid_3D()
 void test_parametric_volume_tesselation()
 // ----------------------------------------------------------------------------
 {
-  string filename = "data/trimmed_cube_tri.g22";
-  //string filename = "data/pct12108_fem_1couple_model_0_simplified_trim3.g22";
+  //string filename = "data/trimmed_cube_tri.g22";
+  string filename = "data/pct12108_fem_1couple_model_0_simplified_trim3.g22";
   VolumeModelFileHandler filehandler;
 
   shared_ptr<ftVolume> testVolume = filehandler.readVolume(filename.c_str());
@@ -638,7 +638,10 @@ void test_parametric_volume_tesselation()
   //const double vdist = 0.02; // gives trouble generating tets
   //const double vdist = 0.04; // OK
   //const double vdist = 0.03; // OK
-  const double vdist = 0.003; // OK
+  //const double vdist = 0.003; // OK  - 100.000 cells
+  //const double vdist = 0.01; // for profiling
+  // const double vdist = 10; // for second model: (single) ipoint ends up outside shell
+  const double vdist =3;
   ptvolume.tesselate(vdist);
   
   //ptvolume.writeTesselatedOutline(cout);
@@ -647,7 +650,7 @@ void test_parametric_volume_tesselation()
   cout << endl;
   cout << "Number of tets generated: " << ptvolume.numTets() << endl;
   
-  //ptvolume.writeTesselatedVolume(cout);
+  ptvolume.writeTesselatedVolume(cout);
 }
 
 };

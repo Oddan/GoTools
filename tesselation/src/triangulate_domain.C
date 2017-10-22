@@ -165,7 +165,6 @@ vector<Tet> construct_tets(const Point3D* const points,
     if (tet_found(ntris, dtris, ptris, unused_pts, points, vdist, new_tet))
       result.push_back(new_tet);
 
-    
     cout << "Current number of tets: " << result.size() << endl;
     cout << "   ntris: " << ntris.size() << endl;
     cout << "   dtris: " << dtris.size() << endl;
@@ -476,7 +475,7 @@ void find_candidate_points(const Segment& s,
                            vector<uint>& all_neigh_pts)     // input-output
 // ----------------------------------------------------------------------------
 {
-  const double TOL = 1.0e-6;  // @@ is this safe/general enough?
+  const double TOL = 1.0e-9;  // @@ is this safe/general enough?
   const uint N = (uint)unused_pts.size(); // total number of points
   cand_pts.resize(N);     fill(cand_pts.begin(), cand_pts.end(), 0);
   all_neigh_pts.resize(N); fill(all_neigh_pts.begin(), all_neigh_pts.end(), 0);
@@ -497,6 +496,7 @@ void find_candidate_points(const Segment& s,
       } 
     }
   }
+  
 }
 
 // ----------------------------------------------------------------------------  

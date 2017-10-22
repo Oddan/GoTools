@@ -37,7 +37,7 @@ namespace {
                                       const vector<double>& angles);
   
   double compute_angle(const Point3D& p1, const Point3D& p2,
-                       const Point3D& p3, const Point3D& midpt);
+                       const Point3D& p3, const Point3D& normal);
 
   void optimize_triangulation(vector<Triangle>& tris, const Point3D* const points);
   vector<InternalEdge> map_internal_edges(const vector<Triangle>& tri);
@@ -52,7 +52,7 @@ namespace {
 
 namespace TesselateUtils {
 
-// ============================================================================
+// 
 std::vector<Triangle> triangulate_2D_manifold_in_3D(const Point3D* const points,
                                                     const uint num_bpoints,
                                                     const uint tot_num_points,
@@ -63,7 +63,12 @@ std::vector<Triangle> triangulate_2D_manifold_in_3D(const Point3D* const points,
   const auto uv = compute_2D_paramerization(points, num_bpoints, tot_num_points, vdist);
     
   // then triangulate them
-  const double new_vdist = 4 / sqrt(max(tot_num_points - num_bpoints, (uint)1));
+  const uint num_ipoints = tot_num_points - num_bpoints;
+  const auto bbox = bounding_box_2D(&uv[0], (uint)uv.size());
+  const double new_vdist = num_ipoints > 0 ?
+    (8 * 4 / sqrt(num_ipoints)) :
+    1.1 * max(bbox[1] - bbox[0], bbox[3] - bbox[2]);
+
   auto tri = triangulate_domain(&uv[0], num_bpoints, tot_num_points, new_vdist);
 
   // Post-processing step to ensure triangulation is optimal also in 3D space.
@@ -187,13 +192,14 @@ vector<double> compute_approx_angles(const vector<Point3D>& pts3D)
 {
   const int N = (int)pts3D.size();
   const double PI = 3.1415926536;    
-  const Point3D midpt = accumulate(pts3D.begin(),
-                                   pts3D.end(),
-                                   Point3D {0.0, 0.0, 0.0}) / (double) N;
+  // const Point3D midpt = accumulate(pts3D.begin(),
+  //                                  pts3D.end(),
+  //                                  Point3D {0.0, 0.0, 0.0}) / (double) N;
   
   vector<double> angles(pts3D.size());
+  const Point3D normal = compute_polygon_normal(&pts3D[0], (uint)pts3D.size());
   for (int i = 0; i != N; ++i) {
-    angles[i] = compute_angle(pts3D[(i-1+N)%N], pts3D[i], pts3D[(i+1)%N], midpt);
+    angles[i] = compute_angle(pts3D[(i-1+N)%N], pts3D[i], pts3D[(i+1)%N], normal);
   }
   const double initial_angle_sum = accumulate(angles.begin(), angles.end(), 0.0);
   transform(angles.begin(), angles.end(), angles.begin(),
@@ -205,22 +211,25 @@ vector<double> compute_approx_angles(const vector<Point3D>& pts3D)
 
 // ----------------------------------------------------------------------------  
 double compute_angle(const Point3D& p1, const Point3D& p2, const Point3D& p3,
-                     const Point3D& midpt)
+                     const Point3D& normal)
 // ----------------------------------------------------------------------------  
 {
   const Point3D v1 = p2 - p1;
   const Point3D v2 = p3 - p2;
-  const Point3D r  = p1 - midpt;
+  //const Point3D r  = p1 - midpt;
 
   const double v1_norm = norm(v1);
   const double v2_norm = norm(v2);
 
   const Point3D n = v1 ^ v2;
-  const Point3D c =  r ^ v1; 
+  //const Point3D c =  r ^ v1; 
 
-  const double sign = (n*c > 0) ? 1 : -1;
-
-  const double result = sign * acos(v1 * v2 / (v1_norm * v2_norm));
+  const double sign = (n*normal > 0) ? 1 : -1;
+  double arg = v1 * v2 / (v1_norm * v2_norm);
+  arg = arg > 1 ? 1 :
+        arg < -1 ? -1 :
+        arg;
+  const double result = sign * acos(arg);
   return result;
 }
 

@@ -119,6 +119,31 @@ std::array<double, 4> bounding_box_2D(const P* const points,
                                  (*(minmax_y.first))[1], (*(minmax_y.second))[1]};
 }
 
+// // ----------------------------------------------------------------------------
+// template<typename P>  
+// std::array<double, 6> bounding_box_3D(const P* const points,
+//                                       const unsigned int num_points)
+// // ----------------------------------------------------------------------------  
+// {
+//   assert(num_points > 0);
+//   std::array<double, 6> result {points[0][0], points[0][0],
+//                                 points[0][1], points[0][1],
+//                                 points[0][2], points[0][2]};
+//   const auto end = points + num_points;
+//   for (auto it = points; it != end; ++it) {
+//     const auto x = (*it)[0];
+//     if      (x < result[0]) result[0] = x;
+//     else if (x > result[1]) result[1] = x;
+//     const auto y = (*it)[1];
+//     if      (y < result[2]) result[2] = y;
+//     else if (y > result[3]) result[3] = y;
+//     const auto z = (*it)[2];
+//     if      (z < result[4]) result[4] = z;
+//     else if (z > result[5]) result[5] = z;
+//   }
+//   return result;
+// }
+
 // ----------------------------------------------------------------------------
 template<typename P>  
 std::array<double, 6> bounding_box_3D(const P* const points,
@@ -137,7 +162,7 @@ std::array<double, 6> bounding_box_3D(const P* const points,
                                  (*(minmax_y.first))[1], (*(minmax_y.second))[1],
                                  (*(minmax_z.first))[2], (*(minmax_z.second))[2]};
 }
-  
+
 // ----------------------------------------------------------------------------
 template<typename P>
 std::vector<P> generate_grid_2D(const P& c1,
