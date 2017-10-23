@@ -36,11 +36,16 @@ namespace TesselateUtils {
   // want, but runtime performance is improved by keeping 'vdist' low.  Boundary
   // points should be provided in clockwise order.  Each triangle is returned as
   // a set of three indices in to the list of points.  These indices are
-  // provided in counterclockwise order for each triangle.
-  std::vector<Triangle> triangulate_2D_manifold_in_3D(const Point3D* const points,
-                                                      const uint num_bpoints,
-                                                      const uint tot_num_points,
-                                                      const double vdist);
+  // provided in counterclockwise order for each triangle.  Optionally, the user
+  // can provide a pointer to an array of normal vectors to the boundary points
+  // - in cases where the surface deviates significantly from that of a plane
+  // (e.g. U-shaped), this vector of normals might be indispensible.
+  std::vector<Triangle> triangulate_2D_manifold_in_3D(
+                                            const Point3D* const points,
+                                            const uint num_bpoints,
+                                            const uint tot_num_points,
+                                            const double vdist,
+                                            const Point3D* const bpoint_normals); 
   
   // Compute a 3D simplex (Tet) mesh from a closed boundary shell defined by a
   // number of triangles defining the boundary, and a number of points defining

@@ -29,11 +29,18 @@ namespace {
   vector<Point2D> compute_2D_paramerization(const Point3D* const points,
                                             const uint num_bpoints,
                                             const uint tot_num_points,
-                                            const double vdist);
+                                            const double vdist,
+                                            const Point3D* const bpoint_normals); 
 
-  vector<Point2D> compute_boundary_param(const vector<Point3D>& pts3D);
-  vector<double> compute_approx_angles(const vector<Point3D>& pts3D);
-  vector<Point2D> compute_2D_segments(const vector<Point3D>& pts3D,
+  vector<Point2D> compute_boundary_param(const Point3D* const bpoints,
+                                         const Point3D* const bpoint_normals,
+                                         const uint num_bpoints);
+                                         
+  vector<double> compute_approx_angles(const Point3D* const bpoints,
+                                       const Point3D* const bpoint_normals,
+                                       const uint num_bpoints);
+  vector<Point2D> compute_2D_segments(const Point3D* const bpoints,
+                                      const uint num_bpoints,
                                       const vector<double>& angles);
   
   double compute_angle(const Point3D& p1, const Point3D& p2,
@@ -52,15 +59,17 @@ namespace {
 
 namespace TesselateUtils {
 
-// 
+// ============================================================================  
 std::vector<Triangle> triangulate_2D_manifold_in_3D(const Point3D* const points,
                                                     const uint num_bpoints,
                                                     const uint tot_num_points,
-                                                    const double vdist)
+                                                    const double vdist,
+                                                    const Point3D* const bpoint_normals)
 // ============================================================================  
 {
   // first, establish a reasonable 2D parameterization of the 3D points
-  const auto uv = compute_2D_paramerization(points, num_bpoints, tot_num_points, vdist);
+  const auto uv = compute_2D_paramerization(points, num_bpoints, tot_num_points,
+                                            vdist, bpoint_normals);
     
   // then triangulate them
   const uint num_ipoints = tot_num_points - num_bpoints;
@@ -91,7 +100,8 @@ namespace {
 vector<Point2D> compute_2D_paramerization(const Point3D* const points,
                                           const uint num_bpoints,
                                           const uint tot_num_points,
-                                          const double vdist)
+                                          const double vdist,
+                                          const Point3D* const bpoint_normals)
 // ----------------------------------------------------------------------------
 {
   // the PrFastUnorganized_OP object below assumes boundary points are listed
@@ -115,19 +125,10 @@ vector<Point2D> compute_2D_paramerization(const Point3D* const points,
   Point3D sel_axis = {0, 0, 0};
   sel_axis[nix] = 1;
 
-  // Point3D u = normal ^ sel_axis;  u = u / norm(u);
-  // Point3D v = normal ^ u;;   v = v / norm(v);
-  // vector<Point3D> tmp_bnd_pts {Point3D {0.0, 0.0, 0.0}, u, v};
-  // tmp_bnd_pts.insert(tmp_bnd_pts.end(), points, points + num_bpoints);
-  // vector<Point2D> bnd_par = transform_to_2D<Point2D, Point3D>(tmp_bnd_pts);
-  // for (uint i = 0; i != num_bpoints; ++i) {
-  //   u_points->setU(i + num_ipoints, bnd_par[i+3][0]);
-  //   u_points->setV(i + num_ipoints, bnd_par[i+3][1]);
-  // }
-
-
   const vector<Point3D> tmp_bnd_pts(points, points + num_bpoints);
-  const vector<Point2D> bnd_par = compute_boundary_param(tmp_bnd_pts);
+  const vector<Point2D> bnd_par = compute_boundary_param(&tmp_bnd_pts[0],
+                                                         bpoint_normals,
+                                                         (uint)tmp_bnd_pts.size());
   
   for (uint i = 0; i != num_bpoints; ++i) {
     u_points->setU(i + num_ipoints, bnd_par[i][0]);
@@ -159,27 +160,26 @@ vector<Point2D> compute_2D_paramerization(const Point3D* const points,
 }
 
 // ----------------------------------------------------------------------------
-vector<Point2D> compute_boundary_param(const vector<Point3D>& pts3D)
+vector<Point2D> compute_boundary_param(const Point3D* const bpoints,
+                                       const Point3D* const bpoint_normals,
+                                       const uint num_bpoints)
 // ----------------------------------------------------------------------------
 {
   // Compute approximate 2D parameterization of boundary points, that tries as
   // much as possible to reflect the angles and distances between the 3D
   // boundary points.
   
-  // computed midpoint (heuristically used to determine whether an angle bends
-  // "inwards" or "outwards)
-  const int N = (int)pts3D.size();
-  
   // compute angles and ensure they sum up to 2 pi
-  const vector<double> angles = compute_approx_angles(pts3D);
+  const vector<double> angles = compute_approx_angles(bpoints,
+                                                      bpoint_normals, num_bpoints);
 
   // compute segment lengths and directions, and adjust to ensure endpoints meet
-  const vector<Point2D> segs = compute_2D_segments(pts3D, angles);
+  const vector<Point2D> segs = compute_2D_segments(bpoints, num_bpoints, angles);
 
   // compute 2D coordinates by adding up the segments
-  vector<Point2D> result(N);
+  vector<Point2D> result(num_bpoints);
   result[0] = Point2D {0.0, 0.0};
-  for (int i = 1; i != N; ++i) 
+  for (int i = 1; (uint)i != num_bpoints; ++i) 
     result[i] = result[i-1] + segs[i-1];
 
   return result;
@@ -187,19 +187,23 @@ vector<Point2D> compute_boundary_param(const vector<Point3D>& pts3D)
 }
 
 // ----------------------------------------------------------------------------  
-vector<double> compute_approx_angles(const vector<Point3D>& pts3D)
+vector<double> compute_approx_angles(const Point3D* const bpoints,
+                                     const Point3D* const bpoint_normals,
+                                     const uint num_bpoints)
 // ----------------------------------------------------------------------------    
 {
-  const int N = (int)pts3D.size();
   const double PI = 3.1415926536;    
   // const Point3D midpt = accumulate(pts3D.begin(),
   //                                  pts3D.end(),
   //                                  Point3D {0.0, 0.0, 0.0}) / (double) N;
   
-  vector<double> angles(pts3D.size());
-  const Point3D normal = compute_polygon_normal(&pts3D[0], (uint)pts3D.size());
-  for (int i = 0; i != N; ++i) {
-    angles[i] = compute_angle(pts3D[(i-1+N)%N], pts3D[i], pts3D[(i+1)%N], normal);
+  vector<double> angles(num_bpoints);
+  const Point3D normal = compute_polygon_normal(bpoints, num_bpoints);
+  for (int i = 0; i != (int)num_bpoints; ++i) {
+    angles[i] = compute_angle(bpoints[(i-1+num_bpoints)%num_bpoints],
+                              bpoints[i],
+                              bpoints[(i+1)%num_bpoints],
+                              bpoint_normals ? bpoint_normals[i] : normal);
   }
   const double initial_angle_sum = accumulate(angles.begin(), angles.end(), 0.0);
   transform(angles.begin(), angles.end(), angles.begin(),
@@ -214,10 +218,14 @@ double compute_angle(const Point3D& p1, const Point3D& p2, const Point3D& p3,
                      const Point3D& normal)
 // ----------------------------------------------------------------------------  
 {
-  const Point3D v1 = p2 - p1;
-  const Point3D v2 = p3 - p2;
-  //const Point3D r  = p1 - midpt;
+  Point3D v1 = p2 - p1;
+  Point3D v2 = p3 - p2;
 
+  // projecting vectors onto plane
+  const double nnorm2 = norm2(normal);
+  v1 = v1 - ((v1 * normal) * normal / nnorm2);
+  v2 = v2 - ((v2 * normal) * normal / nnorm2);
+  
   const double v1_norm = norm(v1);
   const double v2_norm = norm(v2);
 
@@ -234,18 +242,19 @@ double compute_angle(const Point3D& p1, const Point3D& p2, const Point3D& p3,
 }
 
 // ----------------------------------------------------------------------------
-vector<Point2D> compute_2D_segments(const vector<Point3D>& pts3D,
+vector<Point2D> compute_2D_segments(const Point3D* const bpoints,
+                                    const uint num_bpoints,
                                     const vector<double>& angles)
 // ----------------------------------------------------------------------------
 {
-  const int N = (int)pts3D.size();
+  const int N = num_bpoints;
   vector<Point2D> result(N);
   
   // First, compute segments that have the right orientation and length
   double cur_angle = 0;
   for (int i = 0; i != N; ++i) {
-    const double len = sqrt(dist2(pts3D[i],
-                                  pts3D[(i+1)%N]));
+    const double len = sqrt(dist2(bpoints[i],
+                                  bpoints[(i+1)%N]));
     cur_angle += angles[i];
     result[i] = {len * cos(cur_angle), len * sin(cur_angle)};
   }

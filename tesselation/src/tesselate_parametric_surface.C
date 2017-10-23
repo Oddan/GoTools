@@ -58,14 +58,21 @@ Mesh2D tesselateParametricSurface(const SurfPtr surf,
       surf->point(p, uv[0], uv[1]);
       return Point3D {p[0], p[1], p[2]};
     });
+
+  vector<Point3D> bpoint_normals(num_bpts);
+  transform(bpts, bpts + num_bpts, bpoint_normals.begin(), [surf] (const Point2D& uv) {
+      Go::Point result;
+      surf->normal(result, uv[0], uv[1]);
+      return Point3D {result[0], result[1], result[2]};
+    });
   
   // const auto tris = triangulate_domain(&points[0], num_bpts,
   //                                      (uint)points.size(), 3*pardist); // 100 * pardist
   const auto tris = triangulate_2D_manifold_in_3D(&points3D[0],
                                                   num_bpts,
                                                   (uint)points3D.size(),
-                                                  3*vdist);
-
+                                                  3*vdist,
+                                                  &bpoint_normals[0]);
   return {points, tris};
   
 }
