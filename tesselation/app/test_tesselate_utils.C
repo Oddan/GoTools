@@ -640,8 +640,9 @@ void test_parametric_volume_tesselation()
   //const double vdist = 0.03; // OK
   //const double vdist = 0.003; // OK  - 100.000 cells
   //const double vdist = 0.01; // for profiling
-   const double vdist = 10; // for second model: (single) ipoint ends up outside shell
-  //const double vdist =3;
+
+  // const double vdist = 10; // for second model: (single) ipoint ends up outside shell
+  const double vdist =0.5;
   ptvolume.tesselate(vdist);
   
   //ptvolume.writeTesselatedOutline(cout);

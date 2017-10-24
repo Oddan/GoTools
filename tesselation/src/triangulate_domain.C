@@ -1,6 +1,7 @@
 #include <iostream> /// @@ debug
 #include <fstream> // @@ debug purposes
 #include <stdexcept> // @@ debug
+#include <set> // @@ debug
 #include <algorithm>
 #include <assert.h>
 #include <stdexcept>
@@ -144,6 +145,31 @@ vector<Triangle> triangulate_domain(const Point2D* const points,
   return result;
 }
 
+// ============================================================================  
+void front_sanity_check(const vector<Triangle>& ntris,
+                        const vector<Triangle>& dtris)
+// ============================================================================  
+{
+  multiset<Segment> segs;
+  auto extract_segments = [&] (const Triangle& t) {
+    for (uint i = 0; i != 3; ++i) {
+      uint a = min(t[i], t[(i+1)%3]);
+      uint b = max(t[i], t[(i+1)%3]);
+      segs.insert(Segment{a, b});
+    }
+  };
+  for_each(ntris.begin(), ntris.end(), extract_segments);
+  for_each(dtris.begin(), dtris.end(), extract_segments);
+
+  for_each(segs.begin(), segs.end(), [&] (const Segment& s) {
+      //assert(segs.count(s) == 2);
+      if (segs.count(s) % 2 != 0) {
+        cout << "Something wronge happened.  Segs.count is: " << segs.count(s) << endl;
+        //throw runtime_error("Something wrong happened.");
+      }
+    });
+}
+   
 // ============================================================================
 // The algorithm used here is a 3D generalization og the algorithm used above,
 // and which was inspired by S.H. Lo, "Delaunay Triangulation of Non-Convex
@@ -176,11 +202,14 @@ vector<Tet> construct_tets(const Point3D* const points,
   vector<Tet> result;
 
   while (ntris.size() + dtris.size() > 0) {
+    front_sanity_check(ntris, dtris);
     Tet new_tet;
     if (tet_found(ntris, dtris, ptris, btris_vec, unused_pts, points, num_bpoints,
                   vdist, new_tet))
       result.push_back(new_tet);
 
+    front_sanity_check(ntris, dtris);
+    
     cout << "Current number of tets: " << result.size() << endl;
     cout << "   ntris: " << ntris.size() << endl;
     cout << "   dtris: " << dtris.size() << endl;
@@ -251,7 +280,7 @@ bool tet_found(vector<Triangle>& ntris,
     // Determine whether the generated tet is a "delaunay tet" or if it contains
     // other points caused by nonconvexity of the working front (or if it is
     // semi-delaunay by having other points exactly on its circumscription
-    const bool is_del = is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points);
+    const bool is_del = false; //is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points); @@@
     
     // modify working front and remaining nodes.  Make sure to add them in
     // _clockwise_ corner order, since we want them to be pointing outwards of the
@@ -418,6 +447,7 @@ inline bool point_is_outside(const Point3D* const points, uint pt_ix, const Tria
   const Point3D v1 = points[tri[1]] - points[tri[0]];
   const Point3D v2 = points[tri[2]] - points[tri[0]];
   const Point3D v3 = points[pt_ix]  - points[tri[0]];
+  double krull = determinant3D(v1, v2, v3);
   return determinant3D(v1, v2, v3) >= 0;
 }
 
