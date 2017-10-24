@@ -202,13 +202,13 @@ vector<Tet> construct_tets(const Point3D* const points,
   vector<Tet> result;
 
   while (ntris.size() + dtris.size() > 0) {
-    front_sanity_check(ntris, dtris);
+    //front_sanity_check(ntris, dtris);
     Tet new_tet;
     if (tet_found(ntris, dtris, ptris, btris_vec, unused_pts, points, num_bpoints,
                   vdist, new_tet))
       result.push_back(new_tet);
 
-    front_sanity_check(ntris, dtris);
+    //front_sanity_check(ntris, dtris);
     
     cout << "Current number of tets: " << result.size() << endl;
     cout << "   ntris: " << ntris.size() << endl;
@@ -217,6 +217,12 @@ vector<Tet> construct_tets(const Point3D* const points,
 
   }
 
+  if (ptris.size() > 0) {
+    cout << "The following ptris were detected: \n";
+    for (const auto t : ptris)
+      cout << t[0] << " " << t[1] << " " << t[2] << "\n";
+    cout << endl;
+  }
   // sanity check: there should be no unused nodes left by now
   //  assert(accumulate(unused_pts.begin(), unused_pts.end(), 0) == 0);
 
@@ -280,7 +286,10 @@ bool tet_found(vector<Triangle>& ntris,
     // Determine whether the generated tet is a "delaunay tet" or if it contains
     // other points caused by nonconvexity of the working front (or if it is
     // semi-delaunay by having other points exactly on its circumscription
-    const bool is_del = false; //is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points); @@@
+    // const bool is_del = (chosen_pt < num_bpoints) &&
+    //                     (*min_element(cur_tri.begin(), cur_tri.end()) < num_bpoints) &&
+    //                     is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points);
+    const bool is_del = false;
     
     // modify working front and remaining nodes.  Make sure to add them in
     // _clockwise_ corner order, since we want them to be pointing outwards of the
@@ -393,6 +402,12 @@ void find_candidate_points(const Triangle& tri,
       continue;
     }
 
+    if (!point_on_triangle(points[i], p1, p2, p3, vdist))
+      // point not close enough to triangle to be considered a neighbor
+      continue;
+
+    all_neigh_pts[i] = 1; // all points that are close enough, regardless of other factors
+
     if (i < num_bpoints) {
       // verify that we are not expanding the outer boundary by using this point
       // to construct a new tet
@@ -405,7 +420,7 @@ void find_candidate_points(const Triangle& tri,
           uint count = 0;
           auto neigh_tris = boundary_triangles_of_edge(Segment {tri[j], tri[(j+1)%3]},
                                                        btris, count);
-          if (count < 2)
+          if (count == 0)
             //no problem.  This is an internal edge
             continue;
 
@@ -416,7 +431,7 @@ void find_candidate_points(const Triangle& tri,
           }
           // A new triangle will be introduced.  Verify that it will be an
           // internal triangle (i.e. not expand the existing boundary)
-          if (point_is_outside(points, i, neigh_tris.first) ||
+          if (point_is_outside(points, i, neigh_tris.first) &&
               point_is_outside(points, i, neigh_tris.second)) {
             ok = false;
             break;
@@ -428,14 +443,10 @@ void find_candidate_points(const Triangle& tri,
         continue;
     }
     
-    if (point_on_triangle(points[i], p1, p2, p3, vdist)) {
-      // point is close enough to triangle to be considered a neighbor point.
-      all_neigh_pts[i] = 1;
-      if ((point_on_inside_of_face(points[i], p1, p2, p3, TOL)) &&
-          (!introduces_intersection(tri, i, ntris, points, TOL)) &&
-          (!introduces_intersection(tri, i, ptris, points, TOL))) {
-        cand_pts[i] = 1; // point is a candidate point
-      }
+    if ((point_on_inside_of_face(points[i], p1, p2, p3, TOL)) &&
+        (!introduces_intersection(tri, i, ntris, points, TOL)) &&
+        (!introduces_intersection(tri, i, ptris, points, TOL))) {
+      cand_pts[i] = 1; // point is a candidate point
     }
   }
 }
@@ -447,7 +458,6 @@ inline bool point_is_outside(const Point3D* const points, uint pt_ix, const Tria
   const Point3D v1 = points[tri[1]] - points[tri[0]];
   const Point3D v2 = points[tri[2]] - points[tri[0]];
   const Point3D v3 = points[pt_ix]  - points[tri[0]];
-  double krull = determinant3D(v1, v2, v3);
   return determinant3D(v1, v2, v3) >= 0;
 }
 
@@ -464,7 +474,7 @@ inline pair<Triangle, Triangle> boundary_triangles_of_edge(const Segment e,
         (e[1] == btris[i][0] || e[1] == btris[i][1] || e[1] == btris[i][2]))
       res[count++] = btris[i];
 
-  assert(count <= 2);
+  assert((count == 0) || (count == 2));
   return pair<Triangle, Triangle> {res[0], res[1]};
 }
   
