@@ -64,26 +64,35 @@ std::vector<Triangle> triangulate_2D_manifold_in_3D(const Point3D* const points,
                                                     const uint num_bpoints,
                                                     const uint tot_num_points,
                                                     const double vdist,
-                                                    const Point3D* const bpoint_normals)
+                                                    const Point3D* const bpoint_normals,
+                                                    const Point2D* const param)
 // ============================================================================  
 {
   // first, establish a reasonable 2D parameterization of the 3D points
-  const auto uv = compute_2D_paramerization(points, num_bpoints, tot_num_points,
-                                            vdist, bpoint_normals);
+  const auto uv = (param) ?
+    vector<Point2D> {param, param + tot_num_points} : 
+    compute_2D_paramerization(points, num_bpoints, tot_num_points,
+                              vdist, bpoint_normals);
     
   // then triangulate them
   const uint num_ipoints = tot_num_points - num_bpoints;
   const auto bbox = bounding_box_2D(&uv[0], (uint)uv.size());
-  const double new_vdist = num_ipoints > 0 ?
-    (8 * 4 / sqrt(num_ipoints)) :
-    1.1 * max(bbox[1] - bbox[0], bbox[3] - bbox[2]);
+  const double L1 = bbox[1] - bbox[0];
+  const double L2 = bbox[3] - bbox[2];
+  const double Lmin = min(L1, L2);
+  const double Lmax = max(L1, L2);
+  const double new_vdist = 2 * 4 * Lmax / (max(num_ipoints, (uint)1) * sqrt(Lmin / Lmax));
+      
+  // const double new_vdist = num_ipoints > 0 ?
+  //   (8 * 4 / sqrt(num_ipoints)) :
+  //   1.1 * max(bbox[1] - bbox[0], bbox[3] - bbox[2]);
 
   auto tri = triangulate_domain(&uv[0], num_bpoints, tot_num_points, new_vdist);
 
   // Post-processing step to ensure triangulation is optimal also in 3D space.
 
   //@@ untested.  If non-delaunay triangulations result from the above
-  //procedure, the below function call should fix the problem.  Uncomment and
+  //procedure, the below function call should fix the problem.  Uncomment an
   //test if the situation arises!
 
   optimize_triangulation(tri, points);

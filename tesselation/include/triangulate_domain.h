@@ -39,13 +39,18 @@ namespace TesselateUtils {
   // provided in counterclockwise order for each triangle.  Optionally, the user
   // can provide a pointer to an array of normal vectors to the boundary points
   // - in cases where the surface deviates significantly from that of a plane
-  // (e.g. U-shaped), this vector of normals might be indispensible.
+  // (e.g. U-shaped), this vector of normals might be indispensible.  The user
+  // can also optionally provide a parametrization ('param').  If not provided,
+  // the function will compute one itself, but in some extreme cases, this has
+  // the potential to introduce self-intersections in the final triangulation,
+  // and should therefore be avoided on strongly bent surfaces.
   std::vector<Triangle> triangulate_2D_manifold_in_3D(
                                             const Point3D* const points,
                                             const uint num_bpoints,
                                             const uint tot_num_points,
                                             const double vdist,
-                                            const Point3D* const bpoint_normals); 
+                                            const Point3D* const bpoint_normals = 0,
+                                            const Point2D* const param = 0); 
   
   // Compute a 3D simplex (Tet) mesh from a closed boundary shell defined by a
   // number of triangles defining the boundary, and a number of points defining

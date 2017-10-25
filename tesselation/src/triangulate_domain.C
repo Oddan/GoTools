@@ -215,6 +215,12 @@ vector<Tet> construct_tets(const Point3D* const points,
     cout << "   dtris: " << dtris.size() << endl;
     cout << "   ptris: " << ptris.size() << endl;
 
+    // const auto it1 = find(ntris.begin(), ntris.end(), Triangle {394, 392, 395});
+    // const auto it2 = find(ntris.begin(), ntris.end(), Triangle {391, 395, 398});
+    // if (it1 != ntris.end() && it2 != ntris.end()) {
+    //   int krull = 1; //@@@ REMOVE!
+    // }
+    
   }
 
   if (ptris.size() > 0) {
@@ -274,6 +280,27 @@ bool tet_found(vector<Triangle>& ntris,
   // the circumscribing sphere of the generated tet.
   const uint chosen_pt = best_candidate_point(cand_pts, cur_tri, points);
 
+
+  // if (ntris.size() < 550) { /// @@@
+  //   vector<uint> cand_pts_bis, all_neigh_pts_bis; //@@@@
+  //   vector<Triangle> alltris(ntris);
+  //   alltris.insert(alltris.end(), dtris.begin(), dtris.end());
+    
+  //   find_candidate_points(cur_tri, alltris, ptris, btris, unused_pts, points,
+  //                         num_bpoints, vdist, cand_pts_bis, all_neigh_pts_bis);
+    
+  //   const uint chosen_pt_bis = best_candidate_point(cand_pts_bis, cur_tri, points);
+    
+  //   if (chosen_pt_bis != chosen_pt) {
+  //     if (introduces_intersection(cur_tri, chosen_pt, dtris, points, 1.0e-10 * vdist )) {
+  //       cout << " Intersection detected. " << endl;
+  //     }
+  //     throw runtime_error("Chosen points differ.");
+  //   }
+  // }
+  
+  
+  
   // check if a candidate point was really found
   if (chosen_pt == (uint)cand_pts.size()) {
     // no point found.  No way to make a tet
@@ -290,6 +317,7 @@ bool tet_found(vector<Triangle>& ntris,
     //                     (*min_element(cur_tri.begin(), cur_tri.end()) < num_bpoints) &&
     //                     is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points);
     const bool is_del = false;
+    //const bool is_del = is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points);
     
     // modify working front and remaining nodes.  Make sure to add them in
     // _clockwise_ corner order, since we want them to be pointing outwards of the
@@ -724,7 +752,7 @@ bool is_delaunay(const Triangle& tri,
 {
   Point2D circ_center;
   double radius2;
-  const double tol = 1e-3; //@@ OK?  In the worst case, we risk classifying a
+  const double tol = 1e-2; //@@ OK?  In the worst case, we risk classifying a
 			   //delaunay edge as non-delaunay, which would not do
 			   //any harm to the final result, but slightly increase
 			   //the computational cost (since there is now one more
@@ -756,7 +784,7 @@ bool is_delaunay(const Triangle& tri, const uint chosen_pt,
 
   Point3D center;
   double radius2;
-  const double tol = 1e-3; // same comment as for the 2D version of 'is_delaunay above
+  const double tol = 1e-2; // same comment as for the 2D version of 'is_delaunay above
   fitting_sphere(points[tri[0]], points[tri[1]], points[tri[2]], points[chosen_pt],
                  center, radius2);
   radius2 *= (1+tol); // slightly increase radius to ensure points on the boundary are captured
@@ -766,7 +794,7 @@ bool is_delaunay(const Triangle& tri, const uint chosen_pt,
     if ((neigh_pts[i]) && // should be a neighbor point
         (i != chosen_pt) && // should not be the chosen point
         ((i!=tri[0]) && (i!=tri[1]) && (i!=tri[2])) && // should not be part of triangle
-        (dist2(points[i], center) < radius2)) // should be within the radius
+        (dist2(points[i], center) <= radius2)) // should be within the radius
       return false;  // this point is inside the sphere, hence the proposed 'tet' is not delaunay
 
   return true;

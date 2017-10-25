@@ -181,6 +181,18 @@ compute_tesselation(const vector<PointType>& boundary,
   ipoints = compute_3D_points(face.surf,
                               vector<Point2D> (m2d.points.begin() + boundary.size(),
                                                m2d.points.end()));
+
+  // vector<Point3D> krull; // @@@
+  // for (uint i = 0; i != boundary.size(); ++i) {
+  //   const Go::Point pos = boundary[i].pos;
+  //   krull.push_back(Point3D {pos[0], pos[1], pos[2]});
+  // }
+  // for (uint i = 0; i != ipoints.size(); ++i) {
+  //   const Go::Point pos = ipoints[i].pos;
+  //   krull.push_back(Point3D {pos[0], pos[1], pos[2]});
+  // }
+
+  
   triangles = m2d.tris;
   // fix orientation of triangles if necessary
 }

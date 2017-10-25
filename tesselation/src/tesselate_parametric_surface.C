@@ -72,7 +72,8 @@ Mesh2D tesselateParametricSurface(const SurfPtr surf,
                                                   num_bpts,
                                                   (uint)points3D.size(),
                                                   3*vdist,
-                                                  &bpoint_normals[0]);
+                                                  &bpoint_normals[0],
+                                                  &points[0]);
   return {points, tris};
   
 }
