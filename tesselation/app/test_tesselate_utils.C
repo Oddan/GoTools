@@ -646,7 +646,8 @@ void test_parametric_volume_tesselation()
   //const double vdist = 1.3;
   //const double vdist = 3.5;
 
-  const double vdist = 0.9;
+  //const double vdist = 0.9; // make it work for this value
+  const double vdist = 3;
   ptvolume.tesselate(vdist);
   
   //ptvolume.writeTesselatedOutline(cout);

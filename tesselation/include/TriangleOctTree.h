@@ -54,7 +54,8 @@ private:
                                 // in the volume covered by this OctTree
   void determine_octs(const Triangle& t, std::array<bool, 8>& result) const;
   std::array<bool, 8> determine_octs(const Triangle& t) const;
-
+  void test_integrity(); // for debugging
+  
   TriangleOctTree(const Point3D* const pts,
                   std::shared_ptr<std::vector<Triangle>> tris,
                   const std::array<double, 6>& bbox,

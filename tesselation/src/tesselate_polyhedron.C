@@ -10,6 +10,7 @@
 #include "polyhedral_energies.h"
 #include "GoTools/utils/GeneralFunctionMinimizer.h"
 #include "distance_function.h"
+#include "TriangleOctTree.h"
 
 #include <string> // remove
 

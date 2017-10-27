@@ -53,7 +53,7 @@ inline array<double, 6> sub_box(const array<double, 6>& bbox, uint oct_ix)
   }
   
   // zmin or zmax?
-  if ( (oct_ix % 4) == 0) {
+  if ( (oct_ix / 4) == 0) {
     result[4] = bbox[4];
     result[5] = 0.5 * (bbox[4] + bbox[5]);
   } else {
@@ -162,8 +162,8 @@ void TriangleOctTree::determine_octs(const Triangle& t,
   const Point3D& p3 = points_[t[2]];
   uint sum[3];
   for (uint dim = 0; dim != 3; ++dim) 
-    sum[dim] = (p1[dim] < midvals_[dim]) &&
-               (p2[dim] < midvals_[dim]) &&
+    sum[dim] = (p1[dim] < midvals_[dim]) +
+               (p2[dim] < midvals_[dim]) +
                (p3[dim] < midvals_[dim]);
 
   for (uint i = 0; i != 8; ++i) {
@@ -174,7 +174,7 @@ void TriangleOctTree::determine_octs(const Triangle& t,
     if ((sum[0] == (xi ? 3 : 0)) ||
         (sum[1] == (yi ? 3 : 0)) ||
         (sum[2] == (zi ? 3 : 0)))
-      result[i] == false;
+      result[i] = false;
   }
 }
   
@@ -183,6 +183,7 @@ void TriangleOctTree::reorganize_if_necessary()
 // ----------------------------------------------------------------------------
 {
   if ((uint)indices_.size() > max_num_ixs_) {
+    cout << "Number: " << indices_.size() << endl;
     assert(!is_subdivided()); // indices_ should be empty otherwise
 
     // construct children
@@ -194,9 +195,51 @@ void TriangleOctTree::reorganize_if_necessary()
     array<bool, 8> octs;
     for (const auto ix : indices_) {
       determine_octs((*tris_)[ix], octs);
+      cout << "Octs: "; for (uint j = 0; j != 8; ++j) { cout << octs[j] << " ";}; cout << endl;
       for (uint i = 0; i != 8; ++i) 
         if (octs[i])
           (children_[i]->indices_).push_back(ix);
+    }
+    indices_.clear();  // will not be used anymore
+
+    // organize children if necessary
+    for (uint i = 0; i != 8; ++i)
+      if (children_[i]) 
+        children_[i]->reorganize_if_necessary();
+
+    test_integrity();
+  }
+}
+
+// ----------------------------------------------------------------------------
+void TriangleOctTree::test_integrity()
+// ----------------------------------------------------------------------------
+{
+  if (is_subdivided()) {
+    for (uint i = 0; i != 8; ++i)
+      if (children_[i])
+        children_[i]->test_integrity();
+  } else {
+    const double EPS = numeric_limits<double>::epsilon();
+    for (auto ix : indices_) {
+      const Triangle& t = (*tris_)[ix];
+      array<bool, 3> found {false, false, false};
+      array<bool, 3> less  {false, false, false};
+      array<bool, 3> more  {false, false, false};
+      for (uint i = 0; i != 3; ++i) {
+        const Point3D& p = points_[t[i]];
+        for (uint dim = 0; dim != 3; ++dim) 
+          if ( (p[dim] + EPS >= bbox_[2*dim]) && p[dim] - EPS <= bbox_[2*dim+1])
+            found[dim] = true;
+          else if (p[dim] < bbox_[2*dim])
+            less[dim] = true;
+          else if (p[dim] > bbox_[2*dim+1])
+            more[dim] = true;
+      }
+      for (uint dim = 0; dim != 3; ++dim)
+        found[dim] = found[dim] || (more[dim] && less[dim]);
+                           
+      assert(found[0] && found[1] && found[2]);
     }
   }
 }
