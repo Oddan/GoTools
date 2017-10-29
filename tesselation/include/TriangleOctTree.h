@@ -16,10 +16,17 @@ public:
   TriangleOctTree(const Point3D* const pts,
                   const Triangle* const tris,
                   const uint num_tris,
-                  const uint max_num_ixs = 24);
+                  const uint max_num_ixs = 40,
+                  const uint max_depth = 6);
 
   // add a triangle to the oct-tree
   void addTriangle(const Triangle& t);
+
+  // get all triangles
+  const std::shared_ptr<std::vector<Triangle>> getAllTris() const {return tris_;}
+
+  // get specific triangle
+  const Triangle& getTri(uint ix) const {return (*tris_)[ix];}
 
   // Get a list of indices to possible triangles that may intersect triangle
   // 't'.  The result is returned in 'candidate_ixs'.  Its length is equal to
@@ -28,12 +35,14 @@ public:
   // intersection is possible) or not.  If 'clear' is set to 'true', the
   // contents of 'candidates' will be set to zero before searching for
   // candidates (typically what the end user wants).
-  void getIntersectionCandidates(const Triangle& t,
+  void getIntersectionCandidates(const std::array<Point3D, 3>& tri,
                                  std::vector<uint>& candidates,
                                  bool clear = true) const;
   
 private:
   const uint max_num_ixs_;
+  const uint cur_depth_;
+  const uint max_depth_;
   const Point3D* const points_; // points referred to by triangles
   std::shared_ptr<std::vector<Triangle>> tris_; // triangles (shared with all children)
 
@@ -52,14 +61,18 @@ private:
   bool is_subdivided() const;
   void include_last_triangle(); // the lastly added triangle should be included
                                 // in the volume covered by this OctTree
+  void determine_octs(const std::array<Point3D, 3>& t, std::array<bool, 8>& result) const;
   void determine_octs(const Triangle& t, std::array<bool, 8>& result) const;
+  std::array<bool, 8> determine_octs(const std::array<Point3D, 3>& t) const;
   std::array<bool, 8> determine_octs(const Triangle& t) const;
   void test_integrity(); // for debugging
   
   TriangleOctTree(const Point3D* const pts,
                   std::shared_ptr<std::vector<Triangle>> tris,
                   const std::array<double, 6>& bbox,
-                  const uint max_num_ixs);
+                  const uint max_num_ixs,
+                  const uint cur_depth,
+                  const uint max_depth);
   
 }; // end class TriangleOctTree
   

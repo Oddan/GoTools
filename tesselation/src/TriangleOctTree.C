@@ -72,9 +72,12 @@ namespace TesselateUtils
 TriangleOctTree::TriangleOctTree(const Point3D* const pts,
                                  const Triangle* const tris,
                                  const uint num_tris,
-                                 const uint max_num_ixs)
+                                 const uint max_num_ixs,
+                                 const uint max_depth)
 // ============================================================================
   : max_num_ixs_(max_num_ixs), // how many indices the volume can contain before it subdivides
+    cur_depth_(0),
+    max_depth_(max_depth),
     points_(pts),
     tris_(shared_ptr<vector<Triangle>>(new vector<Triangle>(tris, tris + num_tris))),
     bbox_(bounding_box_3D(pts, max_ix(tris, num_tris))),
@@ -98,7 +101,7 @@ void TriangleOctTree::addTriangle(const Triangle& t)
 
 // ----------------------------------------------------------------------------
 void TriangleOctTree::include_last_triangle()
-// ----------------------------------------------------------------------------
+// ---------------------------`-------------------------------------------------
 {
   if (is_subdivided()) {
     const auto included_octs = determine_octs(tris_->back());
@@ -106,7 +109,7 @@ void TriangleOctTree::include_last_triangle()
       if (included_octs[i]) 
         children_[i]->include_last_triangle();
   } else {
-    indices_.push_back(uint(tris_->size()));
+    indices_.push_back(uint(tris_->size()-1));
     reorganize_if_necessary();
   }
 }
@@ -119,7 +122,7 @@ bool TriangleOctTree::is_subdivided() const
 }
   
 // ============================================================================
-void TriangleOctTree::getIntersectionCandidates(const Triangle& t,
+void TriangleOctTree::getIntersectionCandidates(const std::array<Point3D, 3>& tri,
                                                 vector<uint>& candidates,
                                                 bool clear) const
 // ============================================================================
@@ -130,10 +133,10 @@ void TriangleOctTree::getIntersectionCandidates(const Triangle& t,
   
   if (is_subdivided()) {
     // collect relevant indices from each of the children
-    const auto octs = determine_octs(t);
+    const auto octs = determine_octs(tri);
     for (uint i = 0; i != 8; ++i) 
       if (octs[i])
-        children_[i]->getIntersectionCandidates(t, candidates, false);
+        children_[i]->getIntersectionCandidates(tri, candidates, false);
   } else {
     for (auto ix : indices_)
       candidates[ix] = 1;
@@ -141,30 +144,47 @@ void TriangleOctTree::getIntersectionCandidates(const Triangle& t,
 }
 
 // ----------------------------------------------------------------------------
-array<bool, 8> TriangleOctTree::determine_octs(const Triangle& t) const
+array<bool, 8> TriangleOctTree::determine_octs(const array<Point3D, 3>& t) const
 // ----------------------------------------------------------------------------
 {
   array<bool, 8> result;
   determine_octs(t, result);
   return result;
 }
+
+  // ----------------------------------------------------------------------------
+array<bool, 8> TriangleOctTree::determine_octs(const Triangle& t) const
+// ----------------------------------------------------------------------------
+{
+  array<bool, 8> result;
+  array<Point3D, 3> tripoints {points_[t[0]], points_[t[1]], points_[t[2]]};
+  
+  determine_octs(tripoints, result);
+  return result;
+}
+
+// ----------------------------------------------------------------------------    
+void TriangleOctTree::determine_octs(const Triangle& t,
+                                     std::array<bool, 8>& result) const
+// ----------------------------------------------------------------------------    
+{
+  array<Point3D, 3> tripoints {points_[t[0]], points_[t[1]], points_[t[2]]};
+  determine_octs(tripoints, result);
+}
   
 // ----------------------------------------------------------------------------  
-void TriangleOctTree::determine_octs(const Triangle& t,
+void TriangleOctTree::determine_octs(const array<Point3D, 3>& t,
                                      array<bool, 8>& result) const
 // ----------------------------------------------------------------------------
 {
   fill(result.begin(), result.end(), true);
 
   // eliminate octs that are guaranteed not to contain any part of the triangle
-  const Point3D& p1 = points_[t[0]];
-  const Point3D& p2 = points_[t[1]];
-  const Point3D& p3 = points_[t[2]];
   uint sum[3];
   for (uint dim = 0; dim != 3; ++dim) 
-    sum[dim] = (p1[dim] < midvals_[dim]) +
-               (p2[dim] < midvals_[dim]) +
-               (p3[dim] < midvals_[dim]);
+    sum[dim] = (t[0][dim] < midvals_[dim]) +
+               (t[1][dim] < midvals_[dim]) +
+               (t[2][dim] < midvals_[dim]);
 
   for (uint i = 0; i != 8; ++i) {
     const uint xi = i%2;     // zero or one
@@ -182,24 +202,40 @@ void TriangleOctTree::determine_octs(const Triangle& t,
 void TriangleOctTree::reorganize_if_necessary()
 // ----------------------------------------------------------------------------
 {
-  if ((uint)indices_.size() > max_num_ixs_) {
-    cout << "Number: " << indices_.size() << endl;
+  if ( ((uint)indices_.size() > max_num_ixs_) && (cur_depth_ < max_depth_ - 1)) {
+    //cout << "Number: " << indices_.size() << endl;
     assert(!is_subdivided()); // indices_ should be empty otherwise
 
     // construct children
     for (uint i = 0; i != 8; ++i) 
       children_[i] = shared_ptr<TriangleOctTree>
-        (new TriangleOctTree(points_, tris_, sub_box(bbox_, i), max_num_ixs_));
+        (new TriangleOctTree(points_, tris_, sub_box(bbox_, i), max_num_ixs_,
+                             cur_depth_ + 1, max_depth_));
     
     // distribute triangles
     array<bool, 8> octs;
     for (const auto ix : indices_) {
       determine_octs((*tris_)[ix], octs);
-      cout << "Octs: "; for (uint j = 0; j != 8; ++j) { cout << octs[j] << " ";}; cout << endl;
+      // cout << "Octs: "; for (uint j = 0; j != 8; ++j) { cout << octs[j] << " ";}; cout << endl;
       for (uint i = 0; i != 8; ++i) 
         if (octs[i])
           (children_[i]->indices_).push_back(ix);
     }
+    // for (uint i = 0; i != 8; ++i) {
+    //   if (children_[i])
+    //     cout << "Child " << i << " contains " << children_[i]->indices_.size() << endl;
+    // }
+    // if (children_[0] && children_[1] && children_[2] && children_[3] &&
+    //     children_[4] && children_[5] && children_[6] && children_[7]) {
+    //   if ( (children_[0]->indices_.size() == 9) &&
+    //        (children_[1]->indices_.size() == 9) &&
+    //        (children_[2]->indices_.size() == 25)  &&
+    //        (children_[3]->indices_.size() == 17)) {
+    //     double krull = 0;
+    //   }
+      
+    // }
+    
     indices_.clear();  // will not be used anymore
 
     // organize children if necessary
@@ -207,7 +243,7 @@ void TriangleOctTree::reorganize_if_necessary()
       if (children_[i]) 
         children_[i]->reorganize_if_necessary();
 
-    test_integrity();
+    //test_integrity();
   }
 }
 
@@ -248,9 +284,13 @@ void TriangleOctTree::test_integrity()
 TriangleOctTree::TriangleOctTree(const Point3D* const pts,
                                  shared_ptr<vector<Triangle>> tris,
                                  const std::array<double, 6>& bbox,
-                                 const uint max_num_ixs)
+                                 const uint max_num_ixs,
+                                 const uint cur_depth,
+                                 const uint max_depth)
 // ----------------------------------------------------------------------------
   : max_num_ixs_(max_num_ixs),
+    cur_depth_(cur_depth),
+    max_depth_(max_depth),
     points_(pts),
     tris_(tris),
     bbox_(bbox),
