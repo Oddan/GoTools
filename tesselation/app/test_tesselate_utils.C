@@ -14,6 +14,7 @@
 #include "fit_points_to_plane.h"
 #include "basic_intersections.h"
 #include "clip_grid.h"
+#include "debug_tesselate.h"
 
 #include "GoTools/trivariatemodel/VolumeModelFileHandler.h"
 //#include "GoTools/compositemodel/CompositeModelFileHandler.h"
@@ -649,9 +650,13 @@ void test_parametric_volume_tesselation()
   //const double vdist = 0.9; // make it work for this value
   //const double vdist = 0.7;
   //const double vdist = 1.5;
-  const double vdist = 0.5; 
-  ptvolume.tesselate(vdist);
+
+
+  //const double vdist = 0.5;
+  const double vdist = 1;
   
+  ptvolume.tesselate(vdist);
+
   //ptvolume.writeTesselatedOutline(cout);
   ptvolume.writeTesselatedShell(cout);
 
@@ -659,6 +664,25 @@ void test_parametric_volume_tesselation()
   cout << "Number of tets generated: " << ptvolume.numTets() << endl;
   
   ptvolume.writeTesselatedVolume(cout);
+
+  vector<GoParametricTesselableVolume::PointType> pts = ptvolume.volumePoints();
+  vector<Point3D> points_3D;
+  for (auto p : pts)
+    points_3D.push_back(Point3D {p.pos[0], p.pos[1], p.pos[2]});
+  
+  vector<uint> non_del_tets = identify_nondelaunay_tets(points_3D,
+                                                        ptvolume.getTets(),
+                                                        ptvolume.numFacePoints());
+  cout << "number of non-delaunay tets: " << non_del_tets.size() << endl;
+  vector<uint> int_tets = interior_tets(ptvolume.getTets(), ptvolume.numFacePoints());
+  cout << "number of interior tets: " << int_tets.size() << endl;
+  vector<uint> int_nondel_tets;
+  set_intersection(non_del_tets.begin(), non_del_tets.end(),
+                   int_tets.begin(), int_tets.end(),
+                   back_inserter(int_nondel_tets));
+  
+  cout << "Non-delaunay interior tets: " << endl;
+  copy(int_nondel_tets.begin(), int_nondel_tets.end(), ostream_iterator<uint>(cout, " "));
 }
 
 };

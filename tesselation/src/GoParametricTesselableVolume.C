@@ -139,7 +139,10 @@ compute_tesselation(const array<PointType, 2>& boundary,
                     vector<PointType>& ipoints)
 // ----------------------------------------------------------------------------
 {
-  const auto param = tesselateParametricCurve(get<0>(edge), vdist);
+  // lowering slightly 'vdist' along the edge curves may help lower the
+  // possibility of 'impossible' boundary triangles when tesselating the
+  // interior volume later. @@ (not proven, just experienced)
+  const auto param = tesselateParametricCurve(get<0>(edge), 0.9 * vdist);
   ipoints.resize(param.size() - 2);
   transform(param.begin()+1, param.end()-1, ipoints.begin(), [&edge]
             (const double d) { return PointType{get<0>(edge)->point(d), d}; });

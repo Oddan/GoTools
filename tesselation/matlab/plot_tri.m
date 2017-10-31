@@ -11,7 +11,8 @@ function plot_tri(pts, tri, color, alpha)
       else
          %plot3(pts(ixs,1), pts(ixs,2), pts(ixs, 3), '*-r');
          plot3(pts(ixs,1), pts(ixs,2), pts(ixs, 3), ['-' color]);
-         patch(pts(ixs,1), pts(ixs,2), pts(ixs,3), color, 'facealpha', alpha);
+         patch(pts(ixs,1), pts(ixs,2), pts(ixs,3), color, 'facealpha', alpha, ...
+               'edgecolor', 'k', 'edgealpha', alpha);
       end
    end
    

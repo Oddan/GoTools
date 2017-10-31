@@ -10,8 +10,7 @@
 #include "common_defs.h"
 #include "tesselate_utils.h"
 
-namespace TesselateUtils
-{
+namespace TesselateUtils {
 
 // ============================================================================
 // The template type should provide the four typedefs:
@@ -47,6 +46,8 @@ public:
   std::vector<PointType> facePoints() const;
   std::vector<PointType> facePoints(uint face_ix) const;
   std::vector<PointType> volumePoints() const;
+
+  std::vector<Tet> getTets() const { return volume_tets_;}
   
   void tesselate(const double vdist); 
   bool is_tesselated() const {return !edge_ipoints_.empty();}

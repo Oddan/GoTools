@@ -221,9 +221,9 @@ vector<Point3D> init_startpoints(const Point3D* const bpoints,
 
   // computing amount of points needed to approximately fill the bounding box,
   // where points are approximately equidistant by 'vdist'.
-  const int nx = max((int)floor(bbox_lx/vdist), 0);
-  const int ny = max((int)floor(bbox_ly/vdist), 0);
-  const int nz = max((int)floor(bbox_lz/vdist), 0);
+  const int nx = 1.1 * max((int)floor(bbox_lx/vdist), 0);
+  const int ny = 1.1 * max((int)floor(bbox_ly/vdist), 0);
+  const int nz = 1.1 * max((int)floor(bbox_lz/vdist), 0);
 
   // constructing regular grid of points within the bounding box
   const vector<Point3D> gridpoints =

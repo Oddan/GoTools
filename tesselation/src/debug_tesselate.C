@@ -47,8 +47,57 @@ void sample_polyhedron_energy(double xmin, double xmax, int num_x,
   for (auto v : vals) {
     for (auto d : v.der)
       os << d[0] << ' ' << d[1] << ' ' << d[2] << '\n';
-    os << '\n\n';
+    os << "\n\n";
   }
   
   os.close();
+}
+
+// ----------------------------------------------------------------------------
+bool empty_interior(const Tet& t, const vector<Point3D>& points, const uint num_bpoints)
+// ----------------------------------------------------------------------------
+{
+  Point3D c; // center
+  double r2; // radius squared
+  fitting_sphere(points[t[0]], points[t[1]], points[t[2]], points[t[3]], c, r2);
+
+  //for (uint i = 0; i != points.size(); ++i)
+  for (uint i = num_bpoints; i != points.size(); ++i)  
+    if ((i != t[0]) && (i != t[1]) && (i != t[2]) && (i != t[3]) &&
+        (dist2(points[i], c) < r2))
+      return false;
+  return true;
+}
+
+// ----------------------------------------------------------------------------
+vector<uint> identify_nondelaunay_tets(const vector<Point3D>& points,
+                                       const vector<Tet>& tets,
+                                       const uint num_bpoints)
+// ----------------------------------------------------------------------------
+{
+  vector<uint> indicator(tets.size());
+  transform(tets.begin(), tets.end(), indicator.begin(),
+            [&] (const Tet& tet) { return empty_interior(tet, points, num_bpoints);});
+
+  vector<uint> result;
+  for (uint i = 0; i != (uint)indicator.size(); ++i) 
+    if (!indicator[i])
+      result.push_back(i);
+
+  return result;
+  
+}
+
+// ----------------------------------------------------------------------------
+vector<uint> interior_tets(const vector<Tet>& tets, const uint num_bpoints)
+// ----------------------------------------------------------------------------
+{
+  vector<uint> result;
+  for (uint i = 0; i != (uint)tets.size(); ++i)
+    if ( (tets[i][0] >= num_bpoints) &&
+         (tets[i][1] >= num_bpoints) &&
+         (tets[i][2] >= num_bpoints) &&
+         (tets[i][3] >= num_bpoints) )
+      result.push_back(i);
+  return result;
 }

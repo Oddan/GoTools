@@ -23,4 +23,11 @@ void sample_polyhedron_energy(double xmin, double xmax, int num_x,
                               const double vdist,
                               string filename);
 
+vector<uint> identify_nondelaunay_tets(const vector<Point3D>& points,
+                                       const vector<Tet>& tets,
+                                       const uint num_bpoints);
+
+vector<uint> interior_tets(const vector<Tet>& tets, const uint num_bpoints);
+                               
+
 #endif
