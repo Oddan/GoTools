@@ -176,7 +176,7 @@ namespace Go
     // determine the knot multiplicities of minisegments starting with a given knot
     IntVec result(end_ix - start_ix, segs[0].mult);
 
-    for (size_t i = 1; (i != segs.size()) & (segs[i].ix < end_ix); ++i) // @@ can probably be optimized
+    for (size_t i = 1; (i != segs.size()) && (segs[i].ix < end_ix); ++i) // @@ can probably be optimized
       fill(result.begin() + max(0, (segs[i].ix - start_ix)), result.end(), segs[i].mult);
     return result;
   }

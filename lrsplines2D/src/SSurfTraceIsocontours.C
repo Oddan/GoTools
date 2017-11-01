@@ -129,9 +129,9 @@ pair<SISLIntcurve**, int> compute_topology(SISLSurf* ss_sisl, double isoval)
     if (spar)                         free(spar);
     if (pretop)                       free(pretop);
     if (qintdat)                      freeIntdat(qintdat);
-    if ((bool)wcurve & (jcrv > 0) & !skip_wcurves) freeIntcrvlist(wcurve, jcrv);
+    if ((bool)wcurve && (jcrv > 0) && !skip_wcurves) freeIntcrvlist(wcurve, jcrv);
     for (int i = 0; i < jsurf; ++i)   freeIntsurf(wsurf[i]);
-    if ((bool)wsurf & (jsurf > 0))          free(wsurf);
+    if ((bool)wsurf && (jsurf > 0))          free(wsurf);
   };
   
   auto cleanup_and_throw = [&freeall] (string str) {
@@ -163,8 +163,8 @@ inline void truncate_derivs_to_domain(const SplineSurface& surf, const Point& uv
 				      double& du, double& dv)
 // ----------------------------------------------------------------------------
 {
-  du = ((uv[0] > surf.startparam_u()) & (uv[0] < surf.endparam_u())) ? du : 0;
-  dv = ((uv[1] > surf.startparam_v()) & (uv[1] < surf.endparam_v())) ? dv : 0;
+  du = ((uv[0] > surf.startparam_u()) && (uv[0] < surf.endparam_u())) ? du : 0;
+  dv = ((uv[1] > surf.startparam_v()) && (uv[1] < surf.endparam_v())) ? dv : 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -640,7 +640,7 @@ PointStatus find_next_point(const SplineSurface& surf, vector<PandDer>& prev_poi
   // one point has been added.
   if (ok) 
     prev_points.emplace_back(new_pt);
-  else if (ipoints.empty() & (fabs(dt) > 2 * tol)) 
+  else if (ipoints.empty() && (fabs(dt) > 2 * tol)) 
     // no next point was ultimately added.  Unless step size limit is reached,
     // call routine again, with smaller step size.
     return find_next_point(surf, prev_points, forward, isoval, tol, fac/2);
@@ -670,13 +670,13 @@ inline bool moving_inwards(const SplineSurface& surf,
 // ----------------------------------------------------------------------------
 {
   const int sign = forwards ? 1 : -1;
-  if ((pt.first[0] <= surf.startparam_u()) & (pt.second[0] * sign < 0))
+  if ((pt.first[0] <= surf.startparam_u()) && (pt.second[0] * sign < 0))
     return false; // exiting u_min boundary
-  if ((pt.first[0] >= surf.endparam_u()) & (pt.second[0] * sign > 0))
+  if ((pt.first[0] >= surf.endparam_u()) && (pt.second[0] * sign > 0))
     return false; // exiting u_max boundary
-  if ((pt.first[1] <= surf.startparam_v()) & (pt.second[1] * sign < 0))
+  if ((pt.first[1] <= surf.startparam_v()) && (pt.second[1] * sign < 0))
     return false; // exiting v_min boundary
-  if ((pt.first[1] >= surf.endparam_v()) & (pt.second[1] * sign > 0))
+  if ((pt.first[1] >= surf.endparam_v()) && (pt.second[1] * sign > 0))
     return false; // exiting v_max boundary
 
   return true;
@@ -699,7 +699,7 @@ vector<PandDer> trace_unidir(const SplineSurface& surf, const Point& startpoint,
   
   // we are at a regular point inside the domain, keep tracing
   while ((last_point_status == REGULAR) |
-	 ((last_point_status == BOUNDARY) & (moving_inwards(surf, forward, result.back()))))
+	 ((last_point_status == BOUNDARY) && (moving_inwards(surf, forward, result.back()))))
     last_point_status = find_next_point(surf, result, forward, isoval, tol, 1);
 
   // only include the startpoint itself if we have been tracing forward

@@ -19,7 +19,8 @@ int main(int varnum, char* vararg[])
 {
   
   // Establishing test LR spline surface
-  ifstream is("data/64_lr_1d.g2");//("data/256_lr_1d.g2");
+  ifstream is("data/lrgaust_mba4.g2");//("data/64_lr_1d.g2");//("data/256_lr_1d.g2");
+  //ifstream is("data/64_lr_1d.g2");//("data/256_lr_1d.g2");
   ObjectHeader header;
   header.read(is);
   LRSplineSurface lrsurf(is);
