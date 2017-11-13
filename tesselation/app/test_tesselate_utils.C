@@ -653,8 +653,8 @@ void test_parametric_volume_tesselation()
 
 
   //const double vdist = 0.5;
-  const double vdist = 1;
-  
+  const double vdist = 1; //@@ leads to trouble with non-delaunay tets
+  // const double vdist = 0.3; @@ leads to trouble with surface triangulation
   ptvolume.tesselate(vdist);
 
   //ptvolume.writeTesselatedOutline(cout);
@@ -670,19 +670,28 @@ void test_parametric_volume_tesselation()
   for (auto p : pts)
     points_3D.push_back(Point3D {p.pos[0], p.pos[1], p.pos[2]});
   
-  vector<uint> non_del_tets = identify_nondelaunay_tets(points_3D,
-                                                        ptvolume.getTets(),
-                                                        ptvolume.numFacePoints());
-  cout << "number of non-delaunay tets: " << non_del_tets.size() << endl;
+  vector<int> non_del_tets = identify_nondelaunay_tets(points_3D,
+                                                       ptvolume.getTets(),
+                                                       ptvolume.numFacePoints());
+
+  uint count = 0;
+  for (size_t i = 0; i != non_del_tets.size(); ++i)
+    if (non_del_tets[i] >= 0)
+      ++count;
+  
+  cout << "number of non-delaunay tets: " << count << endl;
   vector<uint> int_tets = interior_tets(ptvolume.getTets(), ptvolume.numFacePoints());
-  cout << "number of interior tets: " << int_tets.size() << endl;
-  vector<uint> int_nondel_tets;
-  set_intersection(non_del_tets.begin(), non_del_tets.end(),
-                   int_tets.begin(), int_tets.end(),
-                   back_inserter(int_nondel_tets));
+  cout << "number of interior tets: " << accumulate(int_tets.begin(), int_tets.end(), 1) << endl;
+
+  vector<pair<uint, uint>> int_nondel_tets;
+  
+  for (size_t i = 0; i != non_del_tets.size(); ++i)
+    if ( (non_del_tets[i] >= 0) && (int_tets[i] == 1) )
+      int_nondel_tets.push_back( {i, non_del_tets[i]} );
   
   cout << "Non-delaunay interior tets: " << endl;
-  copy(int_nondel_tets.begin(), int_nondel_tets.end(), ostream_iterator<uint>(cout, " "));
+  for (size_t i = 0; i != int_nondel_tets.size(); ++i)
+    cout << "Tet: " << int_nondel_tets[i].first << " has point: " << int_nondel_tets[i].second << endl;
 }
 
 };

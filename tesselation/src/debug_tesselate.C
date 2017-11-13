@@ -54,7 +54,7 @@ void sample_polyhedron_energy(double xmin, double xmax, int num_x,
 }
 
 // ----------------------------------------------------------------------------
-bool empty_interior(const Tet& t, const vector<Point3D>& points, const uint num_bpoints)
+int empty_interior(const Tet& t, const vector<Point3D>& points, const uint num_bpoints)
 // ----------------------------------------------------------------------------
 {
   Point3D c; // center
@@ -65,39 +65,32 @@ bool empty_interior(const Tet& t, const vector<Point3D>& points, const uint num_
   for (uint i = num_bpoints; i != points.size(); ++i)  
     if ((i != t[0]) && (i != t[1]) && (i != t[2]) && (i != t[3]) &&
         (dist2(points[i], c) < r2))
-      return false;
-  return true;
+      return i;
+  return -1;
 }
 
 // ----------------------------------------------------------------------------
-vector<uint> identify_nondelaunay_tets(const vector<Point3D>& points,
-                                       const vector<Tet>& tets,
-                                       const uint num_bpoints)
+vector<int> identify_nondelaunay_tets(const vector<Point3D>& points,
+                                      const vector<Tet>& tets,
+                                      const uint num_bpoints)
 // ----------------------------------------------------------------------------
 {
-  vector<uint> indicator(tets.size());
-  transform(tets.begin(), tets.end(), indicator.begin(),
+  vector<int> result(tets.size());
+  transform(tets.begin(), tets.end(), result.begin(),
             [&] (const Tet& tet) { return empty_interior(tet, points, num_bpoints);});
 
-  vector<uint> result;
-  for (uint i = 0; i != (uint)indicator.size(); ++i) 
-    if (!indicator[i])
-      result.push_back(i);
-
   return result;
-  
 }
-
+  
 // ----------------------------------------------------------------------------
 vector<uint> interior_tets(const vector<Tet>& tets, const uint num_bpoints)
 // ----------------------------------------------------------------------------
 {
-  vector<uint> result;
+  vector<uint> result(tets.size());
   for (uint i = 0; i != (uint)tets.size(); ++i)
-    if ( (tets[i][0] >= num_bpoints) &&
-         (tets[i][1] >= num_bpoints) &&
-         (tets[i][2] >= num_bpoints) &&
-         (tets[i][3] >= num_bpoints) )
-      result.push_back(i);
+    result[i] = ( (tets[i][0] >= num_bpoints) &&
+                  (tets[i][1] >= num_bpoints) &&
+                  (tets[i][2] >= num_bpoints) &&
+                  (tets[i][3] >= num_bpoints) );
   return result;
 }
