@@ -60,11 +60,11 @@ namespace TesselateUtils {
   // points should be listed first in the array containing points).  It is
   // assumed that the remaining points lie within the interior of the boundary
   // shell, and that the spacing of the points (both interior and on the shell)
-  // is such that no triangle needs to have a bigger circumscribing circle than
-  // one with radius 'vdist'.  ('vdist' can be as large as you want, but runtime
-  // performance is improved by keeping 'vdist' low).  All boundary triangles
-  // should be provied with outward-facing normals, meaning that the three
-  // corners making up the triangle are provided in counterclockwise order.
+  // is such that no tet have any edge longer than 'vdist'.  ('vdist' can be as
+  // large as you want, but runtime performance is improved by keeping 'vdist'
+  // low).  All boundary triangles should be provied with outward-facing
+  // normals, meaning that the three corners making up the triangle are provided
+  // in counterclockwise order.
   std::vector<Tet> construct_tets(const Point3D* const points,
                                   const uint tot_num_points,
                                   const Triangle* btris,

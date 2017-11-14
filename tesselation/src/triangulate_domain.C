@@ -118,7 +118,7 @@ namespace {
                                                              const vector<Triangle>& btris,
                                                              uint& count);
   inline bool point_is_outside(const Point3D* const points, uint pt_ix, const Triangle& tri);
-  
+  array<Point3D, 3> modified_triangle(const array<Point3D, 3>& pts);  
 };
 
 namespace TesselateUtils {
@@ -532,6 +532,17 @@ uint best_candidate_point(const vector<uint>& cand_pts,
     // return an impossible index to signal that no candidate was found
     return (uint)cand_pts.size();
 
+  // If the triangle is an obtuse, non-delaunay triangle, the delaunay tet may
+  // be of very poor quality or degenerate.  In those case, replace the triangle
+  // with a similar, right-angled one in the search below.  This will ensure
+  // that centre of the circumscribed circle will not lie outside the triangle.
+  // @@ Add test for non-delaunay here
+  array<Point3D,3> tripoints = {points[cur_tri[0]], points[cur_tri[1]], points[cur_tri[2]]};
+  if (is_obtuse_triangle(tripoints[0], tripoints[1], tripoints[2])) {
+    cout << "Triangle " << cur_tri << " is obtuse.   Replacing it." << endl;
+    tripoints = modified_triangle(tripoints);
+  }
+    
   // searching for the candidate whose resulting tet has a minimal containing
   // sphere that does not contain any other candidate.
   Point3D center; // center of the minimal containing sphere
@@ -541,8 +552,8 @@ uint best_candidate_point(const vector<uint>& cand_pts,
   // outside the sphere could be immediately disregarded and removed from the
   // vector).  This would however introduce a bit of extra logic.
   for (const auto ix : cand_ixs) {
-    if (fitting_sphere(points[ix], points[cur_tri[0]], points[cur_tri[1]],
-                       points[cur_tri[2]], center, radius2)) {
+    if (fitting_sphere(points[ix], tripoints[0], tripoints[1],
+                       tripoints[2], center, radius2)) {
       // check whether the sphere contains any candidate point
       bool interior_point_found = false;
       for (const auto ix2 : cand_ixs)
@@ -1168,6 +1179,55 @@ bool search_and_erase_face(const Triangle& tri, vector<Triangle>& trivec)
   return false;
 }
 
+// ----------------------------------------------------------------------------
+array<Point3D, 3> modified_triangle(const array<Point3D, 3>& pts)
+// ----------------------------------------------------------------------------
+{
+  // compute a right-angled triangle to use instead of the obtuse triangle
+  // defined by 'pts' when searching for a fourth point to construct a tet
+
+  const array<Point3D, 3> v { pts[1] - pts[0], pts[2] - pts[1], pts[0] - pts[2]};
+    
+  const Point3D n = v[0] ^ v[1]; // non-normalized normal
+
+  // compute longest edge
+  const array<double, 3> l2 {norm2(v[0]), norm2(v[1]), norm2(v[2])};
+  
+  double cur_max = l2[0];
+  int ix = 0;
+  for (int i = 1; i != 3; ++i) {
+    if (l2[i] > cur_max) {
+      cur_max = l2[i];
+      ix = i;
+    }
+  }
+  // compute circle center and radius
+  const double r = sqrt(cur_max)/2; // half the diameter
+  const Point3D c = pts[ix] + 0.5 * v[ix];
+
+  // defining first and second point of modified triangle
+  array<Point3D, 3> result;
+  result[0] = pts[ix];
+  result[1] = pts[(ix+1)%3];
+  
+  // compute third point of modified triangle
+  
+  const Point3D radvec = result[1] - c;  // vector from circle center to second point
+  result[2] = radvec ^ n; // cross product
+  const double fac = r / norm(result[2]);
+  result[2] *= fac;
+
+  const Point3D rp = pts[(ix+2)%3]; // point to be removed
+  if ( ( (rp-c) * result[2]) < 0) {
+    result[2] *= -1;
+    swap(result[0], result[1]);
+  }
+  
+  result[2] += c;
+  
+  return result;
+  
+}
 // // ----------------------------------------------------------------------------
 // bool share_edge(const Triangle& t1, const Triangle t2)
 // // ----------------------------------------------------------------------------

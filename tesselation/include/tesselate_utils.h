@@ -407,6 +407,14 @@ bool circumscribe_triangle(const P& p1, const P& p2, const P& p3,
 			   P& circ_center, double& radius2);
 // ----------------------------------------------------------------------------
 
+
+// ----------------------------------------------------------------------------
+// Determine if the triangle defined by p1, p2 and p3 is obtuse
+// (largest angle > 90 degrees).
+template<typename P> inline
+bool is_obtuse_triangle(const P& p1, const P& p2, const P& p3);
+// ----------------------------------------------------------------------------
+  
 // ----------------------------------------------------------------------------
 // Compute the unique sphere that contains the four provided points on its
 // boundary.  Return false if no such sphere exist (i.e. points are planar)

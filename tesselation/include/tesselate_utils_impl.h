@@ -990,6 +990,28 @@ bool circumscribe_triangle(const P& p1, const P& p2, const P& p3,
 }
 
 // ----------------------------------------------------------------------------
+// Determine if the triangle defined by p1, p2 and p3 is obtuse
+// (largest angle > 90 degrees).
+template<typename P> inline
+bool is_obtuse_triangle(const P& p1, const P& p2, const P& p3)
+// ----------------------------------------------------------------------------
+{
+  P d1 = p1; d1 -= p2;
+  P d2 = p2; d2 -= p3;
+  P d3 = p3; d3 -= p1;
+  std::array<double, 3> l { norm2(d1), norm2(d2), norm2(d3)};
+
+  // sort l according to length
+  if (l[1] > l[0]) std::swap(l[1], l[0]);
+  if (l[2] > l[0]) std::swap(l[2], l[0]);
+  if (l[2] > l[1]) std::swap(l[2], l[1]);
+
+  return l[0] > (l[1] + l[2]);  
+  
+}
+
+
+// ----------------------------------------------------------------------------
 // Compute the unique sphere that contains the four provided points on its
 // boundary.  Return false if no such sphere exist (i.e. points are planar)
 template<typename P> inline

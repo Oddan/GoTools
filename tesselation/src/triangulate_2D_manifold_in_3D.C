@@ -81,7 +81,7 @@ std::vector<Triangle> triangulate_2D_manifold_in_3D(const Point3D* const points,
   const double L2 = bbox[3] - bbox[2];
   const double Lmin = min(L1, L2);
   const double Lmax = max(L1, L2);
-  const double new_vdist = 4 * 4 * Lmax / (max(num_ipoints, (uint)1) * sqrt(Lmin / Lmax));
+  const double new_vdist = 6 * 4 * Lmax / (max(num_ipoints, (uint)1) * sqrt(Lmin / Lmax));
       
   // const double new_vdist = num_ipoints > 0 ?
   //   (8 * 4 / sqrt(num_ipoints)) :
