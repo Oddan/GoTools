@@ -811,6 +811,13 @@ bool introduces_intersection(const Triangle& tri,
                              const double tol)
 // ----------------------------------------------------------------------------
 {
+  // Initial check: if there are no non-delaunay triangles on front, and if the
+  // base triangle is also delaunay, there should be no possible intersections,
+  // and we return directly
+  if ((!is_non_del) &&
+      find(tri_flags.begin(), tri_flags.end(), FRONT_NON_DEL) == tri_flags.end())
+    return false;
+  
   // checking each triangle for intersection against the triangles that would be
   // introduced if the point indiced by 'pt_ix' were to form a tet with the
   // already-existing triangle 'tri'.

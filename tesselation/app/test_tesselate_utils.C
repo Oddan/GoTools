@@ -653,9 +653,9 @@ void test_parametric_volume_tesselation()
 
   //const  double vdist = 2;
   //const double vdist = 1;
-  //const double vdist = 0.5;
+  const double vdist = 0.5;
   //const double vdist = 1; // @@ leads to trouble with non-delaunay tets
-  const double vdist = 0.3;// @@ leads to trouble with surface triangulation
+  //const double vdist = 0.3;// @@ leads to trouble with surface triangulation
   //const double vdist = 0.4;
   
   
