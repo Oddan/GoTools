@@ -78,6 +78,9 @@ inline std::ostream& operator<<(std::ostream& os,
 {
   // writing only 3D part (not parameters) for now
   p.pos.write(os);
+
+  // if you want to write the parameterization, uncomment the following line
+  //os << p.param[0] << " " << p.param[1] << " " << p.param[2] << '\n';
   return os;
 }
 
