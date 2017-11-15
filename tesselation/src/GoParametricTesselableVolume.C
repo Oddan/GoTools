@@ -242,8 +242,8 @@ compute_tesselation(const vector<PointType>& bpoints,
             [](const Point3D& p) {return Go::Point(p[0], p[1], p[2]);});
 
   // computing interior point parameters
-  //const vector<Point3D> par = compute_volume_parameters(ipoints_go, volume); @@@
-  const vector<Point3D> par(ipoints_go.size(), {0, 0, 0});
+  const vector<Point3D> par = compute_volume_parameters(ipoints_go, volume); 
+  //const vector<Point3D> par(ipoints_go.size(), {0, 0, 0});
   
   ipoints.resize(N);
   for (uint i = 0; i != N; ++i) 

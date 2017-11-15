@@ -196,7 +196,7 @@ Mesh3D tesselatePolyhedron3D(const Point3D* const bpoints,
   vector<Point3D> points(bpoints, bpoints + num_bpoints);
   points.insert(points.end(), ipoints.begin(), ipoints.end());
   const auto tets = construct_tets(&points[0], (uint)points.size(),
-                                   btris, num_btris, 2 * max(vdist,L));
+                                   btris, num_btris, 1.5 * max(vdist,L));
   
   cout << "Finished constructing tets" << endl;
   return{points, tets};

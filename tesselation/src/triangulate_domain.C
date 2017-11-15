@@ -61,7 +61,7 @@ namespace {
                              const double vdist,
                              vector<uint>& cand_pts,       // input-output
                              vector<uint>& all_neigh_pts,  // input-output
-                             const bool is_obtuse_non_del);
+                             const bool is_non_del);
   uint best_candidate_point(const vector<uint>& cand_pts, // nb: will be modified
 			    const Segment& seg,
 			    const Point2D* const points);
@@ -113,7 +113,7 @@ namespace {
                                const uint pt_ix,
                                const TriangleOctTree& tri_octtree,
                                const vector<TriangleStatus>& tri_flags,
-                               const bool is_obtuse_non_del,
+                               const bool is_non_del,
                                const Point3D* const points,
                                const double tol);
 
@@ -364,23 +364,39 @@ bool tet_found(const uint tri_ix,
   
   const Triangle cur_tri = tri_octtree.getTri(tri_ix);
 
-  // If the triangle is non-delaunay and obtuse, it may lead to the generation
-  // of very bad tets.  In that case, replace triangle with a similar non-obtuse
-  // one, and flag the resulting tet as non-delaunay.  Since we are creating a
-  // non-delaunay tet, the intersection check must be done against _all_
-  // sufficiently close front triangles, not only non-delaunay ones.
-  const bool is_obtuse_non_del =
-    (type == FRONT_NON_DEL) && is_obtuse_triangle(points[cur_tri[0]],
-                                                  points[cur_tri[1]],
-                                                  points[cur_tri[2]]);
-
+  // If the triangle is non-delaunay and too obtuse, it may lead to the
+  // generation of very bad tets.  In that case, we here choose triangle with a
+  // similar non-obtuse one, and flag the resulting tet as non-delaunay.  Since
+  // we are creating a non-delaunay tet, the intersection check must be done
+  // against _all_ sufficiently close front triangles, not only non-delaunay
+  // ones.  (We should not do this for slightly obtuse triangles - what we want
+  // is to eliminate the worst cases where a circle centre is located far away
+  // from the triangle corners in the triangle's plane, which may lead to
+  // near-degenerate tets).
+  bool is_obtuse_non_del = false;
+  // const array<Point3D, 3> tripts {points[cur_tri[0]], points[cur_tri[1]], points[cur_tri[2]]};
+  
+  // if ((type == FRONT_NON_DEL) && is_obtuse_triangle(tripts[0], tripts[1], tripts[2])) {
+                                                    
+  //   // check if the triangle is too obtuse.  We here use the criteron that the
+  //   // radius of the circumscribed cicle should not be larger than the longest
+  //   // edge of the triangle.
+  //   double r2;
+  //   Point3D center;
+  //   circumscribe_triangle(points[cur_tri[0]], points[cur_tri[1]], points[cur_tri[2]],
+  //                         center, r2);
+  //   is_obtuse_non_del = (r2 > 2 * norm2(tripts[1] - tripts[0]) ||
+  //                        r2 > 2 * norm2(tripts[2] - tripts[1]) ||
+  //                        r2 > 2 * norm2(tripts[0] - tripts[2]));
+  // }
+  
   // Identify all points within 'vdist' of triangle, and separate them into
   // 'candidate' and 'non-candidate' points, according to criteria analogous to
   // those mentioned in the comments to 'add_triangle'.  
   vector<uint> cand_pts, all_neigh_pts;
   find_candidate_points(cur_tri, tri_octtree, tri_flags, btris, unused_pts,
                         points, num_bpoints, vdist, cand_pts, all_neigh_pts,
-                        is_obtuse_non_del);
+                        type==FRONT_NON_DEL); 
   
   // The 'best' of the candidate points will be chosen as the fourth corner of
   // the tet.  The best point is the one with no other candidate points within
@@ -394,9 +410,9 @@ bool tet_found(const uint tri_ix,
     return false;
   }
 
-  // const bool is_del = (!is_obtuse_non_del) &&
-  //                     is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points);
-  const bool is_del = false;
+  const bool is_del = (!is_obtuse_non_del) &&
+                      is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points);
+  //const bool is_del = false;
   
   // We have defined the new tet.  Return it, and do all necessary
   // housekeeping
@@ -569,7 +585,6 @@ uint best_candidate_point(const vector<uint>& cand_pts,
   // be of very poor quality or degenerate.  In those case, replace the triangle
   // with a similar, right-angled one in the search below.  This will ensure
   // that centre of the circumscribed circle will not lie outside the triangle.
-  // @@ Add test for non-delaunay here
   array<Point3D,3> tripoints = {points[cur_tri[0]], points[cur_tri[1]], points[cur_tri[2]]};
   if (is_obtuse_non_del) {
     cout << "Triangle " << cur_tri << " is obtuse.   Replacing it." << endl;
@@ -614,7 +629,7 @@ void find_candidate_points(const Triangle& tri,
                            const double vdist,
                            vector<uint>& cand_pts,         // input-output
                            vector<uint>& all_neigh_pts,    // input-output
-                           const bool is_obtuse_non_del)
+                           const bool is_non_del)
 // ----------------------------------------------------------------------------
 {
   const double TOL = 1.0e-10 * vdist; //1.0e-6; // @@ safe/general enough?
@@ -675,7 +690,7 @@ void find_candidate_points(const Triangle& tri,
 
     if ((point_on_inside_of_face(points[i], p1, p2, p3, TOL)) &&
         (!introduces_intersection(tri, i, tri_octtree, tri_flags,
-                                  is_obtuse_non_del, points, TOL)))
+                                  is_non_del, points, TOL)))
       cand_pts[i] = 1; // point is a candidate point
   }
 }
@@ -791,7 +806,7 @@ bool introduces_intersection(const Triangle& tri,
                              const uint pt_ix,
                              const TriangleOctTree& tri_octtree,
                              const vector<TriangleStatus>& tri_flags,
-                             const bool is_obtuse_non_del,
+                             const bool is_non_del,
                              const Point3D* const points,
                              const double tol)
 // ----------------------------------------------------------------------------
@@ -819,8 +834,8 @@ bool introduces_intersection(const Triangle& tri,
          cand_it != candidates.end();
          ++flags_it, ++cand_it, ++count) {
       if ((*cand_it) && (((*flags_it) == FRONT_NON_DEL) ||
-                         ((*flags_it) == PROBLEMATIC) || 
-                         (is_obtuse_non_del && (*flags_it == FRONT_DEL)))) {
+                         ((*flags_it) == PROBLEMATIC) ||
+                         (is_non_del && (*flags_it == FRONT_DEL)))) {
         const Triangle& ft = tri_octtree.getTri(count); // triangle on existing front
         const array<Point3D, 3> tripoints {points[ft[0]], points[ft[1]], points[ft[2]]};
         if (isect_triangle_triangle_3D(&t[0], &tripoints[0], fabs(tol)) == OVERLAPPING)
@@ -1115,7 +1130,7 @@ bool is_delaunay(const Triangle& tri, const uint chosen_pt,
   radius2 *= (1+tol); // slightly increase radius to ensure points on the boundary are captured
 
   const uint N = (uint)neigh_pts.size();
-  for (uint i = 0; i != N; ++i)
+  for (uint i = 0; i != N; ++i) 
     if ((neigh_pts[i]) && // should be a neighbor point
         (i != chosen_pt) && // should not be the chosen point
         ((i!=tri[0]) && (i!=tri[1]) && (i!=tri[2])) && // should not be part of triangle
