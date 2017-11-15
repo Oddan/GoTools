@@ -348,7 +348,7 @@ vector<Point3D> compute_volume_parameters(const vector<Go::Point> pts,
                              (pspan[3] - pspan[2]),
                              (pspan[5] - pspan[4])});
   const double EPS = extent * sqrt(numeric_limits<double>::epsilon());
-  const double TOL = extent * 1e-3;
+  const double TOL = extent * 2e-3; // @@ too large?
   
   transform(pts.begin(), pts.end(), result.begin(),
             [&] (const Go::Point& p) {

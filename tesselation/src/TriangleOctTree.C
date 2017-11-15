@@ -99,6 +99,47 @@ void TriangleOctTree::addTriangle(const Triangle& t)
   reorganize_if_necessary();
 }
 
+// ============================================================================
+void TriangleOctTree::removeTris(const vector<uint>& ixs)
+// ============================================================================
+{
+  if (is_subdivided()) {
+    for (auto c : children_)
+      c->removeTris(ixs);
+  } else {
+    // removing and re-indexing
+    // @@ the following reindexing could probably be more efficiently implemented
+    vector<uint> new_indices_;
+    for (uint i = 0; i != (uint)indices_.size(); ++i) {
+      const uint cur_ix = indices_[i];
+      const auto f = find_if(ixs.begin(), ixs.end(), [cur_ix](uint u) { return u >= cur_ix;});
+
+      if (f != ixs.end() && cur_ix == *f)
+        // index is among those to be removed.  Do not insert it into the new vector
+        continue;
+
+      const uint shift = (uint)(f - ixs.begin());
+      new_indices_.push_back(cur_ix - shift);
+    }
+    indices_.swap(new_indices_);
+  }
+  if (cur_depth_ > 0)
+    return;
+  
+  // we are at top level, so we will remove the actual triangles as well
+  vector<uint> tmp(tris_->size(), 1);
+  for (auto i : ixs)
+    tmp[i] = 0;
+
+  shared_ptr<vector<Triangle>> tris_new(new vector<Triangle>());
+  for (uint i = 0; i != (uint)tris_->size(); ++i) 
+    if (tmp[i])
+      tris_new->push_back((*tris_)[i]);
+
+  tris_->swap(*tris_new);
+    
+}
+  
 // ----------------------------------------------------------------------------
 void TriangleOctTree::include_last_triangle()
 // ---------------------------`-------------------------------------------------

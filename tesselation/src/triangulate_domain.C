@@ -41,16 +41,6 @@ namespace {
 			     vector<uint>& cand_pts,         // input-output
 			     vector<uint>& all_neigh_pts);    // input-output
 
-  // void find_candidate_points(const Triangle& tri,
-  //                            const vector<Triangle>& ntris,
-  //                            const vector<Triangle>& ptris,
-  //                            const vector<Triangle>& btris,
-  //                            const vector<uint>& unused_pts,
-  //                            const Point3D* const points,
-  //                            const uint num_bpoints,
-  //                            const double vdist,
-  //       		     vector<uint>& cand_pts,         // input-output
-  //       		     vector<uint>& all_neigh_pts);    // input-output
   void find_candidate_points(const Triangle& tri,
                              const TriangleOctTree& tri_octtree,
                              const vector<TriangleStatus>& tri_flags,
@@ -104,11 +94,6 @@ namespace {
 			       const Point2D* const points,
 			       const double tol);
 
-  // bool introduces_intersection(const Triangle& tri,
-  //                              const uint pt_ix,
-  //                              const vector<Triangle>& ntris,
-  //                              const Point3D* const points,
-  //                              const double tol);
   bool introduces_intersection(const Triangle& tri,
                                const uint pt_ix,
                                const TriangleOctTree& tri_octtree,
@@ -126,7 +111,10 @@ namespace {
                                                              const vector<Triangle>& btris,
                                                              uint& count);
   inline bool point_is_outside(const Point3D* const points, uint pt_ix, const Triangle& tri);
-  array<Point3D, 3> modified_triangle(const array<Point3D, 3>& pts);  
+  array<Point3D, 3> modified_triangle(const array<Point3D, 3>& pts);
+  uint purge_unused_triangles(TriangleOctTree& tri_octtree,
+                              vector<TriangleStatus>& tri_flags);
+
 };
 
 namespace TesselateUtils {
@@ -246,7 +234,7 @@ vector<Tet> construct_tets(const Point3D* const points,
     cout << "Total number of triangles: " << tri_flags.size() << '\n';
     cout << "Non-del front triangles: " << count(tri_flags.begin(), tri_flags.end(), FRONT_NON_DEL) << '\n';
     cout << "Delaunay front triangles: " << count(tri_flags.begin(), tri_flags.end(), FRONT_DEL) << '\n';
-    cout << "Bad triangles: " << count(tri_flags.begin(), tri_flags.end(), 1) << endl;
+    cout << "Bad triangles: " << count(tri_flags.begin(), tri_flags.end(), 1) << '\n';
     
   }
 
@@ -266,70 +254,6 @@ vector<Tet> construct_tets(const Point3D* const points,
   return result;
 }
 
-// // ============================================================================
-// // The algorithm used here is a 3D generalization og the algorithm used above,
-// // and which was inspired by S.H. Lo, "Delaunay Triangulation of Non-Convex
-// // Planar Domains" (1989)
-// vector<Tet> construct_tets(const Point3D* const points,
-//                            const uint tot_num_points,
-//                            const Triangle* btris,
-//                            const uint num_btris,
-//                            const double vdist)
-// // ============================================================================
-// {
-//   // preparing vectors keeping track of 'non-delaunay' and 'delaunay' faces
-//   // (terms used as the 3D generalization of terms used for
-//   // triangulate_domain()).  At start, all boundary triangles are considered
-//   // "non-delaunay".  In addition, the vector 'ptris' keeps track of triangles
-//   // for which a tet was not possible to construct ("problematic tris").
-//   vector<Triangle> ntris(btris, btris + num_btris), dtris, ptris;
-
-//   // We use this vector to keep track of indices to nodes that are still
-//   // interior or on the working front, which in the beginning means "all nodes".
-//   vector<uint> unused_pts(tot_num_points, 1); // 1 for unused, 0 for used
-
-//   // determine how many boundary points there are 
-//   const uint num_bpoints = max_index(btris, num_btris) + 1;
-
-//   const vector<Triangle> btris_vec(btris, btris + num_btris);
-  
-//   // Establish the result vector, and gradually fill it with tets until there
-//   // are no remaining points on the workign front nor in the interior.
-//   vector<Tet> result;
-
-//   while (ntris.size() + dtris.size() > 0) {
-//     //front_sanity_check(ntris, dtris);
-//     Tet new_tet;
-//     if (tet_found(ntris, dtris, ptris, btris_vec, unused_pts, points, num_bpoints,
-//                   vdist, new_tet))
-//       result.push_back(new_tet);
-
-//     //front_sanity_check(ntris, dtris);
-    
-//     cout << "Current number of tets: " << result.size() << endl;
-//     cout << "   ntris: " << ntris.size() << endl;
-//     cout << "   dtris: " << dtris.size() << endl;
-//     cout << "   ptris: " << ptris.size() << endl;
-
-//     // const auto it1 = find(ntris.begin(), ntris.end(), Triangle {394, 392, 395});
-//     // const auto it2 = find(ntris.begin(), ntris.end(), Triangle {391, 395, 398});
-//     // if (it1 != ntris.end() && it2 != ntris.end()) {
-//     //   int krull = 1; //@@@ REMOVE!
-//     // }
-    
-//   }
-
-//   if (ptris.size() > 0) {
-//     cout << "The following ptris were detected: \n";
-//     for (const auto t : ptris)
-//       cout << t[0] << " " << t[1] << " " << t[2] << "\n";
-//     cout << endl;
-//   }
-//   // sanity check: there should be no unused nodes left by now
-//   //  assert(accumulate(unused_pts.begin(), unused_pts.end(), 0) == 0);
-
-//   return result;
-// }
   
 }; // end namespace TesselateUtils
 
@@ -412,8 +336,7 @@ bool tet_found(const uint tri_ix,
 
   const bool is_del = (!is_obtuse_non_del) &&
                       is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points);
-  //const bool is_del = false;
-  
+    
   // We have defined the new tet.  Return it, and do all necessary
   // housekeeping
   new_tet = Tet {cur_tri[1], cur_tri[0], cur_tri[2], chosen_pt};
@@ -435,10 +358,43 @@ bool tet_found(const uint tri_ix,
       for (uint c = 0; c != 3; ++c)
         unused_pts[t[c]] = 1;
     }
-        
+
+  // at periodic intervals, purge triangles that are no longer relevant
+  // (i.e. those behind the front) from our data structures, to reduce search times
+  const uint PURGE_INTERVAL = 500;
+  if (tri_flags.size() % PURGE_INTERVAL == 0) {
+    uint n = purge_unused_triangles(tri_octtree, tri_flags);
+    cout << "Purged " << n  << " unused triangles." << endl;
+    assert((uint)tri_flags.size() == tri_octtree.numTris());
+  }
+  
   return (chosen_pt < (uint)cand_pts.size());
 }
 
+// ----------------------------------------------------------------------------
+uint purge_unused_triangles(TriangleOctTree& tri_octtree,
+                            vector<TriangleStatus>& tri_flags)
+// ----------------------------------------------------------------------------
+{
+  // identify indices of triangles no longer on the front
+  vector<uint> ixs;
+  vector<TriangleStatus> tri_flags_new;
+  for (uint i = 0; i != (uint)tri_flags.size(); ++i)
+    if (tri_flags[i] == BEHIND_FRONT)
+      ixs.push_back(i);
+    else
+      tri_flags_new.push_back(tri_flags[i]);
+
+  tri_flags.swap(tri_flags_new);
+
+  // remove triangles from octtree
+  tri_octtree.removeTris(ixs);
+  
+  // return the number of triangles removed
+  return (uint)ixs.size();
+}
+
+  
 // ----------------------------------------------------------------------------
 uint search_face(const Triangle& tri, const vector<Triangle>& trivec)
 // ----------------------------------------------------------------------------
@@ -475,93 +431,6 @@ void add_face_to_front(const Triangle& tri,
   tri_flags.push_back(is_del ? FRONT_DEL : FRONT_NON_DEL); // flag it as part of the active front
   
 }
-
-// // ----------------------------------------------------------------------------
-// bool tet_found(vector<Triangle>& ntris,
-//                vector<Triangle>& dtris,
-//                vector<Triangle>& ptris,
-//                const vector<Triangle>& btris,
-//                vector<uint>& unused_pts,
-//                const Point3D* const points,
-//                const uint num_bpoints,
-//                const double vdist,
-//                Tet& new_tet)
-// // ----------------------------------------------------------------------------
-// {
-//   // Choose the next triangle to work with, aiming to deplete the non-delaunay
-//   // triangles as quickly as possible
-//   const Triangle cur_tri = (ntris.size() > 0) ? ntris.back() : dtris.back();
-//   (ntris.size() > 0) ? ntris.pop_back() : dtris.pop_back();
-
-//   // Identify all points within 'vdist' of triangle, and separate them into
-//   // 'candidate' and 'non-candidate' points, according to criteria analogous to
-//   // those mentioned in the comments to 'add_triangle'.  
-//   vector<uint> cand_pts, all_neigh_pts;
-//   find_candidate_points(cur_tri, ntris, ptris, btris, unused_pts, points,
-//                         num_bpoints, vdist, cand_pts, all_neigh_pts);
-
-  
-//   // The 'best' of the candidate points will be chosen as the fourth corner of
-//   // the tet.  The best point is the one with no other candidate points within
-//   // the circumscribing sphere of the generated tet.
-//   const uint chosen_pt = best_candidate_point(cand_pts, cur_tri, points);
-
-
-//   // check if a candidate point was really found
-//   if (chosen_pt == (uint)cand_pts.size()) {
-//     // no point found.  No way to make a tet
-//     ptris.push_back(cur_tri);
-//   } else {
-//     // We have defined the new tet.  Return it, and do all necessary
-//     // housekeeping
-//     new_tet = Tet {cur_tri[1], cur_tri[0], cur_tri[2], chosen_pt};
-
-//     // Determine whether the generated tet is a "delaunay tet" or if it contains
-//     // other points caused by nonconvexity of the working front (or if it is
-//     // semi-delaunay by having other points exactly on its circumscription
-//     // const bool is_del = (chosen_pt < num_bpoints) &&
-//     //                     (*min_element(cur_tri.begin(), cur_tri.end()) < num_bpoints) &&
-//     //                     is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points);
-//     const bool is_del = false;
-//     //const bool is_del = is_delaunay(cur_tri, chosen_pt, all_neigh_pts, points);
-    
-//     // modify working front and remaining nodes.  Make sure to add them in
-//     // _clockwise_ corner order, since we want them to be pointing outwards of the
-//     // active front.
-//     add_or_remove_face({cur_tri[0], cur_tri[1], chosen_pt}, ntris, dtris, ptris, unused_pts, is_del);
-//     add_or_remove_face({cur_tri[1], cur_tri[2], chosen_pt}, ntris, dtris, ptris, unused_pts, is_del);
-//     add_or_remove_face({cur_tri[2], cur_tri[0], chosen_pt}, ntris, dtris, ptris, unused_pts, is_del);
-
-//     // Flag this point currently as inactive.  It might be added back to the
-//     // active front further down in this function.
-//     unused_pts[chosen_pt] = 0;
-//   }
-
-//   // Update which points remain on the active front.  Set all the involved
-//   // points to inactive, and add them back in if they are identified on the front again.
-//   for (uint i = 0; i != 3; ++i) unused_pts[cur_tri[i]] = 0;
-//   for(const auto t : ntris) { for (uint i = 0; i != 3; ++i) unused_pts[t[i]] = 1; }
-//   for(const auto t : dtris) { for (uint i = 0; i != 3; ++i) unused_pts[t[i]] = 1; }
-
-//   // // @@ write current status to file
-//   // ofstream points_os("points.mat");
-//   // ofstream unused_os("unused.mat");
-//   // for (uint i = 0; i != (uint)unused_pts.size(); ++i) {
-//   //   points_os << points[i];
-//   //   unused_os << unused_pts[i] << " ";
-//   // }
-//   // points_os.close();
-//   // unused_os.close();
-//   // ofstream tris_os("triangles.mat");
-//   // for (uint i = 0; i != ntris.size(); ++i)
-//   //   tris_os << ntris[i] << '\n';
-//   // for (uint i = 0; i != dtris.size(); ++i)
-//   //   tris_os << dtris[i] << '\n';
-//   // tris_os.close();
-  
-//   return (chosen_pt < (uint)cand_pts.size());
-// }
-
 
   
 // ----------------------------------------------------------------------------
@@ -695,85 +564,6 @@ void find_candidate_points(const Triangle& tri,
   }
 }
 
-
-// // ----------------------------------------------------------------------------  
-// void find_candidate_points(const Triangle& tri,
-//                            const vector<Triangle>& ntris,
-//                            const vector<Triangle>& ptris,
-//                            const vector<Triangle>& btris,
-//                            const vector<uint>& unused_pts,
-//                            const Point3D* const points,
-//                            const uint num_bpoints,
-//                            const double vdist,
-//                            vector<uint>& cand_pts,         // input-output
-//                            vector<uint>& all_neigh_pts)    // input-output
-// // ----------------------------------------------------------------------------
-// {
-//   const double TOL = 1.0e-10 * vdist; //1.0e-6; // @@ safe/general enough?
-//   const uint N = (uint)unused_pts.size();
-//   const Point3D& p1 = points[tri[0]]; // p1, p2 and p3 references are for 
-//   const Point3D& p2 = points[tri[1]]; // convenience only
-//   const Point3D& p3 = points[tri[2]];
-  
-//   cand_pts.resize(N); fill(cand_pts.begin(), cand_pts.end(), 0);
-//   all_neigh_pts.resize(N); fill(all_neigh_pts.begin(), all_neigh_pts.end(), 0);
-  
-//   for (uint i = 0; i != N; ++i) {
-//     if ((!unused_pts[i]) || (i== tri[0]) || (i == tri[1]) || (i == tri[2])) {
-//       // this is either a non-active point or one of the triangle corners; we
-//       // need not consider those.
-//       continue;
-//     }
-
-//     if (!point_on_triangle(points[i], p1, p2, p3, vdist))
-//       // point not close enough to triangle to be considered a neighbor
-//       continue;
-
-//     all_neigh_pts[i] = 1; // all points that are close enough, regardless of other factors
-
-//     if (i < num_bpoints) {
-//       // verify that we are not expanding the outer boundary by using this point
-//       // to construct a new tet
-//       bool ok = true;
-//       for (uint j = 0; j != 3; ++j) {
-//         if ((tri[j] < num_bpoints) && (tri[(j+1)%3] < num_bpoints))  {
-//           // this is a boundary edge, and we must ensure that the new point is
-//           // either already forming a triangle with this edge, or that any new
-//           // triangle formed will be in the interior of the object.
-//           uint count = 0;
-//           auto neigh_tris = boundary_triangles_of_edge(Segment {tri[j], tri[(j+1)%3]},
-//                                                        btris, count);
-//           if (count == 0)
-//             //no problem.  This is an internal edge
-//             continue;
-
-//           if ((find(neigh_tris.first.begin(), neigh_tris.first.end(), i) != neigh_tris.first.end()) ||
-//               (find(neigh_tris.second.begin(), neigh_tris.second.end(), i) != neigh_tris.second.end())) {
-//             // No problem.  This triangle is already part of the boundary. 
-//             continue;
-//           }
-//           // A new triangle will be introduced.  Verify that it will be an
-//           // internal triangle (i.e. not expand the existing boundary)
-//           if (point_is_outside(points, i, neigh_tris.first) &&
-//               point_is_outside(points, i, neigh_tris.second)) {
-//             ok = false;
-//             break;
-//           }
-//         }
-//       }
-//       if (!ok)
-//         // this point cannot be used.
-//         continue;
-//     }
-    
-//     if ((point_on_inside_of_face(points[i], p1, p2, p3, TOL)) &&
-//         (!introduces_intersection(tri, i, ntris, points, TOL)) &&
-//         (!introduces_intersection(tri, i, ptris, points, TOL))) {
-//       cand_pts[i] = 1; // point is a candidate point
-//     }
-//   }
-// }
-
 // ----------------------------------------------------------------------------
 inline bool point_is_outside(const Point3D* const points, uint pt_ix, const Triangle& tri)
 // ----------------------------------------------------------------------------
@@ -854,53 +644,6 @@ bool introduces_intersection(const Triangle& tri,
   return false;
 }
     
-// // ----------------------------------------------------------------------------
-// bool introduces_intersection(const Triangle& tri,
-//                              const uint pt_ix,
-//                              const vector<Triangle>& ntris,
-//                              const Point3D* const points,
-//                              const double tol)
-// // ----------------------------------------------------------------------------
-// {
-//   // checking each non-delaunay triangle for intersection against the triangles
-//   // that would be introduced if the point indiced by 'pt_ix' were to form a tet
-//   // with the already-existing triangle 'tri'.
-//   array<Point3D, 3> t1 {points[tri[0]], points[tri[1]], points[pt_ix]};
-//   array<Point3D, 3> t2 {points[tri[1]], points[tri[2]], points[pt_ix]};
-//   array<Point3D, 3> t3 {points[tri[2]], points[tri[0]], points[pt_ix]};
-  
-//   for (const auto& nt : ntris)  {
-//     // if ((nt[0] == pt_ix) || (nt[1] == pt_ix) || (nt[2] == pt_ix))
-//     //   // candidate point is one of the corners of this triangle, no new
-//     //   // intersection possible
-//     //   continue;
-//     // if (nt == tri)
-//     //   // the two triangles are actually the same - no new intersection created
-//     //   continue;
-//     // else if (share_edge(nt, tri))
-//     //   // the two triangles share an edge - this is not considered an interesction
-//     //   continue;
-//     array<Point3D, 3> tripoints {points[nt[0]], points[nt[1]], points[nt[2]]};
-//     if ( (isect_triangle_triangle_3D(&t1[0], &tripoints[0], fabs(tol)) == OVERLAPPING) ||
-//          (isect_triangle_triangle_3D(&t2[0], &tripoints[0], fabs(tol)) == OVERLAPPING) ||
-//          (isect_triangle_triangle_3D(&t3[0], &tripoints[0], fabs(tol)) == OVERLAPPING))
-//       return true;
-         
-    
-//     // if (triangles_intersect_3D(points[tri[0]], points[tri[1]], points[pt_ix],
-//     //                                 points[nt[0]], points[nt[1]], points[nt[2]], -tol) ||
-//     //          triangles_intersect_3D(points[tri[1]], points[tri[2]], points[pt_ix],
-//     //                                 points[nt[0]], points[nt[1]], points[nt[2]], -tol) ||
-//     //          triangles_intersect_3D(points[tri[2]], points[tri[0]], points[pt_ix],
-//     //                                 points[nt[0]], points[nt[1]], points[nt[2]], -tol))
-//     //   // negative tolerance used here to ensure that a mere touch of triangle
-//     //   // corners does not qualify as an intersection.  So if we get here, the
-//     //   // intersection should be of finite length.
-//     //  return true;
-//   }
-//   return false;
-// }
-  
 // ----------------------------------------------------------------------------
 Triangle add_triangle(vector<Segment>& nsegs,   
 		      vector<Segment>& dsegs,   
@@ -957,20 +700,6 @@ Triangle add_triangle(vector<Segment>& nsegs,
       unused_pts[e[0]] = unused_pts[e[1]] = true;
   }
   
-  // if (removed1 && removed2) {
-  //   // both segments already existed.  The triangle just filled in a triangular
-  //   // hole in the mesh.  This means the chosen point may no longer be on the
-  //   // working front, in which case we should remove it as well.
-  //   bool found = false;  // check if point is still found on working front
-  //   for (auto e : nsegs) 
-  //     if ((e[0] == chosen_pt) || (e[1] == chosen_pt))
-  //       found = true;
-  //   for (auto e : dsegs) 
-  //     if ((e[0] == chosen_pt) || (e[1] == chosen_pt))
-  //       found = true;
-  //   if (!found)
-  //     unused_pts[chosen_pt] = 0; 
-  // }
   return Triangle {cur_seg[0], cur_seg[1], chosen_pt};
 }
 
@@ -1126,8 +855,6 @@ bool is_delaunay(const Triangle& tri, const uint chosen_pt,
                  const vector<uint>& neigh_pts, const Point3D* const points)
 // ----------------------------------------------------------------------------
 {
-  //if (tri[0] < 83 || tri[1] < 83 || tri[2] < 83 || chosen_pt < 83)
-  //return false; ///@@@@@@
 
   Point3D center;
   double radius2;
@@ -1146,7 +873,6 @@ bool is_delaunay(const Triangle& tri, const uint chosen_pt,
 
   return true;
 }
-
   
 // ----------------------------------------------------------------------------  
 bool add_or_remove_segment(const Segment& seg,
@@ -1292,19 +1018,6 @@ array<Point3D, 3> modified_triangle(const array<Point3D, 3>& pts)
   return result;
   
 }
-// // ----------------------------------------------------------------------------
-// bool share_edge(const Triangle& t1, const Triangle t2)
-// // ----------------------------------------------------------------------------
-// {
-//   // if the triangles have two corners in common, they share an edge
-//   uint count = 0;
-//   for (uint i = 0; i != 3; ++i) 
-//     for (uint j = 0; j != 3; ++j)  
-//       if (t1[i] == t2[j])
-//         if (++count == 2)
-//           return true;
-//   return false;
-// }
   
 }; // end anonymous namespace
 

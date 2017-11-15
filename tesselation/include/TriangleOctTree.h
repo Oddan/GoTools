@@ -28,6 +28,12 @@ public:
   // get specific triangle
   const Triangle& getTri(uint ix) const {return (*tris_)[ix];}
 
+  // remove a set of triangles from the data structure.  The indices in 'ixs'
+  // should be sorted from smallest to largest
+  void removeTris(const std::vector<uint>& ixs);
+
+  const uint numTris() const { return (uint)tris_->size();}
+
   // Get a list of indices to possible triangles that may intersect triangle
   // 't'.  The result is returned in 'candidate_ixs'.  Its length is equal to
   // the total number of triangles, and entries are 0 or 1, depending of whether
